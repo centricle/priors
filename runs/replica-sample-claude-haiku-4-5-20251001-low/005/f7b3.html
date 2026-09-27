@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle Display</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    svg {
+      width: 100%;
+      max-width: 400px;
+      height: auto;
+      aspect-ratio: 1;
+      filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2));
+    }
+    circle {
+      fill: #ffffff;
+      transition: fill 0.3s ease;
+    }
+    circle:hover {
+      fill: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-label="Decorative circle">
+    <circle cx="200" cy="200" r="200" stroke="rgba(255, 255, 255, 0.3)" stroke-width="2"/>
+  </svg>
+</body>
+</html>

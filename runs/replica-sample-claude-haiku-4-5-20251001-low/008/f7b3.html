@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animated Circle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    svg {
+      width: 400px;
+      height: 400px;
+      filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
+    }
+    circle {
+      fill: #ffffff;
+      opacity: 0.9;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% {
+        r: 200px;
+        opacity: 0.9;
+      }
+      50% {
+        r: 210px;
+        opacity: 0.7;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" aria-label="Animated circle">
+    <circle cx="200" cy="200" r="200"/>
+  </svg>
+</body>
+</html>
