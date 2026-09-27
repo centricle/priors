@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Circle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    svg {
+      width: 400px;
+      height: 400px;
+      filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
+    }
+
+    circle {
+      fill: #00d4ff;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    circle:hover {
+      fill: #00ff88;
+      filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.6));
+    }
+
+    h1 {
+      color: white;
+      font-size: 28px;
+      text-align: center;
+    }
+
+    p {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 14px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Interactive Circle</h1>
+    <svg id="circle-svg" viewBox="0 0 400 400">
+      <circle cx="200" cy="200" r="200"/>
+    </svg>
+    <p>Hover to interact ✨</p>
+  </div>
+
+  <script>
+    const circle = document.querySelector('circle');
+
+    circle.addEventListener('click', () => {
+      const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+      circle.style.fill = randomColor;
+    });
+  </script>
+</body>
+</html>

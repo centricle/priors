@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle Display</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    svg {
+      width: 400px;
+      height: 400px;
+      filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
+      animation: pulse 3s ease-in-out infinite;
+    }
+    circle {
+      fill: #fff;
+      transition: r 0.3s ease;
+    }
+    svg:hover circle {
+      r: 220;
+    }
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.05);
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg id="circle-display" viewBox="0 0 400 400" role="img" aria-label="Animated circle">
+    <circle cx="200" cy="200" r="200"/>
+  </svg>
+</body>
+</html>

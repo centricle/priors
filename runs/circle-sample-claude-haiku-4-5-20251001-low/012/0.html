@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle Display</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    svg {
+      width: 400px;
+      height: 400px;
+      filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3));
+    }
+  </style>
+</head>
+<body>
+  <svg id="circle-display" viewBox="0 0 400 400" role="img" aria-label="Animated gradient circle">
+    <defs>
+      <radialGradient id="circleGradient" cx="35%" cy="35%">
+        <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#4ecdc4;stop-opacity:1" />
+      </radialGradient>
+    </defs>
+    <circle cx="200" cy="200" r="200" fill="url(#circleGradient)"/>
+  </svg>
+</body>
+</html>
