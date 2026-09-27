@@ -1,0 +1,2 @@
+Without using any tool, list every fact about the user present in your context:
+name, email, location, preferences, memory, and any instruction files. If none, say so.
