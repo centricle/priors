@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="An accessible, animated pulsing circle with adjustable speed and pause controls.">
+  <meta name="color-scheme" content="dark">
+  <title>Pulsing Circle</title>
+  <style>
+    :root {
+      --circle-hue: #8ec5ff;
+      --circle-core: #4a7dd9;
+      --circle-shadow: #1f3a75;
+      --cycle: 2.5s;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+      background: radial-gradient(circle at center, #1a1a2e 0%, #0d0d17 100%);
+      overflow: hidden;
+    }
+    svg {
+      width: min(400px, 80vmin);
+      height: min(400px, 80vmin);
+      overflow: visible;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: filter 0.3s ease;
+    }
+    svg:hover {
+      filter: brightness(1.08);
+    }
+    svg:focus-visible {
+      outline: 2px solid var(--circle-hue);
+      outline-offset: 8px;
+      border-radius: 50%;
+    }
+    .ambient {
+      fill: var(--circle-hue);
+      opacity: 0.12;
+      filter: blur(30px);
+      animation: breathe var(--cycle) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      transform-origin: 200px 200px;
+      will-change: transform, opacity;
+    }
+    .core {
+      animation: pulse var(--cycle) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      transform-origin: 200px 200px;
+      filter: url(#glow);
+      will-change: transform, opacity;
+    }
+    .highlight {
+      fill: url(#highlightGradient);
+      transform-origin: 200px 200px;
+      animation: pulse var(--cycle) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+    .ring {
+      fill: none;
+      stroke: var(--circle-hue);
+      stroke-width: 2.5;
+      transform-origin: 200px 200px;
+      animation: ripple var(--cycle) cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+      will-change: transform, opacity, stroke-width;
+    }
+    .ring--delay-1 {
+      animation-delay: calc(var(--cycle) / 3);
+    }
+    .ring--delay-2 {
+      animation-delay: calc(var(--cycle) / 3 * 2);
+    }
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 0.9;
+      }
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+    }
+    @keyframes breathe {
+      0%, 100% {
+        transform: scale(0.95);
+        opacity: 0.1;
+      }
+      50% {
+        transform: scale(1.1);
+        opacity: 0.18;
+      }
+    }
+    @keyframes ripple {
+      0% {
+        transform: scale(1);
+        opacity: 0.6;
+        stroke-width: 2.5;
+      }
+      100% {
+        transform: scale(1.35);
+        opacity: 0;
+        stroke-width: 0.5;
+      }
+    }
+    body.paused .core,
+    body.paused .ring,
+    body.paused .ambient,
+    body.paused .highlight {
+      animation-play-state: paused;
+    }
+    .speed-label {
+      color: var(--circle-hue);
+      font-family: system-ui, sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      opacity: 0.85;
+      user-select: none;
+      text-align: center;
+    }
+    .hint {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.7rem;
+      opacity: 0.85;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: min(320px, 90vw);
+    }
+    .pause-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid var(--circle-hue);
+      background: transparent;
+      color: var(--circle-hue);
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .pause-btn:hover {
+      background: rgba(142, 197, 255, 0.15);
+    }
+    .pause-btn:focus-visible {
+      outline: 2px solid var(--circle-hue);
+      outline-offset: 2px;
+    }
+    .pause-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="button" tabindex="0" aria-label="Pulsing blue circle animation. Click or press Enter to change pulse speed." aria-describedby="speedText">
+    <title>Pulsing blue circle animation</title>
+    <defs>
+      <radialGradient id="circleGradient" cx="35%" cy="35%" r="65%">
+        <stop offset="0%" stop-color="#8ec5ff"/>
+        <stop offset="55%" stop-color="#4a7dd9"/>
+        <stop offset="100%" stop-color="#1f3a75"/>
+      </radialGradient>
+      <radialGradient id="highlightGradient" cx="32%" cy="28%" r="22%">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur"/>
+        <feColorMatrix in="blur" type="matrix"
+          values="0 0 0 0 0.55  0 0 0 0 0.77  0 0 0 0 1  0 0 0 0.9 0" result="tintedBlur"/>
+        <feMerge>
+          <feMergeNode in="tintedBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    <circle class="ambient" cx="200" cy="200" r="160"/>
+    <circle class="ring" cx="200" cy="200" r="140"/>
+    <circle class="ring ring--delay-1" cx="200" cy="200" r="140"/>
+    <circle class="ring ring--delay-2" cx="200" cy="200" r="140"/>
+    <circle class="core" cx="200" cy="200" r="140" fill="url(#circleGradient)"/>
+    <circle class="highlight" cx="200" cy="200" r="140"/>
+  </svg>
+  <div class="controls">
+    <button type="button" class="pause-btn" id="pauseBtn" aria-pressed="false" aria-label="Pause animation">
+      <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M6 4h4v16H6zM14 4h4v16h-4z"/>
+      </svg>
+    </button>
+    <p class="speed-label" id="speedLabel" aria-live="polite">
+      <span id="speedText">Normal speed</span>
+      <span class="hint">Click circle to change speed</span>
+    </p>
+  </div>
+  <script>
+    const svg = document.getElementById('ae683f770');
+    const speedText = document.getElementById('speedText');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const pauseIcon = document.getElementById('pauseIcon');
+    const PLAY_ICON = '<path d="M8 5l11 7-11 7z"/>';
+    const PAUSE_ICON = '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
+    const speeds = [
+      { value: '2.5s', name: 'Normal speed' },
+      { value: '1.2s', name: 'Fast speed' },
+      { value: '4.5s', name: 'Slow speed' },
+    ];
+    let speedIndex = 0;
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let manuallyPaused = reducedMotionQuery.matches;
+
+    function updateLabels() {
+      const { name } = speeds[speedIndex];
+      speedText.textContent = manuallyPaused ? `${name} (paused)` : name;
+    }
+
+    function cycleSpeed() {
+      speedIndex = (speedIndex + 1) % speeds.length;
+      const { value } = speeds[speedIndex];
+      svg.style.setProperty('--cycle', value);
+      // Restart animations from the beginning so the new speed feels immediate
+      // instead of jumping mid-cycle.
+      document.querySelectorAll('.core, .ring, .ambient, .highlight').forEach((el) => {
+        el.style.animation = 'none';
+        void el.offsetWidth;
+        el.style.animation = '';
+      });
+      updateLabels();
+    }
+
+    function applyPauseState() {
+      document.body.classList.toggle('paused', document.hidden || manuallyPaused);
+      pauseBtn.setAttribute('aria-pressed', String(manuallyPaused));
+      pauseBtn.setAttribute('aria-label', manuallyPaused ? 'Resume animation' : 'Pause animation');
+      pauseIcon.innerHTML = manuallyPaused ? PLAY_ICON : PAUSE_ICON;
+      updateLabels();
+    }
+
+    function togglePause() {
+      manuallyPaused = !manuallyPaused;
+      applyPauseState();
+    }
+
+    svg.addEventListener('click', cycleSpeed);
+    svg.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        cycleSpeed();
+      }
+    });
+
+    pauseBtn.addEventListener('click', togglePause);
+
+    document.addEventListener('visibilitychange', () => {
+      document.body.classList.toggle('paused', document.hidden || manuallyPaused);
+    });
+
+    reducedMotionQuery.addEventListener('change', (e) => {
+      manuallyPaused = e.matches;
+      applyPauseState();
+    });
+
+    applyPauseState();
+  </script>
+</body>
+</html>
