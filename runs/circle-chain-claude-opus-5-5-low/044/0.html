@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Black circle</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      background: #fff;
+    }
+    svg {
+      display: block;
+      width: min(400px, 90vmin);
+      height: auto;
+      overflow: visible;
+    }
+    @media (forced-colors: active) {
+      circle { fill: CanvasText; }
+    }
+  </style>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2 2'%3E%3Ccircle cx='1' cy='1' r='1'/%3E%3C/svg%3E">
+</head>
+<body>
+  <main>
+    <svg width="400" height="400" viewBox="0 0 400 400" role="img" aria-labelledby="circle-title">
+      <title id="circle-title">Black circle</title>
+      <circle cx="200" cy="200" r="200" fill="#000"/>
+    </svg>
+  </main>
+</body>
+</html>
