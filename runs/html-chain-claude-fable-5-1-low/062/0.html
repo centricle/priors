@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>0</title>
+<link rel="icon" href="data:,">
+<style>
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+  body {
+    max-inline-size: 40rem;
+    margin-block: 0;
+    margin-inline: auto;
+    padding:
+      max(1.5rem, env(safe-area-inset-top))
+      max(1.5rem, env(safe-area-inset-right))
+      max(1.5rem, env(safe-area-inset-bottom))
+      max(1.5rem, env(safe-area-inset-left));
+    font: 100%/1.5 system-ui, sans-serif;
+    overflow-wrap: break-word;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    margin-block: 0 1rem;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  h1 {
+    font-size: clamp(2rem, 1.5rem + 2.5vi, 3rem);
+  }
+  h5, h6 {
+    font-size: 1rem;
+  }
+  hgroup {
+    margin-block-end: 1rem;
+  }
+  :is(h1, h2, h3, h4, h5, h6, hgroup):where(:not(:first-child)) {
+    margin-block-start: 2rem;
+  }
+  :is(article, aside, nav, section):where(:not(:first-child)) > :is(h1, h2, h3, h4, h5, h6, hgroup, header):first-child {
+    margin-block-start: 2rem;
+  }
+  :is(h1, h2, h3, h4, h5, h6, hgroup) + :is(h1, h2, h3, h4, h5, h6, hgroup) {
+    margin-block-start: 0;
+  }
+  :is(h1, h2, h3, h4, h5, h6, hgroup) + :is(article, aside, nav, section) > :is(h1, h2, h3, h4, h5, h6, hgroup, header):first-child {
+    margin-block-start: 0;
+  }
+  hgroup > :is(h1, h2, h3, h4, h5, h6, p) {
+    margin-block: 0;
+  }
+  p, ul, ol, menu, dl, blockquote, pre, table, figure, details, address, fieldset, form, search, header {
+    margin-block: 0 1rem;
+  }
+  body > header {
+    margin-block-end: 2rem;
+  }
+  body > footer {
+    margin-block-start: 2rem;
+  }
+  hr {
+    margin-block: 2rem;
+    border: 0;
+    border-block-start: 1px solid;
+    color: inherit;
+  }
+  a {
+    text-underline-offset: 0.15em;
+  }
+  abbr[title] {
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+  }
+  p, li, dt, dd, blockquote, figcaption, caption {
+    text-wrap: pretty;
+  }
+  figure {
+    margin-inline: 0;
+  }
+  figure > :has(+ figcaption) {
+    margin-block-end: 0;
+  }
+  figcaption {
+    margin-block-start: 0.5rem;
+  }
+  figcaption:first-child {
+    margin-block: 0 0.5rem;
+  }
+  blockquote {
+    margin-inline: 0;
+    padding-inline-start: 1rem;
+    border-inline-start: 0.25rem solid;
+  }
+  dt {
+    font-weight: bold;
+  }
+  ul, ol, menu {
+    padding-inline-start: 1.5rem;
+  }
+  dd {
+    margin-inline-start: 1.5rem;
+  }
+  dd + dt, dl > div + div {
+    margin-block-start: 0.5rem;
+  }
+  li > ul, li > ol, li > menu {
+    margin-block-end: 0;
+  }
+  li:has(> p) + li, li + li:has(> p) {
+    margin-block-start: 1rem;
+  }
+  pre, code, kbd, samp {
+    font-family: ui-monospace, monospace;
+    font-size: 1em;
+  }
+  pre {
+    overflow-x: auto;
+    tab-size: 2;
+  }
+  sub, sup {
+    line-height: 0;
+  }
+  button, input, select, optgroup, textarea, ::file-selector-button {
+    font: inherit;
+    letter-spacing: inherit;
+    word-spacing: inherit;
+    box-sizing: border-box;
+  }
+  fieldset {
+    min-inline-size: 0;
+    margin-inline: 0;
+  }
+  textarea {
+    resize: vertical;
+    resize: block;
+  }
+  table {
+    display: block;
+    max-inline-size: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    padding: 0.25rem 0.5rem;
+    border-block-end: 1px solid;
+    text-align: start;
+    vertical-align: top;
+  }
+  thead th {
+    vertical-align: bottom;
+  }
+  caption {
+    padding: 0.25rem 0.5rem;
+    text-align: start;
+  }
+  summary {
+    cursor: pointer;
+  }
+  summary > :is(h1, h2, h3, h4, h5, h6) {
+    display: inline;
+  }
+  :focus-visible {
+    outline: 2px solid;
+    outline-offset: 2px;
+  }
+  :target {
+    scroll-margin-block-start: max(1.5rem, env(safe-area-inset-top));
+  }
+  :is(body, main, header, footer, blockquote, figure, li, dd, td, th, fieldset, details, dialog, [popover]) > :last-child:where(:not(dialog, [popover], input)) {
+    margin-block-end: 0;
+  }
+  :last-child:where(:not(dialog, [popover], input, :not(:last-child) *)) {
+    margin-block-end: 0;
+  }
+  iframe {
+    border: 0;
+  }
+  img, svg, video, canvas, audio, iframe, embed, object, button, input, select, textarea, progress, meter {
+    max-inline-size: 100%;
+  }
+  img, svg, video, canvas {
+    vertical-align: middle;
+  }
+  img, svg[viewBox], video, canvas {
+    block-size: auto;
+  }
+  [hidden]:not([hidden="until-found" i]) {
+    display: none !important;
+  }
+  details[open] > summary:not(:last-child) {
+    margin-block-end: 0.5rem;
+  }
+  @media print {
+    body {
+      max-inline-size: none;
+      padding: 0;
+    }
+    h1, h2, h3, h4, h5, h6, hgroup {
+      break-after: avoid;
+      break-inside: avoid;
+    }
+    p, li, dd, blockquote {
+      orphans: 3;
+      widows: 3;
+    }
+    a[href^="http"]::after {
+      content: " (" attr(href) ")";
+      font-size: 0.875em;
+    }
+    abbr[title]::after {
+      content: " (" attr(title) ")";
+    }
+    pre {
+      overflow: visible;
+      white-space: pre-wrap;
+    }
+    details::details-content {
+      content-visibility: visible;
+    }
+    summary {
+      margin-block-end: 0.5rem;
+    }
+    table {
+      display: table;
+      overflow: visible;
+    }
+    img, svg, video, canvas, figure, blockquote, tr, fieldset {
+      break-inside: avoid;
+    }
+  }
+</style>
+<main>
+  <h1>0</h1>
+</main>
