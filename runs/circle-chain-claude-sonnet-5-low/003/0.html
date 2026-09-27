@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulsing Circle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at center, #1a1a2e 0%, #0d0d17 100%);
+      overflow: hidden;
+    }
+    svg {
+      width: min(400px, 80vmin);
+      height: min(400px, 80vmin);
+      overflow: visible;
+    }
+    .core {
+      animation: pulse 2.5s ease-in-out infinite;
+      transform-origin: 200px 200px;
+      filter: url(#glow);
+    }
+    .ring {
+      fill: none;
+      stroke: #8ec5ff;
+      stroke-width: 2;
+      transform-origin: 200px 200px;
+      animation: ripple 2.5s ease-out infinite;
+    }
+    .ring--delay-1 {
+      animation-delay: 0.83s;
+    }
+    .ring--delay-2 {
+      animation-delay: 1.66s;
+    }
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 0.9;
+      }
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+    }
+    @keyframes ripple {
+      0% {
+        transform: scale(1);
+        opacity: 0.6;
+      }
+      100% {
+        transform: scale(1.35);
+        opacity: 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .core, .ring {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-label="Pulsing blue circle animation">
+    <defs>
+      <radialGradient id="circleGradient" cx="35%" cy="35%" r="65%">
+        <stop offset="0%" stop-color="#8ec5ff"/>
+        <stop offset="55%" stop-color="#4a7dd9"/>
+        <stop offset="100%" stop-color="#1f3a75"/>
+      </radialGradient>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+        <feMerge>
+          <feMergeNode in="blur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    <circle class="ring" cx="200" cy="200" r="180"/>
+    <circle class="ring ring--delay-1" cx="200" cy="200" r="180"/>
+    <circle class="ring ring--delay-2" cx="200" cy="200" r="180"/>
+    <circle class="core" cx="200" cy="200" r="180" fill="url(#circleGradient)"/>
+  </svg>
+</body>
+</html>
