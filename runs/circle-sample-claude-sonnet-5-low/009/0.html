@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #f4f4f6;
+    }
+    svg {
+      width: min(400px, 80vw);
+      height: min(400px, 80vw);
+    }
+    circle {
+      fill: #4f8cff;
+      transition: fill 0.2s ease, transform 0.2s ease;
+      transform-origin: center;
+    }
+    circle:hover {
+      fill: #2f6fe0;
+      transform: scale(1.03);
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-label="Blue circle">
+    <circle cx="200" cy="200" r="196"/>
+  </svg>
+</body>
+</html>
