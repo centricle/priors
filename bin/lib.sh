@@ -17,9 +17,10 @@ EFFORT=low
 HAIKU=claude-haiku-4-5-20251001
 ROOM_TOOLS='["Bash","Edit","Read","Write"]'
 ATTRIBUTION='{"attribution":{"commit":"","pr":""}}'
-EXIT_HALT=3 EXIT_STOP=4
+EXIT_HALT=3 EXIT_STOP=4 EXIT_CAPPED=5
 
-mkdir -p "$STATE/locks" "$STATE/debris" "$STATE/halted" "$STATE/work" "$STATE/pgids"
+mkdir -p "$STATE/locks" "$STATE/debris" "$STATE/halted" "$STATE/work" "$STATE/pgids" \
+  "$STATE/quota" "$STATE/capped"
 
 # ------------------------------------------------------------------ basics
 
@@ -99,16 +100,36 @@ task_room() { printf '%s/%s' "$ROOM_ROOT" "$(tr -d '[:space:]' < "$REPO/tasks/$1
 
 # ------------------------------------------------------------------- brake
 
-# Called after every trial with its stream-json: the last rate_limit_event
-# becomes .state/quota.json.
+# quota_update <stream-json> [model]: called after every trial. The last
+# rate_limit_event becomes .state/quota.json, and with a model also
+# .state/quota/<model>.json. The second exists because some windows belong to
+# one model: Fable's events carry seven_day_overage_included, which no other
+# model's event does, so the shared file loses it whenever another model's
+# trial ends last. The five-hour and seven-day windows are the account's and
+# ride on every event, so the shared file stays right for those.
 quota_update() {
   local info
   info=$(jl "$1" | jq -c '[.[] | select(.type == "rate_limit_event") | .rate_limit_info] | last // empty')
   [ -n "$info" ] || return 0
+  info=$(printf '%s' "$info" | jq -c --argjson at "$(now)" '. + {at: $at}')
   lock quota
-  printf '%s' "$info" | jq -c --argjson at "$(now)" '. + {at: $at}' > "$STATE/quota.json.tmp" &&
-    mv "$STATE/quota.json.tmp" "$STATE/quota.json"
+  printf '%s\n' "$info" > "$STATE/quota.json.tmp" && mv "$STATE/quota.json.tmp" "$STATE/quota.json"
+  if [ -n "${2:-}" ]; then
+    printf '%s\n' "$info" > "$STATE/quota/$2.json.tmp" && mv "$STATE/quota/$2.json.tmp" "$STATE/quota/$2.json"
+  fi
   unlock quota
+}
+
+# model_cap <model> <ceiling>: the first window of this model's own (any but
+# five_hour and seven_day) that has not reset and is at the ceiling, as
+# "name utilization resetsAt", or nothing.
+model_cap() {
+  [ -f "$STATE/quota/$1.json" ] || return 0
+  jq -r --argjson now "$(now)" --argjson c "$2" '
+    .unifiedWindows // {} | to_entries[]
+    | select(.key != "five_hour" and .key != "seven_day")
+    | select((.value.resetsAt // 0) > $now and (.value.utilization // 0) * 100 >= $c)
+    | "\(.key) \(.value.utilization) \(.value.resetsAt)"' "$STATE/quota/$1.json" 2>/dev/null | head -1
 }
 
 # One number from quota.json, or nothing when absent or when that window has
@@ -131,10 +152,14 @@ request_stop() {
 }
 stop_requested() { [ -f "$STATE/STOP" ]; }
 
-# Before every trial. Returns 0 to go on, 1 when the campaign is stopping.
-# Sleeps through a five-hour limit that resets before --until.
+# brake [model]: before every trial. Returns 0 to go on, 1 when the campaign
+# is stopping, 2 when this model is at the ceiling on a window of its own
+# (BRAKE_CAP says which). A model cap stops only that model: the account
+# still has room, so the other models carry on. Sleeps through a five-hour
+# limit that resets before --until.
 brake() {
   local u r t ceiling=${PRIORS_CEILING:-95} until=${PRIORS_UNTIL:-never}
+  BRAKE_CAP=
   while :; do
     stop_requested && return 1
     t=$(now)
@@ -144,6 +169,10 @@ brake() {
     u=$(quota_get seven_day utilization)
     if [ -n "$u" ] && perl -e 'exit !($ARGV[0] * 100 >= $ARGV[1])' "$u" "$ceiling"; then
       request_stop "seven-day quota at $u, ceiling $ceiling%"; return 1
+    fi
+    if [ -n "${1:-}" ]; then
+      BRAKE_CAP=$(model_cap "$1" "$ceiling")
+      [ -z "$BRAKE_CAP" ] || return 2
     fi
     u=$(quota_get five_hour utilization)
     if [ -n "$u" ] && perl -e 'exit !($ARGV[0] >= 0.95)' "$u"; then

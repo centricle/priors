@@ -10,6 +10,10 @@
 # A mode may be prefixed "first-N:" to apply only to the first N calls
 # counted in STUB_COUNTER, e.g. first-1:exit142. STUB_PLANT is the text
 # `plant` writes; STUB_SLEEP is how long `slow` sleeps.
+#
+# STUB_MODEL_WINDOW="<model>:<utilization>" adds a window of that model's
+# own, the way Fable's events carry seven_day_overage_included, to calls
+# for that model only.
 
 set -u
 [ -n "${CLAUDE_CONFIG_DIR:-}" ] || { echo "stub-claude: CLAUDE_CONFIG_DIR must be set" >&2; exit 2; }
@@ -78,9 +82,13 @@ jq -n -c --arg cwd "$cwd" --arg model "$model" --arg sid "$sid" '
    mcp_servers: [], model: $model, claude_code_version: "2.1.283"},
   {type: "assistant", message: {model: $model, content: [{type: "thinking", thinking: "hm"}]}},
   {type: "assistant", message: {model: $model, content: [{type: "text", text: "Done."}]}}'
-jq -n -c --argjson t "$t" --argjson seven "$seven" '
-  {type: "rate_limit_event", rate_limit_info: {status: "allowed", unifiedWindows: {
-    five_hour: {utilization: 0.10, resetsAt: ($t + 3600)}, seven_day: {utilization: $seven, resetsAt: ($t + 86400)}}}}'
+own=null
+mw=${STUB_MODEL_WINDOW:-}
+[ "${mw%:*}" != "$model" ] || own=${mw##*:}
+jq -n -c --argjson t "$t" --argjson seven "$seven" --argjson own "$own" '
+  {type: "rate_limit_event", rate_limit_info: {status: "allowed", unifiedWindows: ({
+    five_hour: {utilization: 0.10, resetsAt: ($t + 3600)}, seven_day: {utilization: $seven, resetsAt: ($t + 86400)}}
+    + (if $own == null then {} else {seven_day_overage_included: {utilization: $own, resetsAt: ($t + 86400)}} end))}}'
 
 case $mode in
   noresult) exit 1 ;;

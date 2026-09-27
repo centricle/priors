@@ -5,7 +5,9 @@
 # (probe.sh row R), asserted, which becomes the Haiku golden record. Skipped
 # when that golden already exists for this CLI. Stage 2: one worker per task
 # group, --jobs at a time, each running its group's runs in order with
-# run.sh. Every worker brakes on the quota before every trial.
+# run.sh. Every worker brakes on the quota before every trial: the account's
+# seven-day window stops the campaign, a model's own window (Fable has one)
+# skips that model's runs and the worker moves on.
 #
 # Rerunning the same command resumes: finished runs are skipped, a partial
 # sample continues at its next trial, a chain at its next step.
@@ -138,7 +140,7 @@ if [ -f "$STATE/STOP" ]; then
   log "clearing the last stop: $(cat "$STATE/STOP")"
   rm -f "$STATE/STOP"
 fi
-rm -f "$STATE"/pgids/*
+rm -f "$STATE"/pgids/* "$STATE"/capped/*
 build_gate
 log "launch: CLI $claude_bin sha256 $PRIORS_CLAUDE_SHA, jobs $jobs_n, ceiling $ceiling%"
 
@@ -237,7 +239,7 @@ worker() {
     "$REPO/bin/run.sh" "$run"
     rc=$?
     case $rc in
-      0|"$EXIT_HALT") ;;
+      0|"$EXIT_HALT"|"$EXIT_CAPPED") ;;
       "$EXIT_STOP") break ;;
       *) log "$run exited $rc; moving on" ;;
     esac
@@ -266,9 +268,11 @@ done
 
 counted=$(cat "$REPO"/runs/*/trials.jsonl 2>/dev/null | jq -s '[.[] | select(.counted == true)] | length')
 halted=$(ls "$STATE/halted" 2>/dev/null | tr '\n' ' ')
+capped=$(ls "$STATE/capped" 2>/dev/null | tr '\n' ' ')
 if stop_requested; then
   notify "campaign stopped: $(cut -d' ' -f2- "$STATE/STOP"). $counted trials counted. Relaunch to continue."
 else
-  notify "campaign finished the queue. $counted trials counted.${halted:+ Halted: $halted}"
+  notify "campaign finished the queue. $counted trials counted.${halted:+ Halted: $halted}${capped:+ Skipped at a model cap: $capped}"
 fi
 [ -z "$halted" ] || log "halted runs (delete .state/halted/<run> to retry): $halted"
+[ -z "$capped" ] || log "runs skipped at a model cap (relaunch after the reset in .state/capped/<run>): $capped"

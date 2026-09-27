@@ -7,7 +7,9 @@
 # which sets PRIORS_CLAUDE and PRIORS_CLAUDE_SHA.
 #
 # Exit: 0 done, 3 halted (needs a human; .state/halted/<run> says why),
-# 4 stopped (the campaign is stopping; rerun to continue).
+# 4 stopped (the campaign is stopping; rerun to continue), 5 capped (a model
+# is at the ceiling on a window of its own; .state/capped/<run> says which,
+# and a relaunch after that window resets continues the run).
 
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
@@ -37,6 +39,7 @@ if [ -f "$STATE/halted/$run" ]; then
   log "skipped: halted earlier ($(cat "$STATE/halted/$run")). Delete .state/halted/$run to retry."
   exit $EXIT_HALT
 fi
+rm -f "$STATE/capped/$run"
 mkdir -p "$dir" "$records" "$STATE/debris/$run"
 touch "$trials"
 
@@ -81,6 +84,18 @@ stopping() {
   exit $EXIT_STOP
 }
 
+# The brake found $model at the ceiling on its own window (BRAKE_CAP). Only
+# this run stops; the worker moves on to its next run.
+capped() {
+  set -- "$1" $BRAKE_CAP
+  local why="$model at the ceiling: $2 at $3, resets $(date -r "$4" '+%Y-%m-%d %H:%M')"
+  printf '%s step %s: %s\n' "$(iso)" "$1" "$why" > "$STATE/capped/$run"
+  log "skipping at step $1: $why"
+  notify "$run skipped: $why"
+  [ "$mode" = chain ] || commit_pending
+  exit $EXIT_CAPPED
+}
+
 # A room or step directory that is in the way goes to debris, never rm.
 to_debris() {
   local what=$1 name=$2
@@ -121,7 +136,7 @@ trial() {
   launch "$room" "$out" "$err"
   ended=$(iso)
 
-  quota_update "$out"
+  quota_update "$out" "$model"
   cls=$(classify "$out" "$TRIAL_RC")
   facts=$(stream_facts "$out")
   T_CLASS=$(printf '%s' "$cls" | jq -r .class)
@@ -240,7 +255,8 @@ while [ "$step" -le "$n" ]; do
 
   attempt=1
   while :; do
-    brake || stopping "$step"
+    brake "$model"
+    case $? in 0) ;; 2) capped "$step" ;; *) stopping "$step" ;; esac
     check_binary || { request_stop "the pinned binary changed or vanished"; stopping "$step"; }
     trial "$step" "$attempt" "$model"
     [ -z "$T_HALT" ] || halt "step $step: $T_HALT"

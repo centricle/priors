@@ -120,6 +120,22 @@ check "quota 0.96: STOP says why" grep -q 'seven-day quota at 0.96' "$T/.state/S
 check "quota 0.96: the next run never started" test ! -e "$T/runs/word-sample-$H-low"
 check "quota 0.96: committed on stop" eq "$(commits $r)" 1
 
+setup modelcap "digit-sample-$H-low	digit	sample	$H	1	room" "digit-sample-$F-low	digit	sample	$F	3	room" \
+  "word-sample-$F-low	word	sample	$F	2	room" "word-sample-$H-low	word	sample	$H	2	room"
+STUB_MODEL_WINDOW="$F:0.96" camp
+fr=digit-sample-$F-low
+check "model cap: Fable stops after one trial" eq "$(rows $fr '[.[] | select(.counted)] | length')" 1
+check "model cap: capped file says why" grep -q 'seven_day_overage_included at 0.96' "$T/.state/capped/$fr"
+check "model cap: committed on skip" eq "$(commits $fr)" 1
+check "model cap: the next Fable run skips before any trial" eq "$(rows word-sample-$F-low 'length') $(test -f "$T/.state/capped/word-sample-$F-low" && echo capped)" "0 capped"
+check "model cap: Haiku carries on" eq "$(rows word-sample-$H-low '[.[] | select(.counted)] | length')" 2
+check "model cap: no STOP, no halt" eq "$(test -f "$T/.state/STOP" && echo stop)$(ls "$T/.state/halted" | wc -l | tr -d ' ')" 0
+check "model cap: shared snapshot lost the window, Fable's kept it" eq "$(jq -r '.unifiedWindows | has("seven_day_overage_included")' "$T/.state/quota.json" "$T/.state/quota/$F.json" | tr '\n' ' ')" "false true "
+check "model cap: logged at the end" grep -q 'skipped at a model cap' "$T/.state/campaign.log"
+calls=$(cat "$T/counter")
+STUB_MODEL_WINDOW="$F:0.96" camp
+check "model cap: a relaunch before the reset calls nothing" eq "$(cat "$T/counter") $(rows $fr 'length')" "$calls 1"
+
 setup gate "digit-sample-$H-low	digit	sample	$H	2	room"
 STUB_MODE=plant STUB_PLANT=$PLANT camp
 check "gate: run halted" grep -q 'gate' "$T/.state/halted/$r"
