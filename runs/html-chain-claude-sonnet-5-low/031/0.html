@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="My Page">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="My Page">
+  <meta property="og:description" content="My Page">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:,">
+  <title>My Page</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --muted: #555;
+      --accent: #2563eb;
+      --border: #e5e7eb;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111214;
+        --fg: #e8e8e8;
+        --muted: #aaa;
+        --accent: #60a5fa;
+        --border: #2a2b2e;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+    }
+
+    ::selection {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 40rem;
+      margin: 3rem auto;
+      padding: 0 1rem;
+      line-height: 1.6;
+      color: var(--fg);
+      background: var(--bg);
+    }
+
+    @media (max-width: 30rem) {
+      body {
+        margin: 1.5rem auto;
+      }
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      color: var(--muted);
+      max-width: 34rem;
+    }
+
+    a {
+      color: var(--accent);
+      transition: opacity 0.15s ease;
+    }
+
+    a:hover {
+      opacity: 0.8;
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: var(--accent);
+      color: var(--bg);
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      z-index: 10;
+    }
+
+    .skip-link:focus {
+      left: 1rem;
+      top: 1rem;
+    }
+
+    nav ul {
+      display: flex;
+      gap: 1rem;
+      list-style: none;
+      padding: 0;
+      margin: 0 0 2rem;
+    }
+
+    nav a {
+      text-decoration: none;
+      font-weight: 500;
+      opacity: 1;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    nav a[aria-current="true"] {
+      text-decoration: underline;
+      color: var(--fg);
+    }
+
+    h2 {
+      margin-top: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    section + section {
+      margin-top: 1.5rem;
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <nav aria-label="Primary">
+    <ul>
+      <li><a href="#main" data-nav-link>Home</a></li>
+      <li><a href="#about" data-nav-link>About</a></li>
+      <li><a href="#contact" data-nav-link>Contact</a></li>
+    </ul>
+  </nav>
+  <main id="main">
+    <h1>My Page</h1>
+    <p>Welcome. This page is a starting point — replace this text with your own content.</p>
+
+    <section id="about" aria-labelledby="about-heading">
+      <h2 id="about-heading">About</h2>
+      <p>Add a short description of what this page or project is about here.</p>
+    </section>
+
+    <section id="contact" aria-labelledby="contact-heading">
+      <h2 id="contact-heading">Contact</h2>
+      <p>Reach out at <a href="mailto:hello@example.com">hello@example.com</a>.</p>
+    </section>
+  </main>
+  <footer>
+    <p>&copy; <span id="year"></span> My Page. All rights reserved.</p>
+  </footer>
+  <script>
+    document.getElementById('year').textContent = String(new Date().getFullYear());
+
+    const navLinks = document.querySelectorAll('[data-nav-link]');
+    const sections = [...navLinks].map(link => document.querySelector(link.getAttribute('href')));
+
+    const setActive = (id) => {
+      navLinks.forEach(link => {
+        link.toggleAttribute('aria-current', link.getAttribute('href') === `#${id}`);
+        if (link.getAttribute('href') === `#${id}`) link.setAttribute('aria-current', 'true');
+      });
+    };
+
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        const visible = entries.find(entry => entry.isIntersecting);
+        if (visible) setActive(visible.target.id);
+      }, { rootMargin: '-40% 0px -50% 0px' });
+      sections.forEach(section => section && observer.observe(section));
+    }
+  </script>
+</body>
+</html>
