@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ae683f770</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #1e1e2f, #2a2a45);
+    }
+    svg {
+      width: min(400px, 80vw);
+      height: min(400px, 80vw);
+      filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.4));
+    }
+    circle {
+      fill: url(#circleGradient);
+      transition: transform 0.2s ease;
+      transform-origin: center;
+    }
+    circle:hover {
+      transform: scale(1.03);
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400">
+    <defs>
+      <radialGradient id="circleGradient" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="#8ab4ff"/>
+        <stop offset="100%" stop-color="#3b5bdb"/>
+      </radialGradient>
+    </defs>
+    <circle cx="200" cy="196" r="196"/>
+  </svg>
+</body>
+</html>
