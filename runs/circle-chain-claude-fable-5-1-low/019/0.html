@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="A circle.">
+  <title>Circle</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%202%202'%3E%3Cstyle%3E@media%20(prefers-color-scheme:dark)%7Bcircle%7Bfill:%23fff%7D%7D%3C/style%3E%3Ccircle%20cx='1'%20cy='1'%20r='1'/%3E%3C/svg%3E">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+    }
+    h1 {
+      margin: 0;
+    }
+    svg {
+      display: block;
+      width: min(400px, 100vmin - 2rem);
+      width: min(400px, 100dvmin - 2rem);
+      fill: currentColor;
+      overflow: visible;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>
+      <svg viewBox="0 0 400 400" role="img" aria-label="Circle">
+        <circle cx="200" cy="200" r="200"/>
+      </svg>
+    </h1>
+  </main>
+</body>
+</html>
