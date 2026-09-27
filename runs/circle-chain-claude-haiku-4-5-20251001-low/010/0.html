@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle Display</title>
+  <style>
+    :root {
+      --color-white: #ffffff;
+      --color-gold: #ffd700;
+      --color-pink: #ff6b9d;
+      --color-teal: #4ecdc4;
+      --color-mint: #95e1d3;
+      --shadow-color: rgba(0, 0, 0, 0.3);
+      --transition-normal: 0.3s ease;
+      --transition-slow: 0.6s ease-out;
+      --color-mode-1-rgb: 255, 107, 157;
+      --color-mode-2-rgb: 78, 205, 196;
+      --color-mode-3-rgb: 149, 225, 211;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--color-white);
+      font-size: 14px;
+      text-align: center;
+      padding: 20px;
+    }
+    .circle-container {
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 0;
+      position: relative;
+      will-change: transform;
+    }
+    .circle-container:hover,
+    .circle-container:focus-visible {
+      transform: scale(1.08);
+    }
+    .circle-container:focus {
+      outline: none;
+    }
+    .circle-container:focus-visible {
+      outline: 3px solid rgba(255, 255, 255, 0.7);
+      outline-offset: 12px;
+      border-radius: 50%;
+    }
+    svg {
+      width: min(400px, 80vw);
+      height: min(400px, 80vw);
+      display: block;
+      animation: fadeIn var(--transition-slow);
+    }
+    circle {
+      fill: var(--color-white);
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 2;
+      animation: pulse 3s ease-in-out infinite;
+      filter: drop-shadow(0 20px 40px var(--shadow-color));
+      transition: fill var(--transition-normal), r 0.3s ease, stroke var(--transition-normal), filter var(--transition-normal);
+    }
+    .circle-container:hover circle,
+    .circle-container:focus-visible circle {
+      fill: #e8f4f8;
+      r: 205;
+      stroke: rgba(255, 255, 255, 0.4);
+    }
+    .circle-container.active circle {
+      fill: var(--color-gold);
+      stroke: rgba(255, 215, 0, 0.3);
+      animation: pulse-active 0.6s ease-in-out;
+      filter: drop-shadow(0 20px 40px rgba(255, 215, 0, 0.5));
+    }
+    .circle-container.active:hover circle {
+      fill: #ffed4e;
+    }
+
+    .circle-container.color-mode-1 circle {
+      fill: var(--color-pink);
+      stroke: rgba(var(--color-mode-1-rgb), 0.3);
+      filter: drop-shadow(0 20px 40px rgba(var(--color-mode-1-rgb), 0.3));
+    }
+    .circle-container.color-mode-1:hover circle,
+    .circle-container.color-mode-1:focus-visible circle {
+      stroke: rgba(var(--color-mode-1-rgb), 0.5);
+    }
+    .circle-container.color-mode-1.active circle {
+      filter: drop-shadow(0 20px 40px rgba(var(--color-mode-1-rgb), 0.5));
+    }
+
+    .circle-container.color-mode-2 circle {
+      fill: var(--color-teal);
+      stroke: rgba(var(--color-mode-2-rgb), 0.3);
+      filter: drop-shadow(0 20px 40px rgba(var(--color-mode-2-rgb), 0.3));
+    }
+    .circle-container.color-mode-2:hover circle,
+    .circle-container.color-mode-2:focus-visible circle {
+      stroke: rgba(var(--color-mode-2-rgb), 0.5);
+    }
+    .circle-container.color-mode-2.active circle {
+      filter: drop-shadow(0 20px 40px rgba(var(--color-mode-2-rgb), 0.5));
+    }
+
+    .circle-container.color-mode-3 circle {
+      fill: var(--color-mint);
+      stroke: rgba(var(--color-mode-3-rgb), 0.3);
+      filter: drop-shadow(0 20px 40px rgba(var(--color-mode-3-rgb), 0.3));
+    }
+    .circle-container.color-mode-3:hover circle,
+    .circle-container.color-mode-3:focus-visible circle {
+      stroke: rgba(var(--color-mode-3-rgb), 0.5);
+    }
+    .circle-container.color-mode-3.active circle {
+      filter: drop-shadow(0 20px 40px rgba(var(--color-mode-3-rgb), 0.5));
+    }
+
+    .hint {
+      font-size: 12px;
+      opacity: 0.85;
+      transition: opacity var(--transition-normal);
+      letter-spacing: 0.5px;
+      max-width: 90%;
+    }
+    .circle-container:hover ~ .hint,
+    .circle-container:focus-visible ~ .hint {
+      opacity: 1;
+    }
+
+    .mode-indicator {
+      font-size: 10px;
+      opacity: 0;
+      margin-top: 8px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: opacity var(--transition-normal);
+      height: 16px;
+    }
+    .mode-indicator.visible {
+      opacity: 0.9;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .control-btn {
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.15);
+      color: var(--color-white);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all var(--transition-normal);
+      backdrop-filter: blur(4px);
+      will-change: transform;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+      border-color: rgba(255, 255, 255, 0.5);
+      transform: translateY(-2px);
+    }
+
+    .control-btn:active {
+      transform: scale(0.95);
+    }
+
+    .control-btn:focus {
+      outline: none;
+    }
+
+    .control-btn:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.7);
+      outline-offset: 4px;
+    }
+    @keyframes pulse {
+      0%, 100% { r: 200; }
+      50% { r: 202; }
+    }
+    @keyframes pulse-active {
+      0% { r: 200; }
+      50% { r: 210; }
+      100% { r: 200; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes colorShift {
+      0% { filter: brightness(1); }
+      50% { filter: brightness(1.2); }
+      100% { filter: brightness(1); }
+    }
+    .color-shifting circle {
+      animation: colorShift 0.6s ease-out;
+    }
+    @media (max-width: 480px) {
+      body {
+        gap: 16px;
+      }
+      .hint {
+        font-size: 11px;
+      }
+      .mode-indicator {
+        font-size: 9px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main style="text-align: center;">
+    <h1 style="position: absolute; width: 1px; height: 1px; overflow: hidden;">Circle Display</h1>
+    <button class="circle-container" id="decorative-circle" aria-label="Interactive circle - click to toggle">
+      <svg viewBox="0 0 400 400" aria-hidden="true">
+        <circle cx="200" cy="200" r="200"/>
+      </svg>
+    </button>
+    <div class="mode-indicator" id="mode-indicator" aria-live="polite" aria-atomic="true"></div>
+    <div class="controls">
+      <button class="control-btn" id="cycle-btn" aria-label="Cycle to next color">Cycle Color</button>
+      <button class="control-btn" id="reset-btn" aria-label="Reset to default state">Reset</button>
+    </div>
+  </main>
+  <div class="hint" id="hint-text" role="status" aria-live="polite">Click to activate • Double-click to change color</div>
+
+  <script>
+    const STORAGE_KEY = 'circle-state';
+    const COLOR_MODES = ['default', 'color-mode-1', 'color-mode-2', 'color-mode-3'];
+    const COLOR_NAMES = ['Default White', 'Pink', 'Teal', 'Mint'];
+
+    const circle = document.getElementById('decorative-circle');
+    const hint = document.getElementById('hint-text');
+    const modeIndicator = document.getElementById('mode-indicator');
+    const cycleBtn = document.getElementById('cycle-btn');
+    const resetBtn = document.getElementById('reset-btn');
+
+    let state = { active: false, colorMode: 0 };
+    let lastTapTime = 0;
+    const TAP_DELAY = 300;
+
+    const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    const loadState = () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) state = JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to load state');
+      }
+      applyState();
+    };
+
+    const applyState = () => {
+      circle.classList.remove('active', ...COLOR_MODES);
+      if (state.active) circle.classList.add('active');
+      if (state.colorMode > 0) circle.classList.add(COLOR_MODES[state.colorMode]);
+      updateUI();
+    };
+
+    const toggleActive = () => {
+      state.active = !state.active;
+      applyState();
+      saveState();
+    };
+
+    const cycleColor = () => {
+      state.colorMode = (state.colorMode + 1) % COLOR_MODES.length;
+      state.active = true;
+      circle.classList.add('color-shifting');
+      setTimeout(() => circle.classList.remove('color-shifting'), 600);
+      applyState();
+      saveState();
+    };
+
+    const resetState = () => {
+      state = { active: false, colorMode: 0 };
+      applyState();
+      saveState();
+    };
+
+    const updateUI = () => {
+      const isTouchDevice = () => {
+        return (('ontouchstart' in window) ||
+                (navigator.maxTouchPoints > 0) ||
+                (navigator.msMaxTouchPoints > 0));
+      };
+
+      const isTouch = isTouchDevice();
+      const hints = state.active
+        ? ['Active!', isTouch ? 'Tap again to change color' : 'Double-click or press C to change color', isTouch ? 'Use Reset button' : 'Press R to reset']
+        : ['Click to activate', isTouch ? 'Tap twice to cycle color' : 'Double-click or press C to cycle color', 'Use Reset button'];
+      hint.textContent = hints.join(' • ');
+
+      if (state.active && state.colorMode > 0) {
+        modeIndicator.textContent = COLOR_NAMES[state.colorMode];
+        modeIndicator.classList.add('visible');
+      } else {
+        modeIndicator.classList.remove('visible');
+      }
+    };
+
+    circle.addEventListener('click', toggleActive);
+    circle.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      cycleColor();
+    });
+
+    circle.addEventListener('touchend', (e) => {
+      const currentTime = Date.now();
+      const tapLength = currentTime - lastTapTime;
+      if (tapLength < TAP_DELAY && tapLength > 0) {
+        e.preventDefault();
+        cycleColor();
+      } else {
+        lastTapTime = currentTime;
+      }
+    });
+
+    circle.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === ' ' || key === 'enter') {
+        e.preventDefault();
+        toggleActive();
+      } else if (key === 'c') {
+        e.preventDefault();
+        cycleColor();
+      } else if (key === 'r') {
+        e.preventDefault();
+        resetState();
+      }
+    });
+
+    cycleBtn.addEventListener('click', cycleColor);
+    resetBtn.addEventListener('click', resetState);
+
+    loadState();
+    circle.focus();
+  </script>
+</body>
+</html>
