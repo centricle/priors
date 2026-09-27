@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle Display</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: white;
+      font-size: 14px;
+      text-align: center;
+      padding: 20px;
+    }
+    .circle-container {
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 0;
+      position: relative;
+      will-change: transform;
+    }
+    .circle-container:hover,
+    .circle-container:focus-visible {
+      transform: scale(1.08);
+    }
+    .circle-container:focus {
+      outline: none;
+    }
+    .circle-container:focus-visible {
+      outline: 3px solid rgba(255, 255, 255, 0.7);
+      outline-offset: 12px;
+      border-radius: 50%;
+    }
+    svg {
+      width: min(400px, 80vw);
+      height: min(400px, 80vw);
+      display: block;
+      animation: fadeIn 0.6s ease-out;
+    }
+    circle {
+      fill: #ffffff;
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 2;
+      animation: pulse 3s ease-in-out infinite;
+      filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3));
+      transition: fill 0.3s ease, r 0.3s ease, stroke 0.3s ease, filter 0.3s ease;
+    }
+    .circle-container:hover circle,
+    .circle-container:focus-visible circle {
+      fill: #e8f4f8;
+      r: 205;
+      stroke: rgba(255, 255, 255, 0.4);
+    }
+    .circle-container.active circle {
+      fill: #ffd700;
+      stroke: rgba(255, 215, 0, 0.3);
+      animation: pulse-active 0.6s ease-in-out;
+      filter: drop-shadow(0 20px 40px rgba(255, 215, 0, 0.5));
+    }
+    .circle-container.active:hover circle {
+      fill: #ffed4e;
+    }
+    .color-modes {
+      --color-pink: #ff6b9d;
+      --color-teal: #4ecdc4;
+      --color-mint: #95e1d3;
+    }
+    .circle-container.color-mode-1 circle {
+      fill: var(--color-pink);
+      filter: drop-shadow(0 20px 40px rgba(255, 107, 157, 0.3));
+    }
+    .circle-container.color-mode-1.active circle {
+      filter: drop-shadow(0 20px 40px rgba(255, 107, 157, 0.5));
+    }
+    .circle-container.color-mode-2 circle {
+      fill: var(--color-teal);
+      filter: drop-shadow(0 20px 40px rgba(78, 205, 196, 0.3));
+    }
+    .circle-container.color-mode-2.active circle {
+      filter: drop-shadow(0 20px 40px rgba(78, 205, 196, 0.5));
+    }
+    .circle-container.color-mode-3 circle {
+      fill: var(--color-mint);
+      filter: drop-shadow(0 20px 40px rgba(149, 225, 211, 0.3));
+    }
+    .circle-container.color-mode-3.active circle {
+      filter: drop-shadow(0 20px 40px rgba(149, 225, 211, 0.5));
+    }
+    .hint {
+      font-size: 12px;
+      opacity: 0.85;
+      transition: opacity 0.3s ease;
+      letter-spacing: 0.5px;
+      max-width: 90%;
+    }
+    .circle-container:hover ~ .hint,
+    .circle-container:focus-visible ~ .hint {
+      opacity: 1;
+    }
+    .mode-indicator {
+      font-size: 10px;
+      opacity: 0;
+      margin-top: 8px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: opacity 0.3s ease;
+      height: 16px;
+    }
+    .mode-indicator.visible {
+      opacity: 0.9;
+    }
+    @keyframes pulse {
+      0%, 100% { r: 200; }
+      50% { r: 202; }
+    }
+    @keyframes pulse-active {
+      0% { r: 200; }
+      50% { r: 210; }
+      100% { r: 200; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @media (max-width: 480px) {
+      body {
+        gap: 16px;
+      }
+      .hint {
+        font-size: 11px;
+      }
+      .mode-indicator {
+        font-size: 9px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main style="text-align: center;">
+    <button class="circle-container" id="decorative-circle" aria-label="Interactive circle - click to toggle">
+      <svg viewBox="0 0 400 400" aria-hidden="true">
+        <circle cx="200" cy="200" r="200"/>
+      </svg>
+    </button>
+    <div class="mode-indicator" id="mode-indicator" aria-live="polite" aria-atomic="true"></div>
+  </main>
+  <div class="hint" id="hint-text" role="status" aria-live="polite">Click to activate • Double-click to change color</div>
+
+  <script>
+    const STORAGE_KEY = 'circle-state';
+    const COLOR_MODES = ['default', 'color-mode-1', 'color-mode-2', 'color-mode-3'];
+    const COLOR_NAMES = ['Default White', 'Pink', 'Teal', 'Mint'];
+
+    const circle = document.getElementById('decorative-circle');
+    const hint = document.getElementById('hint-text');
+    const modeIndicator = document.getElementById('mode-indicator');
+
+    let state = { active: false, colorMode: 0 };
+
+    const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    const loadState = () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) state = JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to load state');
+      }
+      applyState();
+    };
+
+    const applyState = () => {
+      circle.classList.remove('active', ...COLOR_MODES);
+      if (state.active) circle.classList.add('active');
+      if (state.colorMode > 0) circle.classList.add(COLOR_MODES[state.colorMode]);
+      updateUI();
+    };
+
+    const toggleActive = () => {
+      state.active = !state.active;
+      applyState();
+      saveState();
+    };
+
+    const cycleColor = () => {
+      state.colorMode = (state.colorMode + 1) % COLOR_MODES.length;
+      state.active = true;
+      applyState();
+      saveState();
+    };
+
+    const resetState = () => {
+      state = { active: false, colorMode: 0 };
+      applyState();
+      saveState();
+    };
+
+    const updateHint = () => {
+      if (state.active) {
+        hint.textContent = 'Active! • Double-click or press C to cycle color • Press R to reset';
+      } else {
+        hint.textContent = 'Click to activate • Double-click to change color • C to cycle • R to reset';
+      }
+    };
+
+    const updateModeIndicator = () => {
+      if (state.active && state.colorMode > 0) {
+        modeIndicator.textContent = COLOR_NAMES[state.colorMode];
+        modeIndicator.classList.add('visible');
+      } else {
+        modeIndicator.classList.remove('visible');
+      }
+    };
+
+    const updateUI = () => {
+      updateHint();
+      updateModeIndicator();
+    };
+
+    circle.addEventListener('click', toggleActive);
+    circle.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      cycleColor();
+    });
+
+    circle.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === ' ' || key === 'enter') {
+        e.preventDefault();
+        toggleActive();
+      } else if (key === 'c') {
+        e.preventDefault();
+        cycleColor();
+      } else if (key === 'r') {
+        e.preventDefault();
+        resetState();
+      }
+    });
+
+    circle.addEventListener('mouseenter', () => {
+      if (!state.active) {
+        hint.textContent = 'Click to activate • Double-click or C to cycle color • R to reset';
+      }
+    });
+
+    circle.addEventListener('mouseleave', updateHint);
+
+    loadState();
+    circle.focus();
+  </script>
+</body>
+</html>
