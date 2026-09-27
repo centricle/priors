@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Minimal SVG circle visualization">
+  <title>Circle</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    svg {
+      width: 400px;
+      height: 400px;
+      filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
+    }
+    circle {
+      fill: #ffffff;
+      stroke: #667eea;
+      stroke-width: 2;
+      transition: all 0.3s ease;
+    }
+    circle:hover {
+      fill: #f0f0f0;
+      stroke-width: 4;
+    }
+  </style>
+</head>
+<body>
+  <svg viewBox="0 0 400 400" role="img" aria-label="Interactive circle">
+    <circle cx="200" cy="200" r="190"/>
+  </svg>
+</body>
+</html>

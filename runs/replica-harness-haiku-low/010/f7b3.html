@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      overflow: hidden;
+    }
+    svg {
+      width: 400px;
+      height: 400px;
+      filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
+    }
+    circle {
+      fill: #ffffff;
+      stroke: #667eea;
+      stroke-width: 3;
+      transition: all 0.3s ease;
+    }
+    circle:hover {
+      fill: #667eea;
+      stroke: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <svg id="circle-graphic" viewBox="0 0 400 400" role="img" aria-label="Interactive white circle">
+    <defs>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    <circle cx="200" cy="200" r="200" filter="url(#glow)"/>
+  </svg>
+</body>
+</html>
