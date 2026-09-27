@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <defs>
+    <style>
+      .digit { font-size: 140px; font-weight: bold; fill: #333; text-anchor: middle; }
+    </style>
+  </defs>
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#e0e0e0" stroke-width="2"/>
+  <text x="100" y="145" class="digit">0</text>
+</svg>
