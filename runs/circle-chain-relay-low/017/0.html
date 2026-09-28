@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Animated Circle - Interactive Demo</title>
+  <meta name="description" content="A responsive, accessible circle that changes color when clicked">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:,">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    :root {
+      color-scheme: light dark;
+      --bg: #fff;
+      --text: #374151;
+      --fg: #2563eb;
+      --shadow: rgba(0, 0, 0, 0.1);
+      --kbd-bg: rgba(0, 0, 0, 0.1);
+    }
+    [data-color="red"] { --fg: #dc2626; }
+    [data-color="green"] { --fg: #16a34a; }
+    [data-color="amber"] { --fg: #d97706; }
+    [data-color="violet"] { --fg: #7c3aed; }
+    [data-color="cyan"] { --fg: #0891b2; }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --text: #d1d5db;
+        --fg: #93c5fd;
+        --shadow: rgba(0, 0, 0, 0.6);
+        --kbd-bg: rgba(255, 255, 255, 0.15);
+      }
+      [data-color="red"] { --fg: #fca5a5; }
+      [data-color="green"] { --fg: #86efac; }
+      [data-color="amber"] { --fg: #fcd34d; }
+      [data-color="violet"] { --fg: #c4b5fd; }
+      [data-color="cyan"] { --fg: #67e8f9; }
+    }
+    @media (prefers-contrast: more) {
+      :root {
+        --shadow: rgba(0, 0, 0, 0.9);
+      }
+      .hint {
+        opacity: 1;
+      }
+    }
+    @media (forced-colors: active) {
+      svg circle {
+        stroke: CanvasText;
+        stroke-width: 2;
+      }
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    main {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    button {
+      display: block;
+      width: min(360px, 100%, 60vh);
+      aspect-ratio: 1;
+      border: 0;
+      border-radius: 50%;
+      background: none;
+      color: var(--fg);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: color 0.4s ease;
+    }
+    .no-transition,
+    .no-transition svg {
+      transition: none !important;
+    }
+    button:focus-visible {
+      outline: 3px solid currentColor;
+      outline-offset: 8px;
+    }
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      opacity: 0.9;
+      filter: drop-shadow(0 8px 16px var(--shadow));
+      transition: opacity 0.3s ease;
+    }
+    button:active svg,
+    button:focus-visible svg {
+      opacity: 1;
+    }
+    @keyframes pulse {
+      0% {
+        filter: drop-shadow(0 8px 16px var(--shadow)) drop-shadow(0 0 20px currentColor);
+      }
+      100% {
+        filter: drop-shadow(0 8px 16px var(--shadow));
+      }
+    }
+    @media (hover: hover) {
+      button:hover svg {
+        opacity: 1;
+      }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      svg {
+        transition:
+          transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+          opacity 0.3s ease;
+      }
+      button:focus-visible svg {
+        transform: scale(1.05);
+      }
+      button:active svg {
+        transform: scale(0.97);
+      }
+      button.color-changed svg {
+        animation: pulse 0.5s ease-out;
+      }
+    }
+    @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+      button:hover:not(:active) svg {
+        transform: scale(1.05);
+      }
+    }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .status {
+      margin-top: 2rem;
+      font-weight: 600;
+    }
+    .hint {
+      margin-top: 0.25rem;
+      font-size: 0.875rem;
+      opacity: 0.8;
+    }
+    kbd {
+      display: inline-block;
+      padding: 0.125rem 0.375rem;
+      background: var(--kbd-bg);
+      border: 1px solid transparent;
+      border-radius: 0.25rem;
+      font-family: monospace;
+      font-size: 0.75em;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 class="visually-hidden">Animated Circle</h1>
+    <button type="button" class="no-transition" aria-label="Change circle color" aria-describedby="status hint">
+      <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="50" fill="currentColor"/>
+      </svg>
+    </button>
+    <p class="status" id="status" role="status">Blue</p>
+    <p class="hint" id="hint"><span class="verb">Click</span> to change color (or press <kbd>Space</kbd> or <kbd>Enter</kbd>; hold <kbd>Shift</kbd> to go back)</p>
+  </main>
+  <script>
+    const button = document.querySelector('button');
+    const status = document.querySelector('.status');
+    const colors = ['blue', 'red', 'green', 'amber', 'violet', 'cyan'];
+    const storageKey = 'circle-color';
+
+    function loadColor() {
+      try {
+        return localStorage.getItem(storageKey);
+      } catch {
+        return null;
+      }
+    }
+
+    function saveColor(color) {
+      try {
+        localStorage.setItem(storageKey, color);
+      } catch {}
+    }
+
+    const savedColor = loadColor();
+    let index = colors.includes(savedColor) ? colors.indexOf(savedColor) : 0;
+
+    function applyColor() {
+      const color = colors[index];
+      if (color === 'blue') {
+        delete button.dataset.color;
+      } else {
+        button.dataset.color = color;
+      }
+      status.textContent = color[0].toUpperCase() + color.slice(1);
+    }
+
+    function changeColor(event) {
+      const step = event.shiftKey ? -1 : 1;
+      index = (index + step + colors.length) % colors.length;
+      applyColor();
+      saveColor(colors[index]);
+
+      button.classList.remove('color-changed');
+      void button.offsetWidth;
+      button.classList.add('color-changed');
+    }
+
+    applyColor();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => button.classList.remove('no-transition'));
+    });
+
+    if (matchMedia('(hover: none)').matches) {
+      document.querySelector('.hint .verb').textContent = 'Tap';
+    }
+
+    button.addEventListener('click', changeColor);
+    button.addEventListener('animationend', () => {
+      button.classList.remove('color-changed');
+    });
+    addEventListener('storage', (event) => {
+      if (event.key === storageKey && colors.includes(event.newValue)) {
+        index = colors.indexOf(event.newValue);
+        applyColor();
+      }
+    });
+  </script>
+</body>
+</html>
