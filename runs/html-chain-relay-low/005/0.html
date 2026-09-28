@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="A properly structured HTML5 document.">
+	<meta name="color-scheme" content="light dark">
+	<title>Welcome</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+			--text: #333;
+			--background: #fff;
+			--accent: #0066cc;
+		}
+		@media (prefers-color-scheme: dark) {
+			:root {
+				--text: #ddd;
+				--background: #121212;
+				--accent: #66b3ff;
+			}
+		}
+		*,
+		*::before,
+		*::after {
+			box-sizing: border-box;
+		}
+		body {
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			line-height: 1.6;
+			max-width: 800px;
+			margin: 0 auto;
+			padding: 20px;
+			color: var(--text);
+			background: var(--background);
+			-webkit-text-size-adjust: 100%;
+			text-size-adjust: 100%;
+		}
+		h1 {
+			color: var(--accent);
+			line-height: 1.2;
+			text-wrap: balance;
+		}
+		a {
+			color: var(--accent);
+		}
+		:focus-visible {
+			outline: 2px solid var(--accent);
+			outline-offset: 2px;
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<h1>Welcome</h1>
+		<p>This is a properly structured HTML5 document.</p>
+	</main>
+</body>
+</html>
