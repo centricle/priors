@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes, maximum-scale=5">
+  <meta name="description" content="Interactive color-changing circle with smooth animations. Click to activate, double-click to cycle through 4 vibrant colors. Full keyboard and touch support.">
+  <meta name="theme-color" content="#5f6fd1" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#a8b5e8" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta property="og:title" content="Interactive Circle - Color Demo">
+  <meta property="og:description" content="An interactive color-changing circle with smooth animations, keyboard shortcuts, and touch support.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Ccircle cx='200' cy='200' r='200' fill='%23ffd700'/%3E%3C/svg%3E">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Interactive Circle - Color Demo">
+  <meta name="twitter:description" content="Click to activate, double-click to change colors. Supports keyboard shortcuts and touch.">
+  <title>Interactive Circle - Color Demo</title>
+  <style>
+    :root {
+      --color-white: #ffffff;
+      --color-gold: #ffd700;
+      --shadow-color: rgba(0, 0, 0, 0.3);
+      --transition-normal: 0.3s ease;
+      --transition-slow: 0.6s ease-out;
+      --pulse-duration: 2.5s;
+
+      /* Color modes */
+      --color-pink: #ff6b9d;
+      --color-pink-rgb: 255, 107, 157;
+      --color-teal: #4ecdc4;
+      --color-teal-rgb: 78, 205, 196;
+      --color-mint: #95e1d3;
+      --color-mint-rgb: 149, 225, 211;
+      --color-purple: #d946ef;
+      --color-purple-rgb: 217, 70, 239;
+      --color-orange: #ff9500;
+      --color-orange-rgb: 255, 149, 0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      background: linear-gradient(135deg, #5f6fd1 0%, #6b3fa0 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--color-white);
+      font-size: 14px;
+      padding: 20px;
+      margin: 0;
+    }
+    .circle-container {
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 0;
+      position: relative;
+      transition: transform var(--transition-normal);
+      user-select: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .circle-container:focus {
+      outline: none;
+    }
+    .circle-container:hover {
+      transform: scale(1.05) translateZ(0);
+    }
+    .circle-container:focus-visible {
+      transform: scale(1.08) translateZ(0);
+      outline: 3px solid rgba(255, 255, 255, 0.8);
+      outline-offset: 10px;
+      border-radius: 50%;
+      animation: focusPulse 0.4s ease-out;
+    }
+    svg {
+      width: min(400px, 80vw);
+      height: min(400px, 80vw);
+      display: block;
+      animation: fadeIn var(--transition-slow), hintBounce 2.5s ease-in-out 1s 1 backwards;
+      will-change: filter, transform;
+    }
+    circle {
+      fill: var(--color-white);
+      stroke: rgba(255, 255, 255, 0.25);
+      stroke-width: 1.5;
+      animation: pulse var(--pulse-duration) ease-in-out infinite;
+      filter: drop-shadow(0 20px 40px var(--shadow-color));
+      transition: fill 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), r 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), stroke 0.35s ease, filter 0.35s ease, opacity 0.35s ease;
+      will-change: fill, r, filter;
+      contain: paint;
+    }
+    .circle-container:is(:hover, :focus-visible) circle {
+      fill: #e8f4f8;
+      r: 205;
+      stroke: rgba(255, 255, 255, 0.5);
+      filter: drop-shadow(0 20px 50px rgba(255, 255, 255, 0.2));
+    }
+    .circle-container.active:not([class*="color-mode-"]) circle {
+      fill: var(--color-gold);
+      stroke: rgba(255, 215, 0, 0.4);
+      animation: pulse-active 0.6s ease-in-out;
+      filter: drop-shadow(0 20px 50px rgba(255, 215, 0, 0.6));
+      r: 200;
+    }
+
+    .circle-container.color-mode-1 { --mode-color: var(--color-pink); --mode-rgb: var(--color-pink-rgb); }
+    .circle-container.color-mode-2 { --mode-color: var(--color-teal); --mode-rgb: var(--color-teal-rgb); }
+    .circle-container.color-mode-3 { --mode-color: var(--color-mint); --mode-rgb: var(--color-mint-rgb); }
+    .circle-container.color-mode-4 { --mode-color: var(--color-purple); --mode-rgb: var(--color-purple-rgb); }
+    .circle-container.color-mode-5 { --mode-color: var(--color-orange); --mode-rgb: var(--color-orange-rgb); }
+
+    [class*="color-mode-"] circle {
+      fill: var(--mode-color);
+      stroke: rgba(var(--mode-rgb), 0.35);
+      filter: drop-shadow(0 20px 50px rgba(var(--mode-rgb), 0.4));
+    }
+    [class*="color-mode-"]:is(:hover, :focus-visible) circle {
+      stroke: rgba(var(--mode-rgb), 0.55);
+      filter: drop-shadow(0 20px 55px rgba(var(--mode-rgb), 0.5));
+    }
+    [class*="color-mode-"].active circle {
+      animation: pulse-active 0.6s ease-in-out;
+      r: 200;
+      filter: drop-shadow(0 20px 50px rgba(var(--mode-rgb), 0.6));
+    }
+
+    .hint {
+      font-size: 13px;
+      opacity: 1;
+      transition: opacity 0.2s ease;
+      letter-spacing: 0.4px;
+      max-width: 95%;
+      line-height: 1.5;
+      margin-top: 8px;
+      position: relative;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.99);
+    }
+
+    .mode-indicator {
+      font-size: 11px;
+      opacity: 0;
+      margin-top: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      transition: opacity 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      height: 20px;
+      font-weight: 800;
+      transform: scale(0.85) translateY(10px);
+      color: rgba(255, 255, 255, 0.98);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+    }
+    .mode-indicator.visible {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .control-btn {
+      padding: 12px 30px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.18);
+      color: var(--color-white);
+      border: 1.5px solid rgba(255, 255, 255, 0.35);
+      border-radius: 24px;
+      cursor: pointer;
+      transition: all var(--transition-normal);
+      backdrop-filter: blur(4px);
+      outline: none;
+      min-height: 48px;
+      min-width: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: inherit;
+      touch-action: manipulation;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.28);
+      border-color: rgba(255, 255, 255, 0.6);
+      transform: translateY(-2px) translateZ(0);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .control-btn:active {
+      transform: translateY(1px) scale(0.96);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.15);
+    }
+
+    .control-btn:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.9);
+      outline-offset: 6px;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+      animation: buttonFocusPulse 0.3s ease-out;
+    }
+
+    .control-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    @keyframes pulse {
+      0%, 100% { r: 200; opacity: 0.96; }
+      50% { r: 202; opacity: 1; }
+    }
+    @keyframes pulse-active {
+      0% { r: 200; }
+      50% { r: 208; }
+      100% { r: 200; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes hintBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    @keyframes colorShift {
+      0% { r: 200; filter: saturate(0.7) brightness(0.9) hue-rotate(0deg); }
+      50% { r: 215; filter: saturate(1.5) brightness(1.15) hue-rotate(15deg); }
+      100% { r: 200; filter: saturate(1) brightness(1) hue-rotate(0deg); }
+    }
+    @keyframes focusPulse {
+      0% { outline-offset: 6px; }
+      100% { outline-offset: 10px; }
+    }
+    @keyframes buttonFocusPulse {
+      0% { box-shadow: 0 0 0 rgba(255, 255, 255, 0.3); }
+      100% { box-shadow: 0 0 12px rgba(255, 255, 255, 0.3); }
+    }
+    .circle-container.color-shifting circle {
+      animation: colorShift 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      opacity: 0.95;
+    }
+    .keyboard-hint {
+      font-size: 11px;
+      opacity: 0.9;
+      margin-top: 2px;
+      letter-spacing: 0.2px;
+      transition: opacity var(--transition-normal);
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.95);
+    }
+    .keyboard-hint kbd {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1.5px solid rgba(255, 255, 255, 0.35);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      display: inline-block;
+      margin: 0 3px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+    .help-btn {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1.5px solid rgba(255, 255, 255, 0.4);
+      color: var(--color-white);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 600;
+      transition: all var(--transition-normal);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      -webkit-tap-highlight-color: transparent;
+      padding: 0;
+      font-family: inherit;
+    }
+    .help-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(1.08) translateZ(0);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    .help-btn:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.9);
+      outline-offset: 4px;
+    }
+    .modal {
+      display: flex;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(2px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+    .modal.active {
+      visibility: visible;
+      opacity: 1;
+    }
+    .modal-content {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 16px;
+      padding: 28px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.3s ease;
+      color: rgba(0, 0, 0, 0.85);
+      position: relative;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: scale(0.95) translateY(-20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .modal-header {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: rgba(0, 0, 0, 0.9);
+    }
+    .modal-shortcuts {
+      display: grid;
+      gap: 10px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .shortcut-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .shortcut-key {
+      background: #f0f0f0;
+      border: 1.5px solid #d0d0d0;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      min-width: 40px;
+      text-align: center;
+      color: rgba(0, 0, 0, 0.8);
+      flex-shrink: 0;
+    }
+    .shortcut-desc {
+      color: rgba(0, 0, 0, 0.7);
+    }
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 32px;
+      height: 32px;
+      background: none;
+      border: none;
+      color: rgba(0, 0, 0, 0.6);
+      cursor: pointer;
+      font-size: 20px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color var(--transition-normal);
+      font-family: inherit;
+      font-weight: 600;
+    }
+    .modal-close:hover {
+      color: rgba(0, 0, 0, 0.9);
+    }
+    @media (pointer: coarse) {
+      .keyboard-hint {
+        display: none;
+      }
+      .help-btn {
+        top: 12px;
+        right: 12px;
+      }
+    }
+    @media (max-width: 480px) {
+      .modal-content {
+        padding: 20px;
+      }
+      .modal-header {
+        font-size: 16px;
+      }
+    }
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      text-align: center;
+      width: 100%;
+      flex: 1;
+      user-select: none;
+    }
+
+    @media (max-width: 600px) {
+      svg {
+        width: min(330px, 75vw);
+        height: min(330px, 75vw);
+      }
+      .hint {
+        font-size: 12px;
+      }
+      .control-btn {
+        padding: 14px 24px;
+        font-size: 11px;
+        min-height: 48px;
+      }
+    }
+    @media (max-width: 480px) {
+      body {
+        gap: 12px;
+        padding: 16px;
+      }
+      .mode-indicator {
+        font-size: 9px;
+      }
+      .control-btn {
+        padding: 14px 28px;
+        min-width: 130px;
+      }
+    }
+    @media (max-width: 360px) {
+      body {
+        gap: 10px;
+        padding: 14px;
+      }
+      svg {
+        width: min(290px, 72vw);
+        height: min(290px, 72vw);
+      }
+      .controls {
+        flex-wrap: wrap;
+      }
+      .mode-indicator {
+        font-size: 10px;
+      }
+      .hint {
+        font-size: 11px;
+      }
+      .keyboard-hint {
+        font-size: 10px;
+      }
+      .keyboard-hint kbd {
+        padding: 3px 7px;
+        font-size: 9px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+    @supports (backdrop-filter: blur(0)) {
+      .control-btn {
+        background: rgba(255, 255, 255, 0.1);
+      }
+    }
+    @supports not (backdrop-filter: blur(0)) {
+      .control-btn {
+        background: rgba(0, 0, 0, 0.3);
+      }
+    }
+    @media (prefers-color-scheme: light) {
+      body {
+        background: linear-gradient(135deg, #a8b5e8 0%, #c99fe6 100%);
+      }
+      circle {
+        fill: #ffffff;
+        stroke: rgba(0, 0, 0, 0.15);
+        filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.1));
+      }
+      .circle-container:is(:hover, :focus-visible) circle {
+        fill: #f8f8f8;
+        stroke: rgba(0, 0, 0, 0.25);
+        filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.15));
+      }
+      .modal {
+        background: rgba(0, 0, 0, 0.4);
+      }
+      .control-btn {
+        background: rgba(255, 255, 255, 0.35);
+        border-color: rgba(255, 255, 255, 0.6);
+        color: rgba(0, 0, 0, 0.75);
+      }
+      .control-btn:hover {
+        background: rgba(255, 255, 255, 0.5);
+        border-color: rgba(255, 255, 255, 0.9);
+        color: rgba(0, 0, 0, 0.85);
+      }
+      .control-btn:active {
+        background: rgba(255, 255, 255, 0.4);
+      }
+      .hint {
+        color: rgba(0, 0, 0, 0.8);
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+      }
+      .keyboard-hint {
+        opacity: 1;
+        color: rgba(0, 0, 0, 0.75);
+      }
+      .mode-indicator {
+        color: rgba(0, 0, 0, 0.8);
+        text-shadow: 0 1px 3px rgba(255, 255, 255, 0.5);
+      }
+      .keyboard-hint kbd {
+        background: rgba(255, 255, 255, 0.5);
+        border-color: rgba(255, 255, 255, 0.7);
+        color: rgba(0, 0, 0, 0.85);
+      }
+      .control-btn:focus-visible {
+        outline: 2px solid rgba(0, 0, 0, 0.3);
+        outline-offset: 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <button type="button" class="help-btn" id="help-btn" aria-label="Show keyboard shortcuts" title="Help (press ?)">?</button>
+
+  <div class="modal" id="help-modal" role="dialog" aria-labelledby="modal-header" aria-modal="true">
+    <div class="modal-content">
+      <button type="button" class="modal-close" id="modal-close" aria-label="Close help">✕</button>
+      <div class="modal-header" id="modal-header">Keyboard Shortcuts</div>
+      <div class="modal-shortcuts">
+        <div class="shortcut-item">
+          <span class="shortcut-key">C</span>
+          <span class="shortcut-desc">Cycle to next color</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key">X</span>
+          <span class="shortcut-desc">Random color</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key">R</span>
+          <span class="shortcut-desc">Reset to default</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key">Space</span>
+          <span class="shortcut-desc">Toggle active state</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key">↩</span>
+          <span class="shortcut-desc">Toggle active state</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key">Esc</span>
+          <span class="shortcut-desc">Reset to default</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key">?</span>
+          <span class="shortcut-desc">Show this help</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <button type="button" class="circle-container" id="decorative-circle" aria-label="Interactive circle - click to activate, double-click or tap twice to change color" aria-pressed="false" aria-expanded="false" aria-describedby="hint-text">
+      <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet" aria-hidden="true" role="presentation">
+        <circle cx="200" cy="200" r="200"/>
+      </svg>
+    </button>
+    <div class="mode-indicator" id="mode-indicator" aria-live="polite" aria-atomic="true"></div>
+    <div class="hint" id="hint-text" role="status" aria-live="polite" aria-relevant="text">Click or tap to activate</div>
+    <div class="controls" role="group" aria-label="Circle controls">
+      <button type="button" class="control-btn" id="cycle-btn" aria-label="Cycle to next color">Cycle Color</button>
+      <button type="button" class="control-btn" id="random-btn" aria-label="Jump to random color">Random</button>
+      <button type="button" class="control-btn" id="reset-btn" aria-label="Reset to default state">Reset</button>
+    </div>
+    <div class="keyboard-hint" aria-label="Keyboard shortcuts">Press <kbd>C</kbd> to cycle • <kbd>X</kbd> for random • <kbd>R</kbd> to reset • <kbd>?</kbd> for help</div>
+  </main>
+
+  <script defer>
+    (() => {
+      const COLORS = [
+        { class: 'default', name: 'Default White' },
+        { class: 'color-mode-1', name: 'Pink' },
+        { class: 'color-mode-2', name: 'Teal' },
+        { class: 'color-mode-3', name: 'Mint' },
+        { class: 'color-mode-4', name: 'Purple' },
+        { class: 'color-mode-5', name: 'Orange' }
+      ];
+
+      const getRandomColorMode = () => Math.floor(Math.random() * COLORS.length);
+
+      const CONFIG = {
+        storageKey: 'circle-state',
+        tapDelay: 300,
+        colorShiftDuration: 500,
+        saveDebounceDuration: 100,
+        keyDebounce: 50,
+        isTouch: (() => {
+          const hasCoarsePointer = window.matchMedia?.('(pointer:coarse)').matches ?? false;
+          const hasTouchEvents = 'ontouchstart' in window;
+          const hasMaxTouchPoints = (navigator.maxTouchPoints ?? 0) > 0;
+          return hasCoarsePointer || hasTouchEvents || hasMaxTouchPoints;
+        })()
+      };
+
+      const el = {
+        circle: document.getElementById('decorative-circle'),
+        hint: document.getElementById('hint-text'),
+        modeIndicator: document.getElementById('mode-indicator'),
+        cycleBtn: document.getElementById('cycle-btn'),
+        randomBtn: document.getElementById('random-btn'),
+        resetBtn: document.getElementById('reset-btn'),
+        helpBtn: document.getElementById('help-btn'),
+        helpModal: document.getElementById('help-modal'),
+        modalClose: document.getElementById('modal-close')
+      };
+
+      let state = { active: false, colorMode: 0 };
+      let tapCount = 0;
+      let tapTimeout = null;
+      let animatingColorShift = false;
+      let saveTimeout = null;
+      let lastKeyTime = 0;
+
+      const haptic = (duration) => {
+        try {
+          navigator.vibrate?.(duration);
+        } catch (e) {
+          // Silently fail if vibration not available
+        }
+      };
+
+      const getColorClass = (mode) => COLORS[mode % COLORS.length]?.class || '';
+      const getColorName = (mode) => COLORS[mode % COLORS.length]?.name || '';
+
+      const storage = {
+        save() {
+          clearTimeout(saveTimeout);
+          saveTimeout = setTimeout(() => {
+            try {
+              localStorage.setItem(CONFIG.storageKey, JSON.stringify(state));
+            } catch (e) {
+              if (e?.name === 'QuotaExceededError') {
+                console.warn('Storage quota exceeded');
+              }
+            }
+          }, CONFIG.saveDebounceDuration);
+        },
+        load() {
+          try {
+            const saved = localStorage.getItem(CONFIG.storageKey);
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (parsed?.active !== undefined && parsed?.colorMode !== undefined) {
+                state = parsed;
+              }
+            }
+          } catch (e) {
+            // Use default state on parse error
+          }
+        }
+      };
+
+      const updateClasses = () => {
+        if (!el.circle) return;
+
+        const colorClasses = COLORS.map(m => m.class);
+        el.circle.classList.toggle('active', state.active);
+        el.circle.setAttribute('aria-pressed', state.active.toString());
+        el.circle.setAttribute('aria-expanded', (state.colorMode > 0).toString());
+
+        colorClasses.forEach(cls => {
+          el.circle.classList.remove(cls);
+        });
+
+        if (state.colorMode > 0) {
+          el.circle.classList.add(getColorClass(state.colorMode));
+        }
+      };
+
+      const updateUI = () => {
+        const hint = CONFIG.isTouch
+          ? (state.active ? 'Tap twice to cycle • Tap to deactivate' : 'Tap to activate • Tap twice to cycle')
+          : (state.active ? 'Double-click to cycle • Click to deactivate' : 'Click to activate • Double-click to cycle');
+        el.hint.textContent = hint;
+
+        const showMode = state.active && state.colorMode > 0;
+        el.modeIndicator.classList.toggle('visible', showMode);
+        if (showMode) {
+          el.modeIndicator.textContent = `◆ ${getColorName(state.colorMode).toUpperCase()}`;
+        }
+      };
+
+      const applyState = () => {
+        updateClasses();
+        updateUI();
+      };
+
+      const modal = {
+        previousFocus: null,
+        open: () => {
+          if (!el.helpModal || !el.modalClose) return;
+          this.previousFocus = document.activeElement;
+          el.helpModal.classList.add('active');
+          el.modalClose.focus();
+          document.body.style.overflow = 'hidden';
+        },
+        close: () => {
+          if (!el.helpModal) return;
+          el.helpModal.classList.remove('active');
+          document.body.style.overflow = '';
+          this.previousFocus?.focus?.();
+        }
+      };
+
+      const toggleActive = () => {
+        state.active = !state.active;
+        haptic(10);
+        applyState();
+        storage.save();
+      };
+
+      const cycleColor = () => {
+        if (animatingColorShift || !el.circle) return;
+        animatingColorShift = true;
+        state.colorMode = (state.colorMode + 1) % COLORS.length;
+        state.active = true;
+        haptic(20);
+        el.circle.classList.add('color-shifting');
+        const timeoutId = setTimeout(() => {
+          el.circle?.classList.remove('color-shifting');
+          animatingColorShift = false;
+        }, CONFIG.colorShiftDuration);
+        applyState();
+        storage.save();
+        return timeoutId;
+      };
+
+      const randomizeColor = () => {
+        if (animatingColorShift || !el.circle) return;
+        animatingColorShift = true;
+        state.colorMode = getRandomColorMode();
+        state.active = true;
+        haptic([20, 10, 20]);
+        el.circle.classList.add('color-shifting');
+        const timeoutId = setTimeout(() => {
+          el.circle?.classList.remove('color-shifting');
+          animatingColorShift = false;
+        }, CONFIG.colorShiftDuration);
+        applyState();
+        storage.save();
+        return timeoutId;
+      };
+
+      const resetState = () => {
+        state = { active: false, colorMode: 0 };
+        haptic(10);
+        applyState();
+        storage.save();
+      };
+
+      const handleTouchEnd = () => {
+        tapCount++;
+        haptic(10);
+        clearTimeout(tapTimeout);
+
+        if (tapCount === 1) {
+          tapTimeout = setTimeout(() => {
+            if (tapCount === 1) {
+              toggleActive();
+            }
+            tapCount = 0;
+          }, CONFIG.tapDelay);
+        } else if (tapCount >= 2) {
+          tapCount = 0;
+          cycleColor();
+        }
+      };
+
+      const keyHandlers = {
+        ' ': toggleActive,
+        'enter': toggleActive,
+        'escape': resetState,
+        'c': cycleColor,
+        'x': randomizeColor,
+        'r': resetState,
+        '?': modal.open
+      };
+
+      const handleKeyDown = (e) => {
+        const key = e.key.toLowerCase();
+        const handler = keyHandlers[key];
+        if (!handler) return;
+
+        const now = Date.now();
+        if (now - lastKeyTime < CONFIG.keyDebounce) return;
+
+        e.preventDefault();
+        try {
+          handler();
+          lastKeyTime = now;
+        } catch (err) {
+          console.error('Keyboard handler error:', err);
+        }
+      };
+
+      const handleModalKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          modal.close();
+        }
+        if (e.key === 'Tab' && el.helpModal?.classList.contains('active')) {
+          const focusableElements = el.helpModal.querySelectorAll('button, [tabindex]');
+          const firstElement = focusableElements[0];
+          const lastElement = focusableElements[focusableElements.length - 1];
+          if (e.shiftKey) {
+            if (document.activeElement === firstElement) {
+              e.preventDefault();
+              lastElement?.focus?.();
+            }
+          } else if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement?.focus?.();
+          }
+        }
+      };
+
+      const handleModalBackdropClick = (e) => {
+        if (e.target === el.helpModal) {
+          modal.close();
+        }
+      };
+
+      const initListeners = () => {
+        if (!el.circle) return;
+
+        el.circle.addEventListener('blur', () => {
+          tapCount = 0;
+          clearTimeout(tapTimeout);
+        });
+
+        if (CONFIG.isTouch) {
+          el.circle.addEventListener('touchend', handleTouchEnd, { passive: true });
+          if (window.PointerEvent) {
+            el.circle.addEventListener('pointerup', handleTouchEnd, { passive: true });
+          }
+        } else {
+          el.circle.addEventListener('click', toggleActive, { passive: true });
+          el.circle.addEventListener('dblclick', cycleColor, { passive: true });
+        }
+
+        document.addEventListener('keydown', handleKeyDown);
+
+        el.cycleBtn?.addEventListener('click', cycleColor, { passive: true });
+        el.randomBtn?.addEventListener('click', randomizeColor, { passive: true });
+        el.resetBtn?.addEventListener('click', resetState, { passive: true });
+        el.helpBtn?.addEventListener('click', modal.open, { passive: true });
+        el.modalClose?.addEventListener('click', modal.close, { passive: true });
+        el.helpModal?.addEventListener('click', handleModalBackdropClick, { passive: true });
+        el.helpModal?.addEventListener('keydown', handleModalKeyDown);
+      };
+
+      const initApp = () => {
+        if (!el.circle) {
+          console.error('Circle element not found');
+          return;
+        }
+        storage.load();
+        applyState();
+        initListeners();
+        el.circle.focus?.();
+      };
+
+      const ensureSave = () => {
+        clearTimeout(saveTimeout);
+        try {
+          localStorage.setItem(CONFIG.storageKey, JSON.stringify(state));
+        } catch (e) {
+          // Silently fail on storage errors during page hide
+        }
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+      } else {
+        initApp();
+      }
+
+      window.addEventListener('pagehide', ensureSave);
+    })();
+  </script>
+</body>
+</html>
