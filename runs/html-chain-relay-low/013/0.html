@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="content-security-policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="description" content="A well-structured, accessible HTML5 document with modern best practices.">
+	<meta name="color-scheme" content="light dark">
+	<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+	<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+	<meta name="author" content="ksmith@centricle.com">
+	<title>Welcome</title>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E👋%3C/text%3E%3C/svg%3E">
+	<link rel="canonical" href="https://example.com/">
+	<meta property="og:type" content="website">
+	<meta property="og:title" content="Welcome">
+	<meta property="og:description" content="A well-structured, accessible HTML5 document with modern best practices.">
+	<meta property="og:url" content="https://example.com/">
+	<meta property="og:image" content="https://example.com/og-image.png">
+	<meta property="og:locale" content="en_US">
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:title" content="Welcome">
+	<meta name="twitter:description" content="A well-structured, accessible HTML5 document with modern best practices.">
+	<meta name="twitter:image" content="https://example.com/og-image.png">
+	<style>
+		:root {
+			color-scheme: light dark;
+			--text: #1a1a1a;
+			--text-secondary: #555;
+			--background: #fff;
+			--accent: #0052a3;
+			--border: #e0e0e0;
+		}
+		@media (prefers-color-scheme: dark) {
+			:root {
+				--text: #e0e0e0;
+				--text-secondary: #a0a0a0;
+				--background: #121212;
+				--accent: #5fa3ff;
+				--border: #333;
+			}
+		}
+		*,
+		*::before,
+		*::after {
+			box-sizing: border-box;
+		}
+		html {
+			-webkit-text-size-adjust: 100%;
+			text-size-adjust: 100%;
+		}
+		@media (prefers-reduced-motion: no-preference) {
+			html {
+				scroll-behavior: smooth;
+			}
+			a {
+				transition: text-decoration-thickness 0.15s ease;
+			}
+			.skip-link {
+				transition: transform 0.15s ease;
+			}
+		}
+		body {
+			display: grid;
+			grid-template-rows: auto 1fr auto;
+			min-height: 100vh;
+			min-height: 100dvh;
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			font-size: 1rem;
+			line-height: 1.6;
+			max-width: 70ch;
+			margin: 0 auto;
+			padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+			color: var(--text);
+			background: var(--background);
+		}
+		h1 {
+			color: var(--accent);
+			font-size: clamp(1.75rem, 1.25rem + 3vw, 2.5rem);
+			font-weight: 700;
+			line-height: 1.1;
+			text-wrap: balance;
+			margin: 0 0 1.5rem 0;
+			letter-spacing: -0.02em;
+		}
+		p {
+			text-wrap: pretty;
+			margin: 1rem 0;
+		}
+		a {
+			color: var(--accent);
+			text-underline-offset: 0.2em;
+			text-decoration-thickness: 2px;
+			font-weight: 500;
+		}
+		a:hover, a:active {
+			text-decoration-thickness: 3px;
+		}
+		:focus-visible {
+			outline: 2px solid var(--accent);
+			outline-offset: 2px;
+		}
+		.skip-link {
+			position: absolute;
+			left: 0;
+			top: 0;
+			transform: translateY(-100%);
+			background: var(--accent);
+			color: var(--background);
+			padding: 0.75rem 1.5rem;
+			z-index: 1000;
+			border-radius: 0 0 0.25rem 0;
+			font-weight: 600;
+			text-decoration: none;
+			display: inline-block;
+		}
+		.skip-link:focus {
+			transform: none;
+			outline: 3px solid var(--text);
+			outline-offset: -3px;
+		}
+		header {
+			padding-block: 1.5rem;
+			margin-bottom: 1.5rem;
+		}
+		main {
+			padding: 1rem 0;
+		}
+		main:focus {
+			outline: none;
+		}
+		footer {
+			padding-block: 1.5rem;
+			margin-top: 3rem;
+			border-top: 1px solid var(--border);
+			font-size: 0.875rem;
+			color: var(--text-secondary);
+			text-align: center;
+		}
+		footer p {
+			margin: 0.5rem 0;
+		}
+		@media print {
+			.skip-link {
+				display: none;
+			}
+			body {
+				display: block;
+				min-height: 0;
+				max-width: none;
+				padding: 0;
+			}
+			a {
+				color: inherit;
+				text-decoration: underline;
+			}
+		}
+	</style>
+</head>
+<body>
+	<a class="skip-link" href="#main">Skip to content</a>
+	<header>
+		<h1>Welcome</h1>
+	</header>
+	<main id="main" tabindex="-1">
+		<p>This is a well-structured, accessible HTML5 document.</p>
+		<p>
+			It uses semantic landmarks, a skip link for keyboard navigation,
+			and CSS that adapts to your light or dark mode preference.
+		</p>
+		<p>
+			Text and link colors meet WCAG AA contrast in both themes, type scales
+			with your browser's font size, and motion respects your system settings.
+		</p>
+	</main>
+	<footer>
+		<p>&copy; 2026. All rights reserved.</p>
+	</footer>
+</body>
+</html>
