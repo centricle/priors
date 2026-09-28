@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en" itemscope itemtype="https://schema.org/WebPage">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A modern, accessible website built with best practices for performance, SEO, and user experience">
+    <meta name="theme-color" content="#667eea">
+    <meta property="og:title" content="Modern Web Template">
+    <meta property="og:description" content="A modern, accessible website built with best practices">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/og-image.png">
+    <meta property="og:image:alt" content="Modern Web Template Logo">
+    <meta property="og:url" content="/">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Modern Web Template">
+    <meta name="twitter:description" content="A modern, accessible website built with best practices">
+    <meta name="twitter:image" content="/og-image.png">
+    <link rel="canonical" href="/">
+    <meta name="keywords" content="html, template, modern, accessible, responsive">
+    <meta name="color-scheme" content="light dark">
+    <meta name="robots" content="index, follow">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><style>@media (prefers-color-scheme:dark){circle{fill:%23a3b9ff}}</style></defs><circle cx='50' cy='50' r='45' fill='%23667eea'/><text y='75' font-size='75' font-weight='600' fill='white' text-anchor='middle'>W</text></svg>">
+    <title>Modern Web Template - Accessible, Responsive HTML5 Starter</title>
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --primary-color: #667eea;
+            --primary-light: #8fa3f5;
+            --text-color: #2c3e50;
+            --bg-color: #f8f9fa;
+            --focus-color: #667eea;
+            --dark-bg: #1a1a1a;
+            --dark-text: #e0e0e0;
+            --dark-input-bg: #2a2a2a;
+            --dark-input-border: #444;
+            --error-color: #e74c3c;
+            --error-dark: #ff7f7f;
+            --success-color: #1e7e34;
+            --success-dark: #66bb6a;
+            --footer-bg: #2c3e50;
+            --footer-dark-bg: #0d0d0d;
+            --required-label-text: 0.875rem;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        a {
+            color: var(--primary-color);
+            transition: all 0.2s;
+            text-decoration-thickness: 2px;
+            text-underline-offset: 4px;
+        }
+
+        a:hover {
+            opacity: 0.85;
+            text-decoration: underline;
+        }
+
+        a:focus-visible,
+        button:focus-visible {
+            outline: 3px solid var(--focus-color);
+            outline-offset: 2px;
+        }
+
+        .skip-link {
+            position: absolute;
+            top: -50px;
+            left: 0;
+            background: var(--primary-color);
+            color: white;
+            padding: 12px 20px;
+            text-decoration: none;
+            z-index: 100;
+            font-weight: 600;
+            transition: top 0.2s ease;
+            border-radius: 0 0 8px 0;
+        }
+
+        .skip-link:focus-visible {
+            top: 0;
+            outline: 2px solid white;
+            outline-offset: 2px;
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: transform 0.2s;
+            min-width: 44px;
+            min-height: 44px;
+        }
+
+        .menu-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .menu-toggle:active {
+            transform: scale(0.95);
+        }
+
+        .menu-toggle:focus-visible {
+            outline: 2px solid white;
+            outline-offset: 4px;
+        }
+
+        header {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 2rem 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 600;
+        }
+
+        header nav ul {
+            list-style: none;
+            display: flex;
+            gap: 2rem;
+            margin: 0;
+            padding: 0;
+        }
+
+        header nav li a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            position: relative;
+            display: block;
+        }
+
+        header nav li a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background-color: white;
+            transition: width 0.2s ease;
+        }
+
+        header nav li a:hover {
+            opacity: 0.95;
+            background-color: rgba(255, 255, 255, 0.12);
+        }
+
+        header nav li a:hover::after {
+            width: 100%;
+        }
+
+        header nav li a:focus-visible {
+            outline: 2px solid white;
+            outline-offset: 4px;
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        article {
+            margin-bottom: 3rem;
+        }
+
+        h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+
+        .cta-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: var(--primary-gradient);
+            color: white;
+            padding: 0.875rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+            min-height: 44px;
+            min-width: 44px;
+            letter-spacing: 0.5px;
+        }
+
+        .cta-button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 16px 40px rgba(102, 126, 234, 0.5);
+        }
+
+        .cta-button:active:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .cta-button:focus-visible {
+            outline: 3px solid var(--primary-color);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.25), 0 12px 24px rgba(102, 126, 234, 0.4);
+        }
+
+        .cta-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .cta-button:disabled:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            transform: none;
+        }
+
+        .cta-button.loading {
+            opacity: 0.85;
+        }
+
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 100%);
+            border-radius: 6px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .cta-button:hover:not(:disabled)::before {
+            opacity: 1;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            html {
+                scroll-behavior: auto;
+            }
+
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        footer {
+            background-color: var(--footer-bg);
+            color: white;
+            padding: 2rem 20px;
+            margin-top: 3rem;
+        }
+
+        footer > div {
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        footer p {
+            margin: 0 0 1rem 0;
+            font-size: 0.95rem;
+            opacity: 0.8;
+        }
+
+        footer nav {
+            margin-top: 1rem;
+        }
+
+        footer ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+        }
+
+        footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            transition: all 0.2s;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        footer a:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+            background-color: rgba(102, 126, 234, 0.1);
+        }
+
+        footer a:focus-visible {
+            outline: 2px solid rgba(255, 255, 255, 0.5);
+            outline-offset: 2px;
+            text-decoration: underline;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            cursor: default;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 12px 32px rgba(102, 126, 234, 0.2);
+            transform: translateY(-6px);
+        }
+
+        .feature-card h3 {
+            color: var(--primary-color);
+            font-size: 1.2rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .feature-card h3::before {
+            content: '✓';
+            font-weight: bold;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+
+        .feature-card p {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin: 0;
+            opacity: 0.85;
+        }
+
+        .hero-section {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 5rem 20px;
+            text-align: center;
+            border-radius: 16px;
+            margin-bottom: 3rem;
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .hero-section h2 {
+            color: white;
+            font-size: 2.8rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 1;
+            font-weight: 700;
+        }
+
+        .hero-section p {
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 1.15rem;
+            max-width: 700px;
+            margin: 0 auto 2rem;
+            position: relative;
+            z-index: 1;
+            line-height: 1.7;
+        }
+
+        .hero-section .cta-button {
+            position: relative;
+            z-index: 2;
+        }
+
+        .feature-list {
+            margin-left: 20px;
+            margin-bottom: 1rem;
+        }
+
+        .feature-list li {
+            margin-bottom: 0.5rem;
+            padding-left: 0.5rem;
+        }
+
+        .feature-list li::marker {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        fieldset {
+            border: 2px solid #e0e0e0;
+            padding: 2.5rem;
+            margin: 2rem 0;
+            border-radius: 16px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        legend {
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            padding: 0 1rem;
+        }
+
+        .form-info {
+            font-size: var(--required-label-text);
+            color: var(--text-color);
+            margin-bottom: 1.5rem;
+            background: rgba(102, 126, 234, 0.08);
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary-color);
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+            color: var(--text-color);
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+        }
+
+        label span {
+            display: inline;
+            font-size: 0.85rem;
+            font-weight: 400;
+            opacity: 0.7;
+            margin-left: 0.5rem;
+        }
+
+        .required::after {
+            content: " *";
+            color: var(--error-color);
+            font-weight: 700;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        textarea {
+            width: 100%;
+            max-width: 600px;
+            padding: 0.875rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            background-color: white;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        textarea:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+            background-color: rgba(102, 126, 234, 0.02);
+        }
+
+        input[type="text"]:invalid:not(:placeholder-shown),
+        input[type="email"]:invalid:not(:placeholder-shown) {
+            border-color: #c0392b;
+        }
+
+        input[type="text"]:valid:not(:placeholder-shown),
+        input[type="email"]:valid:not(:placeholder-shown) {
+            border-color: var(--success-color);
+        }
+
+        .field-error {
+            color: var(--error-color);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+            font-weight: 500;
+            padding: 0.5rem 0.75rem;
+            background-color: rgba(231, 76, 60, 0.1);
+            border-left: 3px solid var(--error-color);
+            border-radius: 4px;
+        }
+
+        .field-error.show {
+            display: block;
+            animation: slideDown 0.2s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1.1rem;
+            height: 1.1rem;
+            border: 2.5px solid rgba(255, 255, 255, 0.25);
+            border-top-color: white;
+            border-right-color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .spinner::after {
+            content: ' ';
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .form-feedback {
+            margin-top: 2rem;
+            padding: 1.25rem 1.5rem;
+            border-radius: 8px;
+            display: none;
+            border-left: 5px solid transparent;
+            font-weight: 500;
+            font-size: 1rem;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        .form-feedback.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-left-color: #1e7e34;
+            display: block;
+        }
+
+        .form-feedback.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-left-color: #e74c3c;
+            display: block;
+        }
+
+        .message-counter {
+            font-size: 0.85rem;
+            color: var(--text-color);
+            margin-top: 0.25rem;
+            opacity: 0.7;
+        }
+
+        .field-hint {
+            font-size: 0.875rem;
+            opacity: 0.7;
+            margin-top: 0.25rem;
+            display: block;
+            color: var(--text-color);
+        }
+
+        input:focus ~ .field-hint,
+        textarea:focus ~ .field-hint {
+            opacity: 1;
+            color: var(--primary-color);
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: var(--dark-bg);
+                --text-color: var(--dark-text);
+            }
+
+            h2 {
+                color: var(--primary-light);
+            }
+
+            .feature-card {
+                background: #2a2a2a;
+                border-color: #444;
+            }
+
+            .feature-card:hover {
+                border-color: var(--primary-light);
+                box-shadow: 0 8px 24px rgba(168, 185, 255, 0.15);
+            }
+
+            .feature-card h3 {
+                color: var(--primary-light);
+            }
+
+            .feature-card h3::before {
+                background: linear-gradient(135deg, rgba(168, 185, 255, 0.3) 0%, rgba(168, 185, 255, 0.15) 100%);
+            }
+
+            .feature-card p {
+                color: #b0b0b0;
+            }
+
+            .hero-section {
+                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+            }
+
+            footer {
+                background-color: var(--footer-dark-bg);
+            }
+
+            footer a {
+                color: var(--primary-light);
+            }
+
+            footer a:hover {
+                color: #c7d3ff;
+                background-color: rgba(163, 185, 255, 0.1);
+            }
+
+            footer a:focus-visible {
+                color: #c7d3ff;
+            }
+
+            .feature-list li {
+                color: #c0c0c0;
+            }
+
+            fieldset {
+                background: #2a2a2a;
+                border-color: #444;
+            }
+
+            legend {
+                color: var(--primary-light);
+            }
+
+            .form-info {
+                background: rgba(168, 185, 255, 0.1);
+                border-left-color: var(--primary-light);
+            }
+
+            input[type="text"],
+            input[type="email"],
+            textarea {
+                background-color: var(--dark-input-bg);
+                border-color: var(--dark-input-border);
+                color: var(--dark-text);
+                caret-color: var(--primary-light);
+            }
+
+            input[type="text"]:focus,
+            input[type="email"]:focus,
+            textarea:focus {
+                outline: 2px solid var(--primary-light);
+                outline-offset: 2px;
+                border-color: var(--primary-light);
+                box-shadow: 0 0 0 3px rgba(168, 185, 255, 0.2);
+                background-color: rgba(168, 185, 255, 0.08);
+            }
+
+            .field-error {
+                background-color: rgba(255, 127, 127, 0.15);
+                border-left-color: var(--error-dark);
+            }
+
+            input[type="text"]:invalid:not(:placeholder-shown),
+            input[type="email"]:invalid:not(:placeholder-shown) {
+                border-color: var(--error-dark);
+            }
+
+            input[type="text"]:valid:not(:placeholder-shown),
+            input[type="email"]:valid:not(:placeholder-shown) {
+                border-color: var(--success-dark);
+            }
+
+            .form-feedback {
+                background: none;
+                padding: 1rem;
+            }
+
+            .form-feedback.success {
+                background-color: rgba(30, 78, 32, 0.4);
+                color: #90ee90;
+                border-color: rgba(102, 187, 106, 0.4);
+                border-left-color: #66bb6a;
+            }
+
+            .form-feedback.error {
+                background-color: rgba(90, 30, 30, 0.4);
+                color: #ff9999;
+                border-color: rgba(255, 127, 127, 0.4);
+                border-left-color: #ff7f7f;
+            }
+
+            input::placeholder,
+            textarea::placeholder {
+                color: #999;
+                opacity: 1;
+            }
+
+            .field-error {
+                color: var(--error-dark);
+            }
+
+            .message-counter {
+                color: #999;
+            }
+
+            .field-hint {
+                color: #aaa;
+            }
+
+            input:focus ~ .field-hint,
+            textarea:focus ~ .field-hint {
+                color: var(--primary-light);
+            }
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        article img {
+            margin: 2rem 0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: box-shadow 0.3s ease;
+        }
+
+        article img:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        header nav li a[aria-current="page"] {
+            font-weight: 700;
+            opacity: 1;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-bottom: 3px solid white;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+                flex: 1 1 100%;
+            }
+
+            h2 {
+                font-size: 1.5rem;
+            }
+
+            p {
+                font-size: 1rem;
+            }
+
+            .cta-button {
+                padding: 1rem 1.75rem;
+                min-height: 48px;
+                font-size: 0.95rem;
+            }
+
+            .hero-section {
+                padding: 3.5rem 20px;
+                border-radius: 12px;
+            }
+
+            .hero-section h2 {
+                font-size: 2rem;
+                margin-bottom: 1rem;
+            }
+
+            .hero-section p {
+                font-size: 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .menu-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 48px;
+                min-width: 48px;
+            }
+
+            header nav {
+                width: 100%;
+                order: 3;
+            }
+
+            header nav ul {
+                flex-direction: column;
+                gap: 1rem;
+                padding: 1rem 0;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+                margin-top: 1rem;
+            }
+
+            header nav ul[hidden] {
+                display: none;
+            }
+
+            input[type="text"],
+            input[type="email"],
+            textarea {
+                max-width: 100%;
+            }
+
+            fieldset {
+                padding: 1.5rem;
+            }
+
+            footer ul {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .form-group input[aria-invalid="true"],
+            .form-group textarea[aria-invalid="true"] {
+                border-color: var(--error-color);
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .form-group input[aria-invalid="true"],
+                .form-group textarea[aria-invalid="true"] {
+                    border-color: var(--error-dark);
+                }
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header>
+        <div class="header-container">
+            <h1>Welcome</h1>
+            <button class="menu-toggle" aria-label="Toggle navigation menu" aria-controls="nav-menu" aria-expanded="false">☰</button>
+            <nav aria-label="Primary navigation">
+                <ul id="nav-menu">
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#get-started">Get Started</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main id="main-content">
+        <article class="hero-section">
+            <h2>Modern Web Template</h2>
+            <p>A feature-rich HTML foundation built with best practices for performance, accessibility, and maintainability. Perfect for building responsive, accessible web applications with semantic HTML5, proper ARIA attributes, and comprehensive form validation.</p>
+            <button type="button" class="cta-button" id="learn-more-btn" aria-label="Scroll to the contact form to get started">Get Started</button>
+        </article>
+
+        <article id="features">
+            <h2>Key Features</h2>
+            <p>
+                This template includes everything you need to build modern, accessible web experiences with semantic HTML,
+                responsive design, and comprehensive form handling out of the box.
+            </p>
+            <ul class="feature-grid" role="list">
+                <li class="feature-card">
+                    <h3>Semantic HTML5</h3>
+                    <p>Clean, semantic HTML structure that improves SEO and provides meaning to your content.</p>
+                </li>
+                <li class="feature-card">
+                    <h3>WCAG 2.1 Compliant</h3>
+                    <p>Built with accessibility first. Full keyboard navigation and screen reader support.</p>
+                </li>
+                <li class="feature-card">
+                    <h3>Mobile-First Design</h3>
+                    <p>Responsive layouts that work perfectly on all screen sizes and devices.</p>
+                </li>
+                <li class="feature-card">
+                    <h3>Dark Mode Support</h3>
+                    <p>Automatically adapts to user preferences with a beautiful dark theme.</p>
+                </li>
+                <li class="feature-card">
+                    <h3>Form Validation</h3>
+                    <p>Comprehensive client-side validation with helpful error messages and feedback.</p>
+                </li>
+                <li class="feature-card">
+                    <h3>SEO Optimized</h3>
+                    <p>Open Graph tags, structured data, and meta tags for better search visibility.</p>
+                </li>
+            </ul>
+        </article>
+
+        <article id="get-started">
+            <h2>Get Started</h2>
+            <p>
+                Use this template as a foundation for your next project. It's clean, well-structured, and ready to be
+                customized to meet your specific needs.
+            </p>
+            <form id="contact-form" method="POST" data-endpoint="/contact" novalidate autocomplete="on">
+                <fieldset>
+                    <legend>Get in Touch</legend>
+                    <p class="form-info"><span style="color: var(--error-color); font-weight: 600;">*</span> indicates required fields</p>
+                    <div class="form-group">
+                        <label for="name" class="required">Full Name <span>(letters and spaces only)</span></label>
+                        <input type="text" id="name" name="name" placeholder="e.g., Jane Smith" required aria-required="true" aria-describedby="name-error name-hint" minlength="2" pattern="[A-Za-z\s]{2,}" autocomplete="name" spellcheck="false" aria-invalid="false">
+                        <div class="field-hint" id="name-hint">2+ characters, letters and spaces only</div>
+                        <div class="field-error" id="name-error" role="alert"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="email" class="required">Email Address</label>
+                        <input type="email" id="email" name="email" placeholder="you@example.com" required aria-required="true" aria-describedby="email-error email-hint" autocomplete="email" inputmode="email" aria-invalid="false">
+                        <div class="field-hint" id="email-hint">Example: jane@example.com</div>
+                        <div class="field-error" id="email-error" role="alert"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="message" class="required">Message <span>(10-1000 characters)</span></label>
+                        <textarea id="message" name="message" placeholder="Tell us what you think..." required aria-required="true" aria-describedby="message-error message-counter" minlength="10" maxlength="1000" autocomplete="off" spellcheck="true" aria-invalid="false"></textarea>
+                        <div class="field-error" id="message-error" role="alert"></div>
+                        <div id="message-counter" class="message-counter" aria-live="polite" aria-atomic="true">0 / 1000 characters</div>
+                    </div>
+                    <button type="submit" class="cta-button" id="submit-btn" aria-label="Submit the contact form to send your message">Send Message</button>
+                    <div id="form-feedback" class="form-feedback" role="status" aria-live="polite" aria-atomic="true"></div>
+                </fieldset>
+            </form>
+        </article>
+    </main>
+
+    <footer>
+        <div>
+            <p>&copy; <span id="year"></span> Modern Web Template. All rights reserved.</p>
+            <nav aria-label="Footer navigation">
+                <ul>
+                    <li><a href="/privacy/" title="Read our privacy policy" rel="noopener noreferrer">Privacy Policy</a></li>
+                    <li><a href="/terms/" title="Read our terms of service" rel="noopener noreferrer">Terms of Service</a></li>
+                </ul>
+            </nav>
+        </div>
+    </footer>
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Modern Web Template",
+        "description": "A modern, accessible website built with best practices for performance, SEO, and user experience",
+        "url": "/",
+        "inLanguage": "en-US",
+        "mainEntity": {
+            "@type": "WebApplication",
+            "name": "Modern Web Template",
+            "description": "A semantic HTML5 template with WCAG 2.1 accessibility compliance, mobile-first responsive design, and keyboard navigation support",
+            "applicationCategory": "Utilities",
+            "operatingSystem": "Any"
+        }
+    }
+    </script>
+
+    <script>
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark-mode');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('year').textContent = new Date().getFullYear();
+
+            const updateCurrentNavLink = () => {
+                const currentHash = window.location.hash || '#features';
+                document.querySelectorAll('nav a').forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href === currentHash) {
+                        link.setAttribute('aria-current', 'page');
+                    } else {
+                        link.removeAttribute('aria-current');
+                    }
+                });
+            };
+
+            updateCurrentNavLink();
+            window.addEventListener('hashchange', updateCurrentNavLink);
+
+            const menuToggle = document.querySelector('.menu-toggle');
+            const navMenu = document.getElementById('nav-menu');
+
+            if (menuToggle) {
+                const isDesktop = () => window.innerWidth > 768;
+
+                const updateMenuVisibility = () => {
+                    if (isDesktop()) {
+                        navMenu.removeAttribute('hidden');
+                        menuToggle.setAttribute('aria-expanded', 'true');
+                    } else {
+                        navMenu.setAttribute('hidden', '');
+                        menuToggle.setAttribute('aria-expanded', 'false');
+                    }
+                };
+
+                const closeMenu = () => {
+                    if (!isDesktop()) {
+                        menuToggle.setAttribute('aria-expanded', 'false');
+                        navMenu.setAttribute('hidden', '');
+                        menuToggle.focus();
+                    }
+                };
+
+                updateMenuVisibility();
+                window.addEventListener('resize', updateMenuVisibility);
+
+                menuToggle.addEventListener('click', function() {
+                    if (!isDesktop()) {
+                        const isExpanded = menuToggle.getAttribute('aria-expanded') === 'true';
+                        menuToggle.setAttribute('aria-expanded', !isExpanded);
+                        navMenu.toggleAttribute('hidden');
+                    }
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && !isDesktop() && menuToggle.getAttribute('aria-expanded') === 'true') {
+                        closeMenu();
+                    }
+                });
+
+                const navLinks = navMenu.querySelectorAll('a');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', closeMenu);
+                });
+            }
+
+            const learnMoreBtn = document.getElementById('learn-more-btn');
+            if (learnMoreBtn) {
+                learnMoreBtn.addEventListener('click', function() {
+                    const getStartedSection = document.getElementById('get-started');
+                    if (getStartedSection) {
+                        getStartedSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        document.getElementById('name').focus();
+                    }
+                });
+            }
+
+            const contactForm = document.getElementById('contact-form');
+            if (contactForm) {
+                const showError = (field, message) => {
+                    const fieldGroup = field.closest('.form-group');
+                    const error = fieldGroup.querySelector('.field-error');
+                    if (error) {
+                        error.classList.add('show');
+                        error.textContent = message;
+                        error.setAttribute('role', 'alert');
+                    }
+                    field.setAttribute('aria-invalid', 'true');
+                };
+
+                const clearError = (field) => {
+                    const fieldGroup = field.closest('.form-group');
+                    const error = fieldGroup.querySelector('.field-error');
+                    if (error) {
+                        error.classList.remove('show');
+                        error.textContent = '';
+                    }
+                    field.setAttribute('aria-invalid', 'false');
+                };
+
+                const validateField = (field) => {
+                    if (!field) return false;
+                    const value = field.value.trim();
+
+                    if (!value) {
+                        const label = field.labels?.[0]?.textContent?.split('*')[0].trim() || 'This field';
+                        showError(field, `${label} is required`);
+                        return false;
+                    }
+
+                    if (!field.checkValidity()) {
+                        let message = 'Invalid input';
+                        if (field.type === 'email') {
+                            const emailValue = field.value.trim();
+                            if (!emailValue.includes('@')) {
+                                message = 'Email must contain an @ symbol';
+                            } else if (!emailValue.includes('.')) {
+                                message = 'Email must contain a domain (e.g., example.com)';
+                            } else {
+                                message = 'Please enter a valid email address. Example: jane@example.com';
+                            }
+                        } else if (field.id === 'name') {
+                            if (field.value.length < 2) {
+                                message = 'Name must be at least 2 characters';
+                            } else if (!/^[A-Za-z\s]+$/.test(field.value)) {
+                                message = 'Name can only contain letters and spaces';
+                            } else {
+                                message = 'Please enter a valid name';
+                            }
+                        } else if (field.id === 'message') {
+                            if (field.value.length < 10) {
+                                message = `Message must be at least 10 characters (${field.value.length} so far)`;
+                            } else if (field.value.length > 1000) {
+                                message = `Message must be 1000 characters or fewer (currently ${field.value.length})`;
+                            } else {
+                                message = 'Please enter a valid message';
+                            }
+                        }
+                        showError(field, message);
+                        return false;
+                    }
+
+                    clearError(field);
+                    return true;
+                };
+
+                const messageField = document.getElementById('message');
+                const messageCounter = document.getElementById('message-counter');
+
+                const updateMessageCounter = () => {
+                    if (messageCounter) {
+                        const length = messageField.value.length;
+                        const remaining = 1000 - length;
+                        messageCounter.textContent = `${length} / 1000 characters${remaining < 100 && remaining > 0 ? ` (${remaining} remaining)` : ''}`;
+                    }
+                };
+
+                if (messageField && messageCounter) {
+                    updateMessageCounter();
+                    messageField.addEventListener('input', updateMessageCounter);
+                }
+
+                const inputs = contactForm.querySelectorAll('input, textarea');
+                inputs.forEach(input => {
+                    input.addEventListener('blur', () => validateField(input));
+                    input.addEventListener('input', () => {
+                        if (input.getAttribute('aria-invalid') === 'true') {
+                            validateField(input);
+                        }
+                    });
+                });
+
+                let isSubmitting = false;
+
+                contactForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    if (isSubmitting) return;
+
+                    let isValid = true;
+                    const feedback = document.getElementById('form-feedback');
+                    feedback.className = 'form-feedback';
+                    feedback.textContent = '';
+
+                    inputs.forEach(input => {
+                        if (!validateField(input)) isValid = false;
+                    });
+
+                    if (!isValid) {
+                        feedback.className = 'form-feedback error';
+                        feedback.textContent = 'Please correct the errors above and try again.';
+                        feedback.setAttribute('role', 'alert');
+                        feedback.setAttribute('aria-live', 'assertive');
+                        const firstError = contactForm.querySelector('[aria-invalid="true"]');
+                        if (firstError && firstError.focus) {
+                            firstError.focus();
+                        }
+                        return;
+                    }
+
+                    const submitBtn = document.getElementById('submit-btn');
+                    isSubmitting = true;
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('loading');
+                    const originalHTML = submitBtn.innerHTML;
+                    const originalAriaLabel = submitBtn.getAttribute('aria-label');
+                    submitBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Sending...';
+                    submitBtn.setAttribute('aria-label', 'Sending message, please wait');
+
+                    const formData = new FormData(contactForm);
+                    const endpoint = contactForm.getAttribute('data-endpoint') || '/contact';
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                    fetch(endpoint, {
+                        method: 'POST',
+                        body: formData,
+                        signal: controller.signal
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            if (response.status === 429) {
+                                throw new Error('Too many requests. Please wait a moment and try again.');
+                            } else if (response.status >= 500) {
+                                throw new Error('Server is temporarily unavailable. Please try again later.');
+                            } else if (response.status >= 400) {
+                                throw new Error(`Request error (${response.status}). Please check your input and try again.`);
+                            }
+                            throw new Error(`Server error: ${response.status}`);
+                        }
+                        return response;
+                    })
+                    .then(() => {
+                        feedback.className = 'form-feedback success';
+                        feedback.textContent = 'Thank you for your message! We will be in touch soon.';
+                        feedback.setAttribute('role', 'status');
+                        feedback.setAttribute('aria-live', 'polite');
+                        contactForm.reset();
+                        inputs.forEach(input => {
+                            clearError(input);
+                            input.setAttribute('aria-invalid', 'false');
+                        });
+                        updateMessageCounter();
+                    })
+                    .catch(error => {
+                        feedback.className = 'form-feedback error';
+                        feedback.setAttribute('role', 'alert');
+                        feedback.setAttribute('aria-live', 'assertive');
+                        if (error.name === 'AbortError') {
+                            feedback.textContent = 'Request timed out. Please check your connection and try again.';
+                        } else if (error instanceof TypeError) {
+                            feedback.textContent = 'Connection failed. Please check your internet connection and try again.';
+                        } else if (error.message) {
+                            feedback.textContent = error.message;
+                        } else {
+                            feedback.textContent = 'Something went wrong. Please try again in a moment.';
+                            console.error('Form submission error:', error);
+                        }
+                    })
+                    .finally(() => {
+                        clearTimeout(timeoutId);
+                        isSubmitting = false;
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('loading');
+                        submitBtn.innerHTML = originalHTML;
+                        if (originalAriaLabel) {
+                            submitBtn.setAttribute('aria-label', originalAriaLabel);
+                        }
+                        requestAnimationFrame(() => {
+                            feedback.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            if (feedback.textContent) {
+                                feedback.setAttribute('tabindex', '-1');
+                                feedback.focus({ preventScroll: true });
+                                feedback.removeAttribute('tabindex');
+                            }
+                        });
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html>
