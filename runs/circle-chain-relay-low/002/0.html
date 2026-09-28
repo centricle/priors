@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Circle</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    :root {
+      --bg: #fff;
+      --fg: #111;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --fg: #eee;
+      }
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    svg {
+      display: block;
+      width: min(400px, 100%);
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-labelledby="ae683f770-title">
+      <title id="ae683f770-title">Circle</title>
+      <circle cx="200" cy="200" r="200" fill="currentColor"/>
+    </svg>
+  </main>
+</body>
+</html>
