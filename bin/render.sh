@@ -16,7 +16,7 @@
 set -uo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd -P)
 CHROME=${PRIORS_CHROME:-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}
-force=0 jobs=6 runs=()
+force=0 jobs=3 runs=()
 while [ $# -gt 0 ]; do
   case $1 in
     --force) force=1 ;;
@@ -45,8 +45,18 @@ done
 
 total=$(wc -l < "$list" | tr -d ' ')
 echo "rendering $total files, $jobs at a time"
-# shellcheck disable=SC2016
-tr '\t' '\n' < "$list" | xargs -n 2 -P "$jobs" sh -c '"$0" "$1" "$2" || echo "FAILED $1" >&2' "$REPO/bin/shot.sh"
+# One worker per shard, each reusing a single Chrome profile. A fresh profile
+# per render wrote ~9 GB to the SSD over 1120 renders and, with 6 Chromes cold
+# booting at once, ran the machine into thermal throttling (2026-09-28).
+profiles=$(mktemp -d "${TMPDIR:-/tmp}/priors-profiles.XXXXXX")
+trap 'rm -f "$list"; rm -rf "$profiles"' EXIT
+for w in $(seq 0 $((jobs - 1))); do
+  awk -F'\t' -v w="$w" -v n="$jobs" '(NR - 1) % n == w' "$list" |
+    while IFS=$'\t' read -r in out; do
+      PRIORS_PROFILE=$profiles/$w "$REPO/bin/shot.sh" "$in" "$out" || echo "FAILED $in" >&2
+    done &
+done
+wait
 
 mkdir -p "$REPO/renders"
 cat > "$REPO/renders/README.md" <<EOF

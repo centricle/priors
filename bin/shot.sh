@@ -11,6 +11,10 @@
 # headless Chrome follows the OS appearance, so a dark-mode Mac renders every
 # page that has a dark variant dark.
 #
+# A fresh Chrome profile is about 8 MB in 160 files. Batch callers pass
+# PRIORS_PROFILE to reuse one per worker (render.sh does); without it, each
+# render makes and deletes its own.
+#
 # Renders are only reproducible on the same Chrome build and fonts: note the
 # version (`--version` of the binary below) with any published set.
 #
@@ -31,7 +35,7 @@ png=$tmp/shot.png
 
 perl -e 'alarm 45; exec @ARGV' "$CHROME" --headless=new --disable-gpu --hide-scrollbars \
   --no-first-run --no-default-browser-check --disable-extensions --mute-audio \
-  --user-data-dir="$tmp/profile" --host-resolver-rules="MAP * ~NOTFOUND" \
+  --user-data-dir="${PRIORS_PROFILE:-$tmp/profile}" --host-resolver-rules="MAP * ~NOTFOUND" \
   --blink-settings=preferredColorScheme=1 --window-size=800,800 --virtual-time-budget=2000 --screenshot="$png" "file://$IN" >/dev/null 2>&1 &
 PID=$!
 i=0
