@@ -266,7 +266,9 @@ while :; do
   sleep 5
 done
 
-counted=$(cat "$REPO"/runs/*/trials.jsonl 2>/dev/null | jq -s '[.[] | select(.counted == true)] | length')
+# The imported pilot (mode "pilot") is not the campaign's, so it is not counted.
+counted=$(cat "$REPO"/runs/*/trials.jsonl 2>/dev/null |
+  jq -s '[.[] | select(.counted == true and .mode != "pilot")] | length')
 halted=$(ls "$STATE/halted" 2>/dev/null | tr '\n' ' ')
 capped=$(ls "$STATE/capped" 2>/dev/null | tr '\n' ' ')
 if stop_requested; then
