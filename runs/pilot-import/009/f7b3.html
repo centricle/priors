@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ae683f770</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+
+    .container {
+      position: relative;
+      width: 500px;
+      height: 500px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    svg {
+      width: 400px;
+      height: 400px;
+      filter: drop-shadow(0 20px 40px rgba(59, 130, 246, 0.3));
+    }
+
+    circle {
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        r: 200px;
+        opacity: 1;
+      }
+      50% {
+        r: 210px;
+        opacity: 0.8;
+      }
+    }
+
+    .info {
+      position: absolute;
+      bottom: 40px;
+      color: #94a3b8;
+      font-size: 14px;
+      text-align: center;
+      opacity: 0.7;
+      animation: fadeInUp 1s ease-out 0.5s both;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 0.7;
+        transform: translateY(0);
+      }
+    }
+
+    .orbit {
+      position: absolute;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 50%;
+      animation: rotate 20s linear infinite;
+    }
+
+    .orbit-1 {
+      width: 450px;
+      height: 450px;
+      top: 25px;
+      left: 25px;
+    }
+
+    .orbit-2 {
+      width: 520px;
+      height: 520px;
+      top: -10px;
+      left: -10px;
+      animation: rotate 30s linear infinite reverse;
+    }
+
+    @keyframes rotate {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="orbit orbit-1"></div>
+  <div class="orbit orbit-2"></div>
+
+  <div class="container">
+    <svg id="ae683f770" viewBox="0 0 400 400">
+      <defs>
+        <radialGradient id="sphereGradient">
+          <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+          <stop offset="70%" style="stop-color:#1e40af;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#0c0e27;stop-opacity:0.9" />
+        </radialGradient>
+
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <circle cx="200" cy="200" r="200" fill="url(#sphereGradient)" filter="url(#glow)"/>
+      <circle cx="150" cy="150" r="60" fill="rgba(255,255,255,0.15)" style="mix-blend-mode: screen"/>
+    </svg>
+  </div>
+
+  <div class="info">interactive gradient sphere • hover for focus</div>
+</body>
+</html>

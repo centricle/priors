@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Circle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      padding: 20px;
+    }
+    .circle-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    svg {
+      width: min(300px, 80vw);
+      height: min(300px, 80vw);
+      filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3));
+      cursor: pointer;
+      transition: filter 0.3s ease;
+    }
+    svg:hover {
+      filter: drop-shadow(0 20px 50px rgba(0, 0, 0, 0.4));
+    }
+    circle {
+      transition: fill 0.4s ease;
+      transform-origin: 200px 200px;
+    }
+    circle.base-circle {
+      transition: fill 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    circle:hover {
+      filter: brightness(1.2);
+      transform: scale(1.05);
+    }
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.6;
+      }
+    }
+    @keyframes glow {
+      0%, 100% {
+        filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3));
+      }
+      50% {
+        filter: drop-shadow(0 20px 60px rgba(255, 255, 255, 0.3));
+      }
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes colorFlash {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+    svg.pulsing circle {
+      animation: pulse 1s infinite;
+    }
+    svg.glowing {
+      animation: glow 2s infinite;
+    }
+    svg.spinning {
+      animation: spin 0.6s ease-in-out;
+    }
+    svg.color-changing {
+      animation: colorFlash 0.4s ease-out;
+    }
+    h1 {
+      color: white;
+      font-size: clamp(20px, 5vw, 28px);
+      font-weight: 600;
+      text-align: center;
+    }
+    .color-label {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      min-height: 20px;
+    }
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+    }
+    button {
+      padding: 10px 18px;
+      border: 2px solid white;
+      border-radius: 8px;
+      background: white;
+      color: #667eea;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+      background: #f0f0f0;
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button:focus {
+      outline: 2px solid white;
+      outline-offset: 2px;
+    }
+    button.active {
+      background: #667eea;
+      color: white;
+      border-color: white;
+    }
+    button.active::after {
+      content: '';
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: white;
+      border-radius: 50%;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    .hint {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 13px;
+      text-align: center;
+      margin-top: 20px;
+      max-width: 480px;
+      line-height: 1.6;
+    }
+    .hint strong {
+      font-weight: 600;
+    }
+    .divider {
+      color: rgba(255, 255, 255, 0.6);
+      margin: 0 8px;
+    }
+    @media (max-width: 480px) {
+      .container {
+        gap: 30px;
+      }
+      .controls {
+        gap: 8px;
+      }
+      button {
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+      .hint {
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .color-label {
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Interactive Circle</h1>
+    <div class="circle-wrapper">
+      <svg id="circle-display" viewBox="0 0 400 400" role="img" aria-label="Interactive circle with customizable animations and colors">
+        <defs>
+          <radialGradient id="gradient" cx="35%" cy="35%">
+            <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.3" />
+            <stop offset="100%" style="stop-color:#1a1a2e;stop-opacity:0.1" />
+          </radialGradient>
+        </defs>
+        <circle class="base-circle" cx="200" cy="200" r="180" fill="#ff6b6b" opacity="0.9"/>
+        <circle cx="200" cy="200" r="180" fill="url(#gradient)"/>
+      </svg>
+      <div class="color-label" id="color-display">Coral Red</div>
+    </div>
+    <div class="controls">
+      <button id="pulseBtn" onclick="togglePulse()" title="Space" aria-label="Toggle pulse animation (Space)">Pulse</button>
+      <button id="glowBtn" onclick="toggleGlow()" title="G" aria-label="Toggle glow effect (G)">Glow</button>
+      <button onclick="changeColor()" title="Arrow Right" aria-label="Cycle to next color (Right Arrow or Left Arrow)">Color</button>
+      <button onclick="spin()" title="Enter" aria-label="Spin the circle (Enter)">Spin</button>
+      <button onclick="reset()" title="R" aria-label="Reset all effects (R or Double-click)">Reset</button>
+    </div>
+    <div class="hint">
+      <strong>Space</strong> <span class="divider">·</span> Pulse
+      <span class="divider">·</span> <strong>G</strong> <span class="divider">·</span> Glow
+      <span class="divider">·</span> <strong>←</strong><span class="divider">/</span><strong>→</strong> <span class="divider">·</span> Color
+      <span class="divider">·</span> <strong>Enter</strong> <span class="divider">·</span> Spin
+      <span class="divider">·</span> <strong>R</strong> <span class="divider">·</span> Reset
+    </div>
+  </div>
+
+  <script>
+    const COLORS = [
+      { hex: '#ff6b6b', name: 'Coral Red' },
+      { hex: '#4ecdc4', name: 'Turquoise' },
+      { hex: '#45b7d1', name: 'Sky Blue' },
+      { hex: '#f7b731', name: 'Gold' },
+      { hex: '#5f27cd', name: 'Purple' },
+      { hex: '#e74c3c', name: 'Crimson' },
+      { hex: '#3498db', name: 'Ocean Blue' }
+    ];
+
+    const SVG_ID = 'circle-display';
+    let colorIndex = 0;
+    let isSpinning = false;
+    let isPulsing = false;
+    let isGlowing = false;
+
+    function getSvg() {
+      return document.getElementById(SVG_ID);
+    }
+
+    function getBaseCircle() {
+      return document.querySelector('.base-circle');
+    }
+
+    function updateColorDisplay() {
+      document.getElementById('color-display').textContent = COLORS[colorIndex].name;
+    }
+
+    function applyColor(index) {
+      getBaseCircle().setAttribute('fill', COLORS[index].hex);
+      updateColorDisplay();
+    }
+
+    function triggerColorAnimation() {
+      const svg = getSvg();
+      svg.classList.remove('color-changing');
+      void svg.offsetWidth;
+      svg.classList.add('color-changing');
+      setTimeout(() => svg.classList.remove('color-changing'), 400);
+    }
+
+    function togglePulse() {
+      isPulsing = !isPulsing;
+      getSvg().classList.toggle('pulsing');
+      updateButtonState('pulseBtn', isPulsing);
+    }
+
+    function toggleGlow() {
+      isGlowing = !isGlowing;
+      getSvg().classList.toggle('glowing');
+      updateButtonState('glowBtn', isGlowing);
+    }
+
+    function changeColor(direction = 1) {
+      colorIndex = (colorIndex + direction + COLORS.length) % COLORS.length;
+      applyColor(colorIndex);
+      triggerColorAnimation();
+    }
+
+    function spin() {
+      if (isSpinning) return;
+      isSpinning = true;
+      const svg = getSvg();
+      svg.classList.remove('spinning');
+      void svg.offsetWidth;
+      svg.classList.add('spinning');
+      setTimeout(() => {
+        isSpinning = false;
+        svg.classList.remove('spinning');
+      }, 600);
+    }
+
+    function reset() {
+      const svg = getSvg();
+      isPulsing = false;
+      isGlowing = false;
+      colorIndex = 0;
+      isSpinning = false;
+
+      svg.classList.remove('pulsing', 'glowing', 'spinning', 'color-changing');
+      applyColor(0);
+      updateButtonState('pulseBtn', false);
+      updateButtonState('glowBtn', false);
+    }
+
+    function updateButtonState(buttonId, isActive) {
+      const button = document.getElementById(buttonId);
+      if (isActive) {
+        button.classList.add('active');
+      } else {
+        button.classList.remove('active');
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      switch(e.key) {
+        case ' ':
+          e.preventDefault();
+          togglePulse();
+          break;
+        case 'g':
+        case 'G':
+          toggleGlow();
+          break;
+        case 'ArrowRight':
+          changeColor(1);
+          break;
+        case 'ArrowLeft':
+          changeColor(-1);
+          break;
+        case 'Enter':
+          spin();
+          break;
+        case 'r':
+        case 'R':
+          reset();
+          break;
+      }
+    });
+
+    getSvg().addEventListener('dblclick', reset);
+
+    // Initialize color display
+    updateColorDisplay();
+  </script>
+</body>
+</html>

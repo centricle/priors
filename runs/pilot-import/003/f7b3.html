@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geometric Vision</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+    }
+    svg {
+      width: 400px;
+      height: 400px;
+      filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3));
+      transition: transform 0.3s ease;
+    }
+    svg:hover {
+      transform: scale(1.05);
+    }
+    circle {
+      fill: #ff6b6b;
+      stroke: #ffd93d;
+      stroke-width: 3;
+      transition: fill 0.3s ease;
+    }
+    circle:hover {
+      fill: #ff8787;
+    }
+    .inner-circle {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.3);
+      stroke-width: 2;
+    }
+    .label {
+      color: white;
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: 2px;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg id="ae683f770" viewBox="0 0 400 400">
+      <defs>
+        <radialGradient id="grad1" cx="35%" cy="35%">
+          <stop offset="0%" style="stop-color:#ff8787;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#ff6b6b;stop-opacity:1" />
+        </radialGradient>
+      </defs>
+      <circle cx="200" cy="200" r="190" fill="url(#grad1)" stroke="#ffd93d" stroke-width="3"/>
+      <circle class="inner-circle" cx="200" cy="200" r="150"/>
+      <circle class="inner-circle" cx="200" cy="200" r="100"/>
+    </svg>
+    <div class="label">geometric vision</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ae683f770</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+
+    .container {
+      position: relative;
+      width: 500px;
+      height: 500px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.4));
+    }
+
+    #main-circle {
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        r: 180;
+        opacity: 1;
+      }
+      50% {
+        r: 190;
+        opacity: 0.8;
+      }
+    }
+
+    .glow {
+      animation: glow-pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% {
+        r: 200;
+        opacity: 0.3;
+      }
+      50% {
+        r: 210;
+        opacity: 0.1;
+      }
+    }
+
+    text {
+      font-size: 24px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      fill: white;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg id="ae683f770" viewBox="0 0 400 400">
+      <defs>
+        <radialGradient id="gradient" cx="40%" cy="40%">
+          <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+        </radialGradient>
+        <filter id="shadow">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
+        </filter>
+      </defs>
+      <circle class="glow" cx="200" cy="200" r="200" fill="url(#gradient)" opacity="0.2"/>
+      <circle id="main-circle" cx="200" cy="200" r="180" fill="url(#gradient)" filter="url(#shadow)"/>
+      <text x="200" y="200">ae683f</text>
+    </svg>
+  </div>
+</body>
+</html>

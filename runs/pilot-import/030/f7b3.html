@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orb Interaction</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      font-family: system-ui, -apple-system, sans-serif;
+      color: white;
+      overflow: hidden;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+    svg {
+      width: 300px;
+      height: 300px;
+      filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.3));
+      cursor: pointer;
+      transition: transform 0.3s ease;
+    }
+    svg:hover {
+      transform: scale(1.05);
+    }
+    svg:active {
+      transform: scale(0.98);
+    }
+    circle {
+      fill: url(#gradient);
+      transition: filter 0.3s ease;
+    }
+    svg:hover circle {
+      filter: brightness(1.2);
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 300;
+      letter-spacing: 2px;
+    }
+    p {
+      font-size: 14px;
+      opacity: 0.8;
+      text-align: center;
+      max-width: 400px;
+    }
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0px);
+      }
+      50% {
+        transform: translateY(-20px);
+      }
+    }
+    svg {
+      animation: float 4s ease-in-out infinite;
+    }
+    svg:hover {
+      animation: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Orb</h1>
+    <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-label="Interactive orb">
+      <defs>
+        <radialGradient id="gradient" cx="35%" cy="35%">
+          <stop offset="0%" style="stop-color:#87ceeb;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#1e90ff;stop-opacity:1" />
+        </radialGradient>
+      </defs>
+      <circle cx="200" cy="200" r="180"/>
+    </svg>
+    <p>Click or hover to interact</p>
+  </div>
+  <script>
+    const svg = document.getElementById('ae683f770');
+    svg.addEventListener('click', () => {
+      svg.style.animation = 'none';
+      setTimeout(() => {
+        svg.style.animation = '';
+      }, 50);
+    });
+  </script>
+</body>
+</html>

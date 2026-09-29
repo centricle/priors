@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ae683f770</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 50%, #16213e 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+    .container {
+      position: relative;
+      width: 400px;
+      height: 400px;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.5));
+    }
+    circle {
+      fill: url(#gradient);
+      filter: url(#glow);
+    }
+    @keyframes pulse {
+      0% {
+        opacity: 0.8;
+        r: 200px;
+      }
+      50% {
+        opacity: 0.9;
+        r: 205px;
+      }
+      100% {
+        opacity: 0.8;
+        r: 200px;
+      }
+    }
+    circle {
+      animation: pulse 4s ease-in-out infinite;
+    }
+    @keyframes rotate {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    .container {
+      animation: rotate 20s linear infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg id="ae683f770" viewBox="0 0 400 400">
+      <defs>
+        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+          <stop offset="50%" style="stop-color:#0099ff;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#6600ff;stop-opacity:1" />
+        </linearGradient>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <circle cx="200" cy="200" r="200"/>
+    </svg>
+  </div>
+</body>
+</html>
