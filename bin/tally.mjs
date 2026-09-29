@@ -11,7 +11,7 @@
 //
 // Features are regexes over the trial's output file, chosen so that the pilot
 // reproduces the counts first taken by hand (glow or shadow 30, @keyframes 25,
-// radial gradient 23, "pulse" 21, #667eea gradient 18, unchanged 2, asks for a
+// radial gradient 23, "pulse" 21, #667eea gradient 18, unchanged 2, mentions a
 // server 14, all of 32). --check asserts exactly that and exits 1 otherwise.
 //
 //   --summary  print the comparison tables after writing the CSV
@@ -41,7 +41,7 @@ export const COLUMNS = [
   // text answers (number, digit, word, sentence)
   'answer_raw', 'answer_value', 'answer_form', 'answer_ok', 'words', 'added', 'removed',
   // the self-report (stdout)
-  'result_chars', 'asks_server',
+  'result_chars', 'mentions_server',
   // spelling: prose counts per family, then code totals (null without a transcript)
   ...Object.keys(FAMILIES).flatMap((f) => [`${f}_p_uk`, `${f}_p_us`]), 'spell_c_uk', 'spell_c_us',
 ];
@@ -60,8 +60,10 @@ const RE = {
   nondeterministic: /Math\.random|Date\.now|new Date\b|performance\.now|getRandomValues/,
   svg_filter: /<filter\b/i,
 };
-// "Asks to start a server or asks permission", in the self-report.
-const ASKS_SERVER = /server|permission|approv/i;
+// The self-report mentions a server. The pilot's hand count (14/32) was "asks to
+// start a server or asks permission", but /server/ alone reproduces it, and
+// "permission" also catches reports of a denied command, which Fable writes often.
+const MENTIONS_SERVER = /server/i;
 // 3, 4, 6 or 8 hex digits, not an HTML entity; alpha is dropped, shorthand expanded.
 const HEX = /(?<![&\w])#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})(?![0-9a-z_-])/gi;
 
@@ -184,7 +186,7 @@ function row(t, dir) {
     from_seed: seed.sha ? t.input_sha256 === seed.sha : null,
     unchanged: t.input_sha256 === t.output_sha256,
     result_chars: (t.result ?? '').length,
-    asks_server: ASKS_SERVER.test(t.result ?? ''),
+    mentions_server: MENTIONS_SERVER.test(t.result ?? ''),
   };
 
   // The output file, and what the trial started from.
@@ -239,7 +241,7 @@ const toCsv = (rows) => [COLUMNS.join(','), ...rows.map((r) => COLUMNS.map((c) =
 
 // ------------------------------------------------------------------- checks
 
-const PILOT_EXPECTED = { glow_or_shadow: 30, keyframes: 25, radial_gradient: 23, pulse: 21, gradient_667eea: 18, unchanged: 2, asks_server: 14 };
+const PILOT_EXPECTED = { glow_or_shadow: 30, keyframes: 25, radial_gradient: 23, pulse: 21, gradient_667eea: 18, unchanged: 2, mentions_server: 14 };
 
 function check(rows) {
   const problems = [];
@@ -269,8 +271,8 @@ const pad = (s, n) => String(s ?? '').padEnd(n);
 function summary(rows) {
   const out = [];
   const H = (s) => out.push('', `## ${s}`, '');
-  const art = ['glow_or_shadow', 'keyframes', 'radial_gradient', 'pulse', 'gradient_667eea', 'script', 'nondeterministic', 'unchanged', 'asks_server'];
-  const abbr = { glow_or_shadow: 'glow', keyframes: 'keyf', radial_gradient: 'radl', pulse: 'puls', gradient_667eea: '667e', script: 'scrp', nondeterministic: 'rand', unchanged: 'noop', asks_server: 'srvr' };
+  const art = ['glow_or_shadow', 'keyframes', 'radial_gradient', 'pulse', 'gradient_667eea', 'script', 'nondeterministic', 'unchanged', 'mentions_server'];
+  const abbr = { glow_or_shadow: 'glow', keyframes: 'keyf', radial_gradient: 'radl', pulse: 'puls', gradient_667eea: '667e', script: 'scrp', nondeterministic: 'rand', unchanged: 'noop', mentions_server: 'srvr' };
   const artHeader = `${pad('', 34)}${pad('n', 5)}${art.map((k) => pad(abbr[k], 5)).join('')}lines  $med`;
   const artLine = (label, rs) => `${pad(label, 34)}${pad(rs.length, 5)}${art.map((k) => pad(pct(rs.filter((r) => r[k] === true).length, rs.length), 5)).join('')}${pad(median(rs.map((r) => r.lines)), 7)}${(median(rs.map((r) => r.cost_usd)) ?? 0).toFixed(3)}`;
   const label = (r) => (r.run.includes('relay') ? 'relay' : short(r.model));
