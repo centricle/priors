@@ -1,0 +1,209 @@
+---
+import Base from '../layouts/Base.astro';
+import Chapter from '../components/Chapter.astro';
+import { href } from '../lib/href.mjs';
+import { loadAll, MODELS, MODEL_LABEL, MODEL_ID, TASKS, seedOf, promptOf, fmtUsd, type Task } from '../lib/data.ts';
+import { headline, costByModel } from '../lib/stats.ts';
+
+const { trials, runs, uncounted } = loadAll();
+const h = headline(trials);
+const cost = costByModel(trials);
+const cli = [...new Set(trials.filter((t) => t.mode !== 'pilot').map((t) => t.cli_version))].join(', ');
+const started = trials.filter((t) => t.mode !== 'pilot').map((t) => t.started_utc).sort();
+const first = started[0]?.slice(0, 10);
+const last = started[started.length - 1]?.slice(0, 10);
+
+const seeds: { task: Task; prompt: string; seed: string; n: string }[] = [
+  { task: 'circle', prompt: promptOf('circle'), seed: seedOf('circle'), n: '32 samples, 64-step chains' },
+  { task: 'html', prompt: promptOf('html'), seed: seedOf('html'), n: '32 samples, 64-step chains' },
+  { task: 'svg', prompt: promptOf('svg'), seed: seedOf('svg'), n: '32 samples' },
+  { task: 'sentence', prompt: promptOf('sentence'), seed: seedOf('sentence'), n: '64-step chains' },
+  { task: 'number', prompt: promptOf('number'), seed: '', n: '100 samples' },
+  { task: 'digit', prompt: promptOf('digit'), seed: '', n: '100 samples' },
+  { task: 'word', prompt: promptOf('word'), seed: '', n: '100 samples' },
+  { task: 'replica', prompt: promptOf('replica'), seed: seedOf('replica'), n: '32 in the room, 32 in the harness' },
+];
+
+const argv = [
+  '--safe-mode',
+  '--strict-mcp-config',
+  '--tools Read,Write,Edit,Bash',
+  '--restricted',
+  `--settings '{"attribution":{"commit":"","pr":""}}'`,
+  '--model <id> --effort low',
+  '--permission-mode acceptEdits --permission-prompts none',
+  '--session-id <uuid>',
+  '--output-format stream-json --verbose',
+  '-p "<prompt>"',
+];
+
+const halt = uncounted[0];
+---
+
+<Base title="Method" path="/method/" description="How the priors room was built: a stripped Claude Code session, four tools, one prompt, and what the model was told.">
+  <section class="grid section">
+    <div class="head stack">
+      <h1>Method</h1>
+      <p class="dek">
+        The subject is not a model. It is a model inside Claude Code, with everything the harness normally
+        adds taken away, given one file and one word.
+      </p>
+    </div>
+  </section>
+
+  <Chapter n="A" id="room" title="The room" dek="A stripped session: no instruction files, no memory, no skills, no MCP servers, four tools, and no reach outside its own directory.">
+    <div class="prose">
+      <p>
+        Every trial is one <code>claude -p</code> process, launched in a fresh, empty directory under the
+        system temp directory that holds only the seed file. The directory is not a git repository, on
+        purpose: the pilot's trials shared one, and read each other's commit messages. The launch is
+        exactly this, with the CLI at version <span class="mono">{cli}</span>:
+      </p>
+      <pre><code>{argv.join('\n')}</code></pre>
+      <ul>
+        <li><code>--safe-mode</code> drops user instruction files, hooks, skills, memory and MCP servers. The system prompt falls from about 28 KB to 14 KB.</li>
+        <li><code>--tools Read,Write,Edit,Bash</code> pins the surface. Glob and Grep are not offered, matching the CLI's default surface at this version.</li>
+        <li><code>--restricted</code> confines the file tools to the working directory and ignores project settings a model might write. Reads and writes outside it, <code>env</code>, <code>curl</code>, <code>open</code> and starting a server are all denied. Read-only shell commands inside the directory still run.</li>
+        <li>The attribution setting stops the CLI from asking the model to sign commits with a trailer, which would otherwise be the only instruction in the room.</li>
+        <li><code>--effort low</code> on every trial, for every model. Effort is recorded nowhere in the session record on this version, so the argument is the only proof of it.</li>
+        <li>One session id per trial, never reused. The session record is hashed against a golden record for the run; a trial whose system prompt or tool list differs is halted and retried, and the halted attempt is kept but not counted.</li>
+      </ul>
+      <p>
+        This is not a stock install. It is more bare than one. What the model is still told: an environment
+        block (working directory, platform, shell, OS version, the fact that it is not a git repository), the
+        date, its own model name and id with a knowledge cutoff, the account's email address, a token budget
+        line, and the harness's standing guidance about how to behave as a coding agent.
+      </p>
+    </div>
+  </Chapter>
+
+  <Chapter n="B" id="tasks" title="Tasks, seeds and prompts" dek="Eight tasks. Three are files with something in them, two are files with nothing in them, three are just a question.">
+    <div class="prose">
+      <p>
+        A <strong>sample</strong> run starts every trial from the seed. A <strong>chain</strong> run hands each
+        trial the previous trial's output, sixty-four times. A <strong>relay</strong> is a chain where the four
+        models take turns in the order Fable, Opus, Sonnet, Haiku. The prompt is the same at every step.
+      </p>
+    </div>
+    <div class="wide seeds">
+      {seeds.map((s) => (
+        <div class="seed stack">
+          <div class="flex between">
+            <h3>{s.task}</h3>
+            <span class="mono small muted">{s.n}</span>
+          </div>
+          <p class="mono small"><span class="muted">prompt</span> {s.prompt}</p>
+          {s.seed ? (
+            <pre><code>{s.seed}</code></pre>
+          ) : (
+            <p class="small muted">No file. The answer is the model's reply.</p>
+          )}
+        </div>
+      ))}
+    </div>
+    <div class="prose">
+      <p class="small muted">
+        The circle's title and id are random hex so the file name carries no hint. The replica keeps the pilot's
+        file name, <code>f7b3.html</code>, byte for byte. The prompts differ in capitalization and punctuation
+        between tasks, which is a confound if you compare tasks against each other; compare models within a task.
+      </p>
+    </div>
+  </Chapter>
+
+  <Chapter n="C" id="models" title="Models" dek="Four, pinned by full id. The alias haiku in the pilot resolved to the same Haiku.">
+    <table class="wide">
+      <thead>
+        <tr>
+          <th>label</th>
+          <th>id</th>
+          <th class="num">trials</th>
+          <th class="num">cost</th>
+          <th class="num">median wall</th>
+        </tr>
+      </thead>
+      <tbody>
+        {MODELS.map((m) => (
+          <tr>
+            <td>{MODEL_LABEL[m]}</td>
+            <td class="mono">{MODEL_ID[m]}</td>
+            <td class="num">{cost.campaign[m].n}</td>
+            <td class="num">{fmtUsd(cost.campaign[m].totalCost)}</td>
+            <td class="num">{(cost.campaign[m].medianWall ?? 0).toFixed(1)} s</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <div class="prose">
+      <p class="small muted">
+        Cost is the API-equivalent value the CLI reports per session, summed. The campaign ran on a
+        subscription, so it is a measure, not a bill. Trials ran between {first} and {last}.
+      </p>
+    </div>
+  </Chapter>
+
+  <Chapter n="D" id="renders" title="Renders" dek="Every artifact output was rendered once, offline, the same way.">
+    <div class="prose">
+      <p>
+        Headless Chrome 154, an 800 by 800 viewport, <code>prefers-color-scheme</code> pinned to light, two
+        seconds of virtual time, no network, then WebP at quality 80. Static pages render byte-identically on the
+        same Chrome build and fonts. Animated pages differ by a fraction of a percent of pixels between runs. Pages
+        that use <code>Math.random</code> or the clock differ every time, and are flagged as nondeterministic on
+        their trial pages, where you can run the source live in a sandboxed frame instead.
+      </p>
+      <p>
+        Live pages can fetch what the offline render could not: {trials.filter((t) => (t.output ?? '').includes('fonts.googleapis.com')).length}
+        outputs reference Google Fonts. The render shows the fallback; the live frame shows the intended face.
+      </p>
+    </div>
+  </Chapter>
+
+  <Chapter n="E" id="counting" title="Counting" dek="Every attempt gets a row. Failures are retried and not counted. A chain never advances on a failure.">
+    <div class="prose">
+      <ul>
+        <li>{h.trialsCampaign.toLocaleString('en-US')} counted trials in {h.runs} runs, plus the 32-trial pilot kept separately as its own condition.</li>
+        <li>{uncounted.length} attempt{uncounted.length === 1 ? '' : 's'} halted and retried{halt ? `: ${halt.run} step ${halt.step}, ${halt.halt}` : ''}. The CLI served that session a system prompt with different section headings. Cause unresolved.</li>
+        <li>Feature flags are regular expressions over the output file: a glow is a shadow property, a blur filter or the word itself; the gradient flag needs both hex values present; nondeterministic means <code>Math.random</code>, <code>Date.now</code>, <code>new Date</code>, <code>performance.now</code> or <code>getRandomValues</code>.</li>
+        <li>Spelling is counted in prose only, with code blocks and tool inputs stripped, and separately in code.</li>
+        <li>"Unchanged" means the output hashes the same as the input. A model that rewrote the file identically counts as unchanged.</li>
+        <li>Renders are 800 by 800; thumbnails on this site are 200 by 200 and cropped to nothing.</li>
+      </ul>
+      <p>
+        The full column glossary is on the <a href={href('/data/')}>data page</a>. The tally that produced it is
+        <code>bin/tally.mjs</code> in the repository, and it asserts the pilot's original hand counts on every run.
+      </p>
+    </div>
+  </Chapter>
+
+  <Chapter n="F" id="public" title="What is and is not published" dek="Everything a trial produced, and nothing the room was not supposed to have.">
+    <div class="prose">
+      <ul>
+        <li>Published: every output file, every counted and halted attempt's stream-json transcript from the room, the tally, the renders, the runner and the task definitions.</li>
+        <li>The account's email address reaches the model in every session and appears in a few outputs where a model put it in an author tag. It is public. The account's organization id is not in any published file.</li>
+        <li>Not published: transcripts from the harness replica, because the full user configuration is in them, and the pilot's original desktop captures. The pilot's outputs are re-rendered like everything else.</li>
+        <li>Not tracked: anything the runner built from the user's own instruction files to check that the room held.</li>
+      </ul>
+      <p>
+        Repository: <a href="https://github.com/centricle/priors" rel="noopener">github.com/centricle/priors</a>.
+      </p>
+    </div>
+  </Chapter>
+</Base>
+
+<style>
+  .seeds {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: calc(var(--row) * 4) var(--gutter);
+  }
+  @media (min-width: 900px) {
+    .seeds {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .seed pre {
+    max-height: 22em;
+  }
+  h3 {
+    text-transform: none;
+  }
+</style>
