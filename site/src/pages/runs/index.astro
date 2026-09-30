@@ -1,0 +1,57 @@
+---
+import Base from '../../layouts/Base.astro';
+import RunTable from '../../components/RunTable.astro';
+import { fmtUsd, isCampaign, loadAll } from '../../lib/data.ts';
+import { sum } from '../../lib/stats.ts';
+
+const { runs, trials } = loadAll();
+const campaignRuns = runs.filter((r) => r.mode !== 'pilot').length;
+const campaignTrials = trials.filter(isCampaign).length;
+const cost = sum(trials.map((t) => t.cost_usd));
+const fmt = (n: number) => n.toLocaleString('en-US');
+---
+
+<Base
+  title="Runs"
+  path="/runs/"
+  description="Every run in the experiment: one task, one mode, one model, and what it did."
+>
+  <section class="grid intro">
+    <div class="head stack-lg">
+      <h1>Runs</h1>
+      <p class="dek">
+        A run is one task, one mode, one model and n trials. In a sample run every trial starts from
+        the same seed. In a chain, each step edits what the step before it left behind. A relay is a
+        chain that passes the file between all four models in turn. Everything ran at effort low in
+        the stripped room: four tools, no user config.
+      </p>
+      <p class="totals mono">
+        {fmt(campaignRuns)} runs and the pilot · {fmt(trials.length)} trials ({fmt(campaignTrials)} counted, {fmt(trials.length - campaignTrials)} pilot) · {fmtUsd(cost)} API-equivalent
+      </p>
+    </div>
+  </section>
+  <section class="grid table-wrap">
+    <div class="full">
+      <RunTable runs={runs} />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .intro {
+    padding-block: calc(var(--row) * 8) calc(var(--row) * 6);
+  }
+  @media (min-width: 900px) {
+    .intro {
+      padding-block: calc(var(--row) * 12) calc(var(--row) * 8);
+    }
+  }
+  .totals {
+    margin: 0;
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+  }
+  .table-wrap {
+    padding-bottom: calc(var(--row) * 4);
+  }
+</style>

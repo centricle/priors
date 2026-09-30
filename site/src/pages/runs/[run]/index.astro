@@ -1,0 +1,356 @@
+---
+/**
+ * One run: its header, its summary, and every trial in it.
+ *
+ * The body depends on what the run measures. Files the model rewrites get a
+ * feature table and a grid of renders; chains add a filmstrip; the sentence
+ * chain gets a scrubber and a step table; the questions answered in chat get
+ * the distribution of answers and a table of every reply.
+ */
+import Base from '../../../layouts/Base.astro';
+import Bars from '../../../components/Bars.astro';
+import SpecimenGrid from '../../../components/SpecimenGrid.astro';
+import Filmstrip from '../../../components/Filmstrip.astro';
+import SentenceScrub from '../../../components/SentenceScrub.astro';
+import { COLUMNS } from '../../../lib/columns.ts';
+import { ARTIFACT_TASKS, MODEL_LABEL, fmtPct, fmtSec, fmtUsd, loadAll, pad3, promptOf, seedOf } from '../../../lib/data.ts';
+import { href } from '../../../lib/href.mjs';
+import { CHAIN_MARKS, FEATURES, answerDistribution, chainCurve, featureShares, marginOfError, sum } from '../../../lib/stats.ts';
+import '../_runs.css';
+
+export function getStaticPaths() {
+  return loadAll().runs.map((r) => ({ params: { run: r.name } }));
+}
+
+const { runs, runByName } = loadAll();
+const run = runByName.get(Astro.params.run!)!;
+const idx = runs.indexOf(run);
+const prev = idx > 0 ? runs[idx - 1] : null;
+const next = idx < runs.length - 1 ? runs[idx + 1] : null;
+
+const artifact = ARTIFACT_TASKS.includes(run.task);
+const sentence = run.task === 'sentence';
+const chain = run.mode === 'chain';
+const pilot = run.mode === 'pilot';
+
+const prompt = promptOf(run.task);
+const seed = seedOf(run.task);
+const modelIds = [...new Set(run.trials.map((t) => t.modelId))];
+const totalCost = sum(run.trials.map((t) => t.cost_usd));
+
+const meaning = (name: string) => COLUMNS.find((c) => c.name === name)?.meaning;
+const NIL = '·';
+const shorten = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
+const yn = (b: boolean | null) => (b === null ? NIL : b ? 'yes' : 'no');
+
+// Artifact samples (and the pilot): how many of the trials did each thing.
+const features = artifact && !chain ? featureShares(run.trials) : null;
+// Artifact chains: the file's size along the way.
+const curve = artifact && chain ? chainCurve(run) : null;
+// Chat answers.
+const dist = !artifact && !sentence ? answerDistribution(run.trials) : null;
+const TOP = 12;
+const bars = dist
+  ? dist.values.slice(0, TOP).map((v, i) => ({
+      label: shorten(oneLine(v.value), 40) || '(empty)',
+      value: v.count,
+      hi: i === 0,
+      note: v.parsed ? undefined : 'no value found',
+    }))
+  : [];
+---
+
+<Base
+  title={run.label}
+  path={`/runs/${run.name}/`}
+  description={`${run.label}: ${run.n} trials of "${prompt}".`}
+>
+  <header class="grid run-head">
+    <div class="full stack">
+      <p class="crumbs"><a href={href('/runs/')}>Runs</a><span class="sep">/</span>{run.task}</p>
+      <h1>{run.label}</h1>
+      <p class="facts">
+        <span>{run.name}</span><br />
+        <span>n = {run.n}</span> · <span>{modelIds.join(', ')}</span> · <span>effort low</span> ·
+        <span>profile {run.profile}</span> · <span>{fmtUsd(totalCost)} total</span><br />
+        <span>prompt </span><code>{prompt}</code>
+      </p>
+      {
+        seed && (
+          <details class="seed">
+            <summary>seed</summary>
+            <pre>{seed}</pre>
+          </details>
+        )
+      }
+      {pilot && (
+        <p class="small muted">
+          Pilot: hand-run, and contaminated, so kept for comparison and left out of the counted trials.
+        </p>
+      )}
+    </div>
+  </header>
+
+  {
+    features && (
+      <section class="grid block">
+        <div class="full stack">
+          <h2 class="sec-head">What they did</h2>
+          <table class="feat">
+            <thead>
+              <tr>
+                <th>feature</th>
+                <th class="num">count</th>
+                <th class="num">of</th>
+                <th class="num">share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {FEATURES.map((f) => {
+                const s = features.shares[f];
+                return (
+                  <tr>
+                    <td class="mono" title={meaning(f)}>{f}</td>
+                    <td class="num">{s.count}</td>
+                    <td class="num">{s.n}</td>
+                    <td class:list={['num', s.share === 0 && 'zero']}>{fmtPct(s.share)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p class="facts">
+            median {features.medianLines ?? NIL} lines · median {features.medianCost === null ? NIL : fmtUsd(features.medianCost)} per trial ·
+            each share is good to about ±{Math.round(marginOfError(run.n) * 100)} points at n = {run.n} (95%, worst case)
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  {
+    artifact && !chain && (
+      <section class="grid block">
+        <SpecimenGrid class="full" trials={run.trials} cols={8} caption={`All ${run.n} trials. Open one to see its source.`} />
+      </section>
+    )
+  }
+
+  {
+    artifact && chain && curve && (
+      <>
+        <section class="grid block">
+          <Filmstrip class="full" run={run} sparkline={true} startAt={64} />
+        </section>
+        <section class="grid block">
+          <div class="full stack">
+            <h2 class="sec-head">How big it got</h2>
+            <table class="marks">
+              <thead>
+                <tr>
+                  <th>step</th>
+                  {CHAIN_MARKS.map((m) => (
+                    <th class="num">{m}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>lines</td>
+                  {CHAIN_MARKS.map((m) => (
+                    <td class="num">{curve.at[m] ?? NIL}</td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+            <p class="facts">
+              {curve.unchangedShare.count} of {curve.unchangedShare.n} steps left the file unchanged.
+            </p>
+          </div>
+        </section>
+        <section class="grid block">
+          <SpecimenGrid class="full" trials={run.trials} cols={8} showModel={run.isRelay} caption={`All ${run.n} steps, in order. Open one to see its source.`} />
+        </section>
+      </>
+    )
+  }
+
+  {
+    sentence && (
+      <>
+        <section class="grid block">
+          <SentenceScrub class="full" run={run} />
+        </section>
+        <section class="grid block">
+          <div class="full stack">
+            <h2 class="sec-head">Every step</h2>
+            <div class="scroll">
+              <table class="steps">
+                <thead>
+                  <tr>
+                    <th class="step">step</th>
+                    <th>added</th>
+                    <th>removed</th>
+                    <th>ok</th>
+                    {run.isRelay && <th>model</th>}
+                    <th class="num">wall</th>
+                    <th class="num">cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {run.trials.map((t) => (
+                    <tr class:list={[t.answer_ok !== true && 'off']}>
+                      <td class="step mono">
+                        <a href={href(`/runs/${run.name}/${pad3(t.step)}/`)}>{pad3(t.step)}</a>
+                      </td>
+                      <td class="mono">{t.added && t.added.length ? t.added.join(' ') : NIL}</td>
+                      <td class="mono">{t.removed && t.removed.length ? t.removed.join(' ') : NIL}</td>
+                      <td class="mono">{yn(t.answer_ok)}</td>
+                      {run.isRelay && <td>{MODEL_LABEL[t.model]}</td>}
+                      <td class="num">{t.wall_s === null ? NIL : fmtSec(t.wall_s)}</td>
+                      <td class="num">{t.cost_usd === null ? NIL : fmtUsd(t.cost_usd)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </>
+    )
+  }
+
+  {
+    dist && (
+      <>
+        <section class="grid block">
+          <div class="full stack">
+            <h2 class="sec-head">What came back</h2>
+            <p class="facts">
+              {dist.values.length} distinct {dist.values.length === 1 ? 'answer' : 'answers'} in {dist.n} trials · bare reply in {fmtPct(dist.bareShare)} · rule met in {fmtPct(dist.okShare)}
+            </p>
+            <div class="bars-wrap">
+              <Bars items={bars} format="count" title={dist.values.length > TOP ? `Top ${TOP} answers` : 'Answers'} />
+            </div>
+            {dist.values.length > TOP && (
+              <p class="small muted">{dist.values.length - TOP} more answers appear once or a few times each; the table below has all of them.</p>
+            )}
+          </div>
+        </section>
+        <section class="grid block">
+          <div class="full stack">
+            <h2 class="sec-head">Every trial</h2>
+            <div class="scroll">
+              <table class="steps">
+                <thead>
+                  <tr>
+                    <th class="step">step</th>
+                    <th>answer</th>
+                    <th>form</th>
+                    <th>ok</th>
+                    <th class="num">cost</th>
+                    <th class="num">wall</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {run.trials.map((t) => {
+                    const raw = oneLine(t.answer_raw ?? '');
+                    return (
+                      <tr>
+                        <td class="step mono">
+                          <a href={href(`/runs/${run.name}/${pad3(t.step)}/`)}>{pad3(t.step)}</a>
+                        </td>
+                        <td class="mono ans" title={raw.length > 80 ? raw : undefined}>{raw ? shorten(raw, 80) : NIL}</td>
+                        <td class="mono">{t.answer_form ?? NIL}</td>
+                        <td class="mono">{yn(t.answer_ok)}</td>
+                        <td class="num">{t.cost_usd === null ? NIL : fmtUsd(t.cost_usd)}</td>
+                        <td class="num">{t.wall_s === null ? NIL : fmtSec(t.wall_s)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </>
+    )
+  }
+
+  <nav class="grid block pager-wrap" aria-label="Other runs">
+    <div class="full pager">
+      {
+        prev ? (
+          <a class="side" href={href(`/runs/${prev.name}/`)} rel="prev">
+            <span class="dir">previous run</span>
+            {prev.label}
+          </a>
+        ) : (
+          <span />
+        )
+      }
+      <a class="mid" href={href('/runs/')}>all runs</a>
+      {
+        next ? (
+          <a class="side next" href={href(`/runs/${next.name}/`)} rel="next">
+            <span class="dir">next run</span>
+            {next.label}
+          </a>
+        ) : (
+          <span />
+        )
+      }
+    </div>
+  </nav>
+</Base>
+
+<style>
+  .run-head {
+    padding-block: calc(var(--row) * 6) calc(var(--row) * 4);
+  }
+  .run-head h1 {
+    font-size: var(--t-2xl);
+  }
+  .seed summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: var(--t-sm);
+  }
+  .seed pre {
+    margin-top: calc(var(--row) * 1.5);
+    max-height: 14rem;
+  }
+  .block {
+    padding-block: calc(var(--row) * 4);
+  }
+  .feat,
+  .marks {
+    max-width: 34em;
+  }
+  .feat td.zero {
+    color: var(--ink-3);
+  }
+  .bars-wrap {
+    max-width: 44em;
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+  .steps {
+    min-width: 34rem;
+  }
+  .steps .step {
+    width: 5.5em;
+  }
+  .steps td.ans {
+    max-width: 40em;
+    overflow-wrap: anywhere;
+  }
+  .steps tr.off td {
+    color: var(--ink-2);
+  }
+  .pager-wrap {
+    padding-block: calc(var(--row) * 8) calc(var(--row) * 2);
+  }
+</style>

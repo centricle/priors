@@ -1,0 +1,291 @@
+---
+/**
+ * One trial: what the model was given, what it left behind, what it said.
+ *
+ * About 2,640 of these are built. Each reads its own output file from disk,
+ * and a chain step reads the one before it for the diff.
+ */
+import Base from '../../../layouts/Base.astro';
+import TrialMeta from '../../../components/TrialMeta.astro';
+import SourceView from '../../../components/SourceView.astro';
+import { MODEL_LABEL, isArtifact, loadAll, outputOf, pad3, prevOutput } from '../../../lib/data.ts';
+import { href } from '../../../lib/href.mjs';
+import '../_runs.css';
+
+export function getStaticPaths() {
+  return loadAll().trials.map((t) => ({ params: { run: t.run, step: pad3(t.step) } }));
+}
+
+const { runByName } = loadAll();
+const run = runByName.get(Astro.params.run!)!;
+const stepNo = Number(Astro.params.step);
+const at = run.trials.findIndex((t) => t.step === stepNo);
+const t = run.trials[at];
+const before = at > 0 ? run.trials[at - 1] : null;
+const after = at < run.trials.length - 1 ? run.trials[at + 1] : null;
+
+const n = pad3(t.step);
+const chain = run.mode === 'chain';
+const art = isArtifact(t);
+const sentence = t.task === 'sentence';
+const text = !art && !sentence;
+
+const source = art ? outputOf(t) : null;
+const kind = t.file?.endsWith('.svg') ? 'svg' : 'html';
+const prevSource = art && chain && t.step > 1 ? prevOutput(t) : null;
+const sentenceText = sentence ? (outputOf(t) ?? t.answer_raw ?? '').trim() : '';
+
+const report = t.result.trim();
+// For a chat task the final message is the answer; show the tallied text
+// separately only when it differs from what the model said.
+const tallied = text && t.answer_raw && t.answer_raw.trim() !== report ? t.answer_raw : null;
+const answer = t.answer_value ?? '';
+const NIL = '·';
+
+const pageTitle = `${run.label} ${n}`;
+const stepUrl = (s: number) => href(`/runs/${run.name}/${pad3(s)}/`);
+---
+
+<Base
+  title={pageTitle}
+  path={`/runs/${run.name}/${n}/`}
+  description={`${chain ? 'Step' : 'Trial'} ${n} of ${run.label}: ${MODEL_LABEL[t.model]} at effort low.`}
+>
+  <header class="grid trial-head">
+    <div class="full stack-sm">
+      <p class="crumbs">
+        <a href={href('/runs/')}>Runs</a><span class="sep">/</span><a href={href(`/runs/${run.name}/`)}>{run.label}</a><span class="sep">/</span>{n}
+      </p>
+      <h1 class="title">
+        <span class="lab">{run.label}</span>
+        <span class="of">· {chain ? 'step' : 'trial'} {n} of {run.n}</span>
+      </h1>
+    </div>
+  </header>
+
+  <section class="grid body">
+    {
+      art && (
+        <div class="stage" data-runit data-kind={kind}>
+          <div class="frame" data-frame>
+            {t.renderPath ? (
+              <img src={href(t.renderPath)} width="800" height="800" alt={`Render of ${run.label}, ${chain ? 'step' : 'trial'} ${n}`} decoding="async" />
+            ) : (
+              <p class="none mono">no render</p>
+            )}
+          </div>
+          <p class="cap mono">offline render, Chrome 154, light scheme, 2 s of virtual time</p>
+          {t.nondeterministic && <p class="cap mono">this page uses randomness or the clock; the render is one of many</p>}
+          {source !== null && (
+            <>
+              <div class="live">
+                <button type="button" class="btn btn-sm" data-run hidden>run it</button>
+                <span class="small muted">
+                  runs in a sandboxed frame with no origin; live pages may fetch CDN fonts the offline render did not
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )
+    }
+
+    {
+      sentence && (
+        <div class="stage said">
+          <p class="label">the sentence after this step</p>
+          <p class="sentence">{sentenceText || NIL}</p>
+        </div>
+      )
+    }
+
+    {
+      text && (
+        <div class="stage said">
+          <p class="label">the answer</p>
+          <p class:list={['answer', answer.length > 14 && 'long', !answer && 'none']}>{answer || 'no value found'}</p>
+        </div>
+      )
+    }
+
+    <div class="meta">
+      <TrialMeta t={t} />
+    </div>
+  </section>
+
+  {
+    source !== null && (
+      <section class="grid block">
+        <div class="full">
+          <SourceView trial={t} source={source} prev={prevSource} prevLabel={pad3(t.step - 1)} />
+        </div>
+      </section>
+    )
+  }
+
+  <section class="grid block">
+    <div class="full stack-sm said-wrap">
+      <h2 class="sec-head">What the model said</h2>
+      {report ? <pre class="report">{t.result}</pre> : <p class="muted">no final message recorded</p>}
+      {
+        tallied && (
+          <>
+            <p class="label">the answer as tallied</p>
+            <pre class="report">{tallied}</pre>
+          </>
+        )
+      }
+    </div>
+  </section>
+
+  <nav class="grid block pager-wrap" aria-label="Neighboring trials">
+    <div class="full pager">
+      {
+        before ? (
+          <a class="side" href={stepUrl(before.step)} rel="prev">
+            <span class="dir">previous</span>
+            {pad3(before.step)}
+          </a>
+        ) : (
+          <span />
+        )
+      }
+      <a class="mid" href={href(`/runs/${run.name}/`)}>back to run</a>
+      {
+        after ? (
+          <a class="side next" href={stepUrl(after.step)} rel="next">
+            <span class="dir">next</span>
+            {pad3(after.step)}
+          </a>
+        ) : (
+          <span />
+        )
+      }
+    </div>
+  </nav>
+</Base>
+
+<style>
+  .trial-head {
+    padding-block: calc(var(--row) * 5) calc(var(--row) * 3);
+  }
+  .title {
+    font-size: var(--t-xl);
+    line-height: 1.1;
+  }
+  .title .of {
+    font-family: var(--mono);
+    font-variation-settings: var(--normal);
+    font-weight: 400;
+    font-size: 0.62em;
+    letter-spacing: 0;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  .body {
+    row-gap: calc(var(--row) * 4);
+    align-items: start;
+    padding-bottom: calc(var(--row) * 4);
+  }
+  @media (min-width: 900px) {
+    .body > .stage {
+      grid-column: 1 / span 7;
+    }
+    .body > .meta {
+      grid-column: 8 / -1;
+    }
+  }
+
+  .frame {
+    position: relative;
+    aspect-ratio: 1;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .frame[data-live='true'] img {
+    display: none;
+  }
+  .none {
+    margin: 0;
+    padding: var(--gutter);
+    color: var(--ink-2);
+  }
+  .cap {
+    margin: calc(var(--row) * 1.25) 0 0;
+    font-size: var(--t-xs);
+    color: var(--ink-2);
+  }
+  .live {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--row) * 2);
+    margin-top: calc(var(--row) * 2);
+  }
+  .live .small {
+    max-width: 34em;
+  }
+
+  .said {
+    border-top: 2px solid var(--ink);
+    padding-top: calc(var(--row) * 2);
+  }
+  .said .label {
+    margin: 0 0 calc(var(--row) * 2);
+  }
+  .answer {
+    margin: 0;
+    font-size: var(--t-2xl);
+    font-weight: 800;
+    font-variation-settings: var(--wide);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    overflow-wrap: anywhere;
+  }
+  .answer.long {
+    font-size: var(--t-xl);
+    line-height: 1.1;
+  }
+  .answer.none {
+    font-size: var(--t-lg);
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  .sentence {
+    margin: 0;
+    font-size: var(--t-xl);
+    font-weight: 700;
+    font-variation-settings: var(--wide);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    text-wrap: pretty;
+  }
+
+  .block {
+    padding-block: calc(var(--row) * 4);
+  }
+  .said-wrap {
+    max-width: 48em;
+  }
+  .report {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    max-height: none;
+  }
+  .pager-wrap {
+    padding-block: calc(var(--row) * 6) calc(var(--row) * 2);
+  }
+</style>
+
+<script>
+  import '../../../scripts/runit.ts';
+</script>
