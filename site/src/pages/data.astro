@@ -1,0 +1,170 @@
+---
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
+import Base from '../layouts/Base.astro';
+import { COLUMNS } from '../lib/columns.ts';
+import type { ColumnGroup } from '../lib/columns.ts';
+import { isCampaign, loadAll, repoRoot } from '../lib/data.ts';
+import { href } from '../lib/href.mjs';
+
+const REPO = 'https://github.com/centricle/priors';
+
+const { trials } = loadAll();
+const total = trials.length;
+const counted = trials.filter(isCampaign).length;
+const pilot = total - counted;
+const fmt = (n: number) => n.toLocaleString('en-US');
+
+const bytes = statSync(join(repoRoot(), 'data', 'trials.csv')).size;
+const size = bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+
+const GROUP_TITLE: Record<ColumnGroup, string> = {
+  identity: 'Identity',
+  cost: 'Cost and behavior',
+  lineage: 'Lineage',
+  file: 'The output file',
+  features: 'Features of the output',
+  answers: 'Text answers',
+  'self-report': 'The self-report',
+  spelling: 'Spelling',
+};
+const groups = [...new Set(COLUMNS.map((c) => c.group))].map((g) => ({
+  key: g,
+  title: GROUP_TITLE[g],
+  cols: COLUMNS.filter((c) => c.group === g),
+}));
+---
+
+<Base
+  title="Data"
+  path="/data/"
+  description="One CSV, one row per trial: every measurement behind the site, with a glossary of its columns."
+>
+  <section class="grid top">
+    <div class="head stack-lg">
+      <h1>Data</h1>
+      <p class="dek">
+        One file holds every trial. Here it is, and what each column means.
+      </p>
+      <p>
+        <a class="btn" href={href('/trials.csv')} download>trials.csv</a>
+        <span class="mono small muted dl">{fmt(total)} rows · {COLUMNS.length} columns · {size}</span>
+      </p>
+    </div>
+  </section>
+
+  <section class="grid block">
+    <div class="prose stack">
+      <p>
+        <code>trials.csv</code> has one row for every counted trial: {fmt(total)} rows, which is the
+        {fmt(counted)} trials of the campaign plus the {fmt(pilot)} trials of the pilot. It follows RFC
+        4180: comma-separated, fields quoted when they hold a comma, quote or line break, and
+        booleans written as <code>true</code> and <code>false</code>. An empty cell means the value does not
+        apply to that row or was not recorded, such as a feature flag on a pick-a-number trial or
+        the turn count of a pilot trial.
+      </p>
+      <p>
+        The file is generated and never edited by hand. The tally script in the repo,
+        <code>bin/tally.mjs</code>, reads <code>runs/&lt;run&gt;/trials.jsonl</code> and the output files
+        each trial left behind, computes the features and the answers, and writes the CSV. The
+        columns are frozen: a new one is added at the end, never renamed or reordered. This site
+        refuses to build if the header and the glossary below disagree.
+      </p>
+    </div>
+  </section>
+
+  <section class="grid block">
+    <div class="full stack">
+      <h2 class="sec">Columns</h2>
+      <div class="scroll">
+        <table class="glossary">
+          <thead>
+            <tr>
+              <th>column</th>
+              <th>meaning</th>
+            </tr>
+          </thead>
+          {groups.map((g) => (
+            <tbody>
+              <tr class="grp">
+                <th colspan="2" scope="colgroup">{g.title} <span class="count mono">{g.cols.length}</span></th>
+              </tr>
+              {g.cols.map((c) => (
+                <tr id={c.name}>
+                  <td class="name mono">{c.name}</td>
+                  <td>{c.meaning}</td>
+                </tr>
+              ))}
+            </tbody>
+          ))}
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid block">
+    <div class="prose stack">
+      <h2 class="sec">Reproduce</h2>
+      <p>
+        Clone <a href={REPO} rel="noopener">the repo</a> and run these from its root. Each one
+        needs only Node.
+      </p>
+      <pre><code>node bin/tally.mjs             # rebuild data/trials.csv
+node bin/tally.mjs --summary   # rebuild, then print the comparison tables
+node bin/tally.mjs --check     # verify the pilot counts and the seed hashes</code></pre>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .top {
+    padding-block: calc(var(--row) * 8) calc(var(--row) * 4);
+  }
+  @media (min-width: 900px) {
+    .top {
+      padding-block: calc(var(--row) * 12) calc(var(--row) * 6);
+    }
+  }
+  .dl {
+    margin-left: 1em;
+  }
+  .block {
+    padding-block: calc(var(--row) * 4);
+  }
+  .sec {
+    font-size: var(--t-xl);
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+  .glossary {
+    min-width: 34rem;
+  }
+  .glossary thead th {
+    font-size: var(--t-xs);
+  }
+  .glossary .grp th {
+    border-bottom: 1px solid var(--ink);
+    padding: calc(var(--row) * 4) 0 calc(var(--row) * 1);
+    color: var(--ink);
+    font-size: var(--t-md);
+    font-variation-settings: var(--wide);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    white-space: normal;
+  }
+  .count {
+    margin-left: 0.6em;
+    font-size: var(--t-xs);
+    font-weight: 400;
+    color: var(--ink-2);
+  }
+  .name {
+    white-space: nowrap;
+    padding-right: 1.5em;
+    width: 1%;
+  }
+  .glossary td:last-child {
+    max-width: 48em;
+  }
+</style>
