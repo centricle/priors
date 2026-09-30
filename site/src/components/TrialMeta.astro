@@ -1,0 +1,162 @@
+---
+/**
+ * Everything the tally recorded about one trial, as a definition table.
+ * A missing value prints as a middle dot, never "null". Rows that cannot
+ * apply to the task (hex colors on a pick-a-number trial) are left out.
+ */
+import { MODEL_LABEL, fmtSec, fmtUsd, isArtifact } from '../lib/data.ts';
+import type { Trial } from '../lib/data.ts';
+
+interface Props {
+  t: Trial;
+}
+const { t } = Astro.props;
+
+const NIL = '·';
+const int = (x: number | null) => (x === null ? NIL : x.toLocaleString('en-US'));
+const yn = (b: boolean | null) => (b === null ? NIL : b ? 'yes' : 'no');
+const started = t.started_utc ? t.started_utc.replace('T', ' ').replace('Z', ' UTC') : NIL;
+
+const FLAGS = [
+  'glow_or_shadow', 'glow', 'keyframes', 'radial_gradient', 'linear_gradient',
+  'pulse', 'gradient_667eea', 'script', 'nondeterministic', 'svg_filter',
+] as const;
+const flags = FLAGS.filter((k) => t[k] === true);
+
+const art = isArtifact(t);
+const sentence = t.task === 'sentence';
+const text = !art && !sentence;
+const calls = [t.tool_calls, t.bash_calls, t.edit_calls].map(int).join(' / ');
+---
+
+<table class="meta">
+  <tbody>
+    <tr><th scope="row">model</th><td>{MODEL_LABEL[t.model]} <span class="mono id">{t.modelId}</span></td></tr>
+    {t.model_asked !== t.modelId && <tr><th scope="row">asked for</th><td class="mono">{t.model_asked}</td></tr>}
+    <tr><th scope="row">effort</th><td class="mono">{t.effort || NIL}</td></tr>
+    <tr><th scope="row">profile</th><td class="mono">{t.profile}</td></tr>
+    <tr><th scope="row">cli version</th><td class="mono">{t.cli_version || NIL}</td></tr>
+    <tr><th scope="row">started</th><td class="mono">{started}</td></tr>
+    <tr><th scope="row">wall</th><td class="mono">{t.wall_s === null ? NIL : fmtSec(t.wall_s)}</td></tr>
+    <tr><th scope="row">cost</th><td class="mono">{t.cost_usd === null ? NIL : fmtUsd(t.cost_usd)}</td></tr>
+    <tr><th scope="row">turns</th><td class="mono">{int(t.turns)}</td></tr>
+    <tr><th scope="row">output tokens</th><td class="mono">{int(t.output_tokens)}</td></tr>
+    <tr><th scope="row">thinking blocks</th><td class="mono">{int(t.thinking_blocks)}</td></tr>
+    <tr><th scope="row">tool / bash / edit calls</th><td class="mono">{calls}</td></tr>
+    <tr><th scope="row">denials</th><td class="mono">{int(t.denials)}</td></tr>
+
+    {art && (
+      <>
+        <tr><th scope="row">file</th><td class="mono">{t.file ?? NIL}</td></tr>
+        <tr><th scope="row">lines</th><td class="mono">{int(t.lines)}</td></tr>
+        <tr><th scope="row">bytes</th><td class="mono">{int(t.bytes)}</td></tr>
+        <tr>
+          <th scope="row">features</th>
+          <td>
+            {flags.length ? flags.map((f) => <span class="tag">{f}</span>) : <span class="mono">none</span>}
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">hex colors</th>
+          <td>
+            {t.hex_colors.length ? (
+              <ul class="hexes" role="list">
+                {t.hex_colors.map((h) => (
+                  <li class="mono">
+                    <span class="chip" style={`--c:${/^#[0-9a-f]{3,8}$/i.test(h) ? h : 'transparent'}`} aria-hidden="true" />
+                    {h}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span class="mono">none</span>
+            )}
+          </td>
+        </tr>
+      </>
+    )}
+
+    {sentence && (
+      <>
+        <tr><th scope="row">words</th><td class="mono">{int(t.words)}</td></tr>
+        <tr><th scope="row">added</th><td class="mono">{t.added && t.added.length ? t.added.join(' ') : NIL}</td></tr>
+        <tr><th scope="row">removed</th><td class="mono">{t.removed && t.removed.length ? t.removed.join(' ') : NIL}</td></tr>
+        <tr><th scope="row">rule met</th><td class="mono">{yn(t.answer_ok)}</td></tr>
+      </>
+    )}
+
+    {text && (
+      <>
+        <tr><th scope="row">answer form</th><td class="mono">{t.answer_form ?? NIL}</td></tr>
+        <tr><th scope="row">rule met</th><td class="mono">{yn(t.answer_ok)}</td></tr>
+      </>
+    )}
+
+    {
+      !text && (
+        <>
+          <tr><th scope="row">unchanged</th><td class="mono">{yn(t.unchanged)}</td></tr>
+          <tr><th scope="row">from seed</th><td class="mono">{yn(t.from_seed)}</td></tr>
+        </>
+      )
+    }
+    <tr><th scope="row">session</th><td class="mono sess">{t.session_id || NIL}</td></tr>
+  </tbody>
+</table>
+
+<style>
+  .meta {
+    font-size: var(--t-sm);
+  }
+  .meta th[scope='row'] {
+    width: 11.5em;
+    padding-right: 1em;
+    color: var(--ink-2);
+    font-weight: 600;
+    border-bottom: 1px solid var(--hair);
+  }
+  .meta tr:first-child th,
+  .meta tr:first-child td {
+    border-top: 1px solid var(--ink);
+  }
+  .id {
+    color: var(--ink-2);
+    font-size: 0.9em;
+    margin-left: 0.5em;
+    overflow-wrap: anywhere;
+  }
+  .tag {
+    display: inline-block;
+    margin: 0 0.35em 0.35em 0;
+    padding: 0.1em 0.45em;
+    border: 1px solid var(--hair);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+  }
+  .hexes {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 1em;
+    font-size: var(--t-xs);
+  }
+  .hexes li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+  .chip {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    background: var(--c);
+    border: 1px solid var(--hair);
+  }
+  .sess {
+    font-size: var(--t-xs);
+    color: var(--ink-2);
+    overflow-wrap: anywhere;
+  }
+</style>

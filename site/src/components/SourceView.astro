@@ -1,0 +1,268 @@
+---
+/**
+ * The output file of one trial, verbatim, with a copy button, and for a chain
+ * step after the first a line diff against the step before it.
+ *
+ * The diff is Myers' O(ND) shortest edit script over lines, computed here at
+ * build time after trimming the common head and tail. Only changed lines and
+ * two lines of context are shown, capped at 400 rows; past that the page says
+ * how many it left out. Nothing here goes through set:html: every line is a
+ * text node.
+ */
+import type { Trial } from '../lib/data.ts';
+
+interface Props {
+  trial: Trial;
+  source: string;
+  /** The text this trial started from. Omit for no diff. */
+  prev?: string | null;
+  /** Label for the step the diff is against, e.g. "063". */
+  prevLabel?: string;
+}
+const { trial, source, prev = null, prevLabel = '' } = Astro.props;
+
+const CAP = 400;
+const CONTEXT = 2;
+const MAX_DIFF = 6000; // lines in both sides after trimming; beyond this the diff is not worth computing
+
+type Op = { t: ' ' | '+' | '-'; s: string };
+
+const split = (s: string) => {
+  const lines = s.split('\n');
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+};
+
+function myers(a: string[], b: string[]): Op[] {
+  const N = a.length;
+  const M = b.length;
+  if (N === 0) return b.map((s) => ({ t: '+', s }));
+  if (M === 0) return a.map((s) => ({ t: '-', s }));
+  const MAX = N + M;
+  const off = MAX;
+  const v = new Int32Array(2 * MAX + 2);
+  const trace: Int32Array[] = [];
+  outer: for (let d = 0; d <= MAX; d++) {
+    trace.push(v.slice(off - d, off + d + 1));
+    for (let k = -d; k <= d; k += 2) {
+      let x = k === -d || (k !== d && v[off + k - 1] < v[off + k + 1]) ? v[off + k + 1] : v[off + k - 1] + 1;
+      let y = x - k;
+      while (x < N && y < M && a[x] === b[y]) {
+        x++;
+        y++;
+      }
+      v[off + k] = x;
+      if (x >= N && y >= M) break outer;
+    }
+  }
+  const ops: Op[] = [];
+  let x = N;
+  let y = M;
+  for (let d = trace.length - 1; d >= 0; d--) {
+    if (d === 0) {
+      while (x > 0 && y > 0) {
+        ops.push({ t: ' ', s: a[x - 1] });
+        x--;
+        y--;
+      }
+      break;
+    }
+    const vd = trace[d]; // v as it stood before round d; index k + d
+    const k = x - y;
+    const prevK = k === -d || (k !== d && vd[k - 1 + d] < vd[k + 1 + d]) ? k + 1 : k - 1;
+    const prevX = vd[prevK + d];
+    const prevY = prevX - prevK;
+    while (x > prevX && y > prevY) {
+      ops.push({ t: ' ', s: a[x - 1] });
+      x--;
+      y--;
+    }
+    if (x === prevX) {
+      ops.push({ t: '+', s: b[y - 1] });
+      y--;
+    } else {
+      ops.push({ t: '-', s: a[x - 1] });
+      x--;
+    }
+  }
+  return ops.reverse();
+}
+
+function diffLines(a: string[], b: string[]): Op[] | null {
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) head++;
+  let ea = a.length;
+  let eb = b.length;
+  while (ea > head && eb > head && a[ea - 1] === b[eb - 1]) {
+    ea--;
+    eb--;
+  }
+  const midA = a.slice(head, ea);
+  const midB = b.slice(head, eb);
+  if (midA.length + midB.length > MAX_DIFF) return null;
+  return [
+    ...a.slice(0, head).map((s): Op => ({ t: ' ', s })),
+    ...myers(midA, midB),
+    ...a.slice(ea).map((s): Op => ({ t: ' ', s })),
+  ];
+}
+
+interface Row {
+  kind: 'ctx' | 'add' | 'del' | 'gap';
+  text: string;
+}
+
+let added = 0;
+let removed = 0;
+let rows: Row[] = [];
+let totalRows = 0;
+let tooLarge = false;
+
+if (prev !== null) {
+  const ops = diffLines(split(prev), split(source));
+  if (ops === null) {
+    tooLarge = true;
+  } else {
+    // Keep changed lines plus CONTEXT lines either side.
+    const keep = new Array<boolean>(ops.length).fill(false);
+    ops.forEach((op, i) => {
+      if (op.t === ' ') return;
+      if (op.t === '+') added++;
+      else removed++;
+      for (let j = Math.max(0, i - CONTEXT); j <= Math.min(ops.length - 1, i + CONTEXT); j++) keep[j] = true;
+    });
+    let newLine = 0;
+    let last = -1;
+    const all: Row[] = [];
+    ops.forEach((op, i) => {
+      if (op.t !== '-') newLine++;
+      if (!keep[i]) return;
+      if (last !== i - 1 && all.length) all.push({ kind: 'gap', text: `line ${newLine}` });
+      last = i;
+      all.push({ kind: op.t === '+' ? 'add' : op.t === '-' ? 'del' : 'ctx', text: op.s });
+    });
+    totalRows = all.length;
+    rows = all.slice(0, CAP);
+  }
+}
+
+const lineCount = trial.lines ?? split(source).length;
+const bytes = trial.bytes ?? source.length;
+const name = trial.file ?? 'output';
+const mark: Record<Row['kind'], string> = { ctx: ' ', add: '+', del: '-', gap: '' };
+---
+
+<section class="src">
+  <header class="bar">
+    <span class="fname mono">{name}</span>
+    <span class="stat mono">{lineCount.toLocaleString('en-US')} lines · {bytes.toLocaleString('en-US')} bytes</span>
+    <button type="button" class="btn btn-sm btn-ghost copy" data-copy hidden>copy</button>
+  </header>
+  <pre class="code"><code data-code>{source}</code></pre>
+
+  {
+    prev !== null && (
+      <details class="changed">
+        <summary>what changed from step {prevLabel}</summary>
+        {tooLarge ? (
+          <p class="small muted">The two versions differ too much to diff line by line.</p>
+        ) : added + removed === 0 ? (
+          <p class="small muted">Nothing. The file is byte-identical to step {prevLabel}.</p>
+        ) : (
+          <>
+            <p class="small mono muted">
+              +{added} / -{removed} lines
+              {totalRows > CAP && ` · showing the first ${CAP} of ${totalRows.toLocaleString('en-US')} rows`}
+            </p>
+            <pre class="diff">{rows.map((r) => (
+              <span class:list={['ln', r.kind]}>{r.kind === 'gap' ? `⋯ ${r.text}` : mark[r.kind] + ' ' + r.text}</span>
+            ))}</pre>
+          </>
+        )}
+      </details>
+    )
+  }
+</section>
+
+<style>
+  .src {
+    min-width: 0;
+  }
+  .bar {
+    display: flex;
+    align-items: baseline;
+    gap: calc(var(--row) * 2);
+    flex-wrap: wrap;
+    padding-bottom: calc(var(--row) * 1.25);
+  }
+  .fname {
+    font-weight: 600;
+  }
+  .stat {
+    color: var(--ink-2);
+    font-size: var(--t-sm);
+  }
+  .copy {
+    margin-left: auto;
+  }
+  .code {
+    max-height: 36rem;
+    background: var(--paper);
+  }
+  .changed {
+    margin-top: calc(var(--row) * 2);
+  }
+  .changed summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: var(--t-sm);
+    padding-block: 0.4em;
+  }
+  .changed summary:hover {
+    background: var(--mark);
+    color: var(--mark-ink);
+  }
+  .diff {
+    max-height: 36rem;
+    padding: 0;
+    white-space: pre;
+  }
+  .ln {
+    display: block;
+    min-height: 1.45em;
+    padding-inline: var(--gutter);
+  }
+  .ln.add {
+    background: var(--mark);
+    color: var(--mark-ink);
+  }
+  .ln.del {
+    color: var(--ink-2);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+  .ln.gap {
+    color: var(--ink-3);
+    border-block: 1px solid var(--hair-2);
+    font-size: var(--t-xs);
+  }
+</style>
+
+<script>
+  for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+    const code = btn.closest('.src')?.querySelector<HTMLElement>('code[data-code]');
+    if (!code || !navigator.clipboard) continue;
+    btn.hidden = false;
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(code.textContent ?? '');
+        btn.textContent = 'copied';
+      } catch {
+        btn.textContent = 'copy failed';
+      }
+      setTimeout(() => {
+        btn.textContent = 'copy';
+      }, 1400);
+    });
+  }
+</script>

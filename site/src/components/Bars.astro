@@ -1,0 +1,129 @@
+---
+/**
+ * Horizontal bars for one measure, in the order given.
+ *
+ * Bar width is value / max (max defaults to the largest value). The label sits
+ * left, the value right in mono; `share` (0..1) prints beside a count. Every
+ * bar is ink; `hi` bars take the highlighter with a hairline outline, since
+ * lime alone does not hold on white. The bars carry no information the text
+ * does not, so they are hidden from assistive tech and each row reads as
+ * "label, note, value".
+ *
+ * format 'count': value is an integer count.
+ * format 'pct':   value is a share, 0..1.
+ * format 'usd':   value is dollars.
+ */
+import { fmtPct, fmtUsd } from '../lib/data.ts';
+
+interface Item {
+  label: string;
+  value: number;
+  share?: number;
+  hi?: boolean;
+  note?: string;
+}
+interface Props {
+  items: Item[];
+  max?: number;
+  format?: 'count' | 'pct' | 'usd';
+  title?: string;
+}
+
+const { items, max, format = 'count', title } = Astro.props;
+const top = max ?? Math.max(0, ...items.map((i) => i.value));
+
+const pct = (s: number) => (s > 0 && s < 0.005 ? '<1%' : fmtPct(s));
+const fmt = (v: number) => (format === 'pct' ? pct(v) : format === 'usd' ? fmtUsd(v) : v.toLocaleString('en-US'));
+const width = (v: number) => (top > 0 ? Math.max(0, Math.min(100, (v / top) * 100)) : 0);
+---
+
+<figure class="bars">
+  {title && <figcaption class="cap label">{title}</figcaption>}
+  <ul class="rows" role="list">
+    {items.map((it) => (
+      <li class:list={['row', it.hi && 'is-hi']}>
+        <span class="lab label" title={it.label}>
+          {it.label}
+          {it.note && <span class="note">{it.note}</span>}
+        </span>
+        <span class="track" aria-hidden="true">
+          {it.value > 0 && <span class="fill" style={`width:${width(it.value)}%`} />}
+        </span>
+        <span class="val">
+          {fmt(it.value)}
+          {it.share !== undefined && <span class="share">{pct(it.share)}</span>}
+        </span>
+      </li>
+    ))}
+  </ul>
+</figure>
+
+<style>
+  .bars {
+    margin: 0;
+    font-size: var(--t-sm);
+  }
+  .cap {
+    margin-bottom: calc(var(--row) * 1.5);
+  }
+  .rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: fit-content(16em) minmax(0, 1fr) max-content;
+    column-gap: calc(var(--row) * 1.5);
+    row-gap: calc(var(--row) * 0.75);
+  }
+  .row {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    align-items: center;
+  }
+  .lab {
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .note {
+    margin-left: 0.6em;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  .track {
+    display: block;
+    height: 1.4em;
+    border-left: 1px solid var(--ink-3);
+  }
+  .fill {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+    background: var(--ink);
+  }
+  .is-hi .fill {
+    background: var(--mark);
+    outline: 1px solid var(--ink);
+    outline-offset: -1px;
+  }
+  .val {
+    font-family: var(--mono);
+    font-size: 0.95em;
+    text-align: right;
+    white-space: nowrap;
+    padding-inline: 0.25em;
+  }
+  .share {
+    margin-left: 0.7em;
+    color: var(--ink-2);
+  }
+  .is-hi .val {
+    background: var(--mark);
+    color: var(--mark-ink);
+  }
+  .is-hi .share {
+    color: var(--mark-ink);
+  }
+</style>
