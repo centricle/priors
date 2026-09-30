@@ -18,8 +18,11 @@
 
   --paper: #ffffff;
   --ink: #0a0a0a;
-  --ink-2: #6b6b6b;
-  --ink-3: #a8a8a8;
+  /* Both clear 4.5:1 on white (7.5 and 4.5) so small text in either is legible.
+     ink-2 sits well darker than ink-3 on purpose: #6b6b6b against #767676 would
+     read as one gray. The gradient chapter overrides both as translucent white. */
+  --ink-2: #555555;
+  --ink-3: #767676;
   --hair: rgb(0 0 0 / 0.14);
   --hair-2: rgb(0 0 0 / 0.06);
   --mark: #d9ff3a;

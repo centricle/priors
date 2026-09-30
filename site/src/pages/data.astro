@@ -16,7 +16,8 @@ const pilot = total - counted;
 const fmt = (n: number) => n.toLocaleString('en-US');
 
 const bytes = statSync(join(repoRoot(), 'data', 'trials.csv')).size;
-const size = bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+// Decimal units, to match what Finder and a browser's download dialog report.
+const size = bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1e3)} KB`;
 
 const GROUP_TITLE: Record<ColumnGroup, string> = {
   identity: 'Identity',
@@ -109,9 +110,14 @@ const groups = [...new Set(COLUMNS.map((c) => c.group))].map((g) => ({
         Clone <a href={REPO} rel="noopener">the repo</a> and run these from its root. Each one
         needs only Node.
       </p>
-      <pre><code>node bin/tally.mjs             # rebuild data/trials.csv
-node bin/tally.mjs --summary   # rebuild, then print the comparison tables
-node bin/tally.mjs --check     # verify the pilot counts and the seed hashes</code></pre>
+      <pre><code># rebuild data/trials.csv
+node bin/tally.mjs
+
+# rebuild, then print the comparison tables
+node bin/tally.mjs --summary
+
+# verify the pilot counts and the seed hashes
+node bin/tally.mjs --check</code></pre>
     </div>
   </section>
 </Base>

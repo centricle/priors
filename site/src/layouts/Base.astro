@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { href } from '../lib/href.mjs';
+import { headline } from '../lib/stats.ts';
 
 interface Props {
   title?: string;
@@ -11,14 +12,20 @@ interface Props {
 }
 
 const SITE = 'https://centricle.com';
+
+// The footer and the default description quote the headline figures, so they
+// come from the same headline() the story's KeyRow reads rather than being typed.
+const h = headline();
+const trialCount = h.trialsCampaign.toLocaleString('en-US');
+
 const {
   title,
-  description = 'Give four Claude models a black circle and the word improve. Do it 2,608 times. See what they reach for.',
+  description = `Give four Claude models a black circle and the word improve. Do it ${trialCount} times. See what they reach for.`,
   path = '/',
   ogImage = '/og.png',
 } = Astro.props;
 
-const fullTitle = title ? `${title} · priors` : 'priors';
+const fullTitle = title ? `${title} · priors` : 'priors · what Claude does when told to improve a black circle';
 const canonical = `${SITE}${href(path)}`;
 const og = `${SITE}${href(ogImage)}`;
 const REPO = 'https://github.com/centricle/priors';
@@ -30,10 +37,24 @@ const nav = [
   ['Data', '/data/'],
 ];
 
-// A black circle, the seed, as the tab icon.
+// Runs owns every page under /runs/, the run pages and trial pages included, so
+// it matches by prefix. The Story link is the site root and would otherwise
+// match everything, so it stays exact. An exact match is the current page;
+// a prefix match is only the current section.
+const here = href(path);
+const current = (p: string) => {
+  if (href(p) === here) return 'page';
+  return p !== '/' && here.startsWith(href(p)) ? 'true' : undefined;
+};
+
+// A black circle, the seed, as the tab icon. The white ring keeps it visible on
+// a dark tab strip, where a bare black disc disappears; on a light strip the
+// ring vanishes into the page and the disc reads as before.
 const favicon =
   'data:image/svg+xml,' +
-  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/></svg>');
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#0a0a0a" stroke="#fff" stroke-width="4"/></svg>',
+  );
 ---
 
 <!doctype html>
@@ -65,7 +86,7 @@ const favicon =
       </a>
       <nav class="nav" aria-label="Site">
         {nav.map(([label, p]) => (
-          <a href={href(p)} aria-current={href(p) === href(path) ? 'page' : undefined}>{label}</a>
+          <a href={href(p)} aria-current={current(p)}>{label}</a>
         ))}
         <a href={REPO} rel="noopener">GitHub</a>
       </nav>
@@ -77,9 +98,9 @@ const favicon =
       <div class="full flex between">
         <span class="small muted">
           priors is a <a href="https://centricle.com/curios/">curio</a>. MIT licensed;
-          the outputs are the models' own.
+          the outputs are the models’ own.
         </span>
-        <span class="small muted mono">n = 2,608 · 4 models · 41 runs</span>
+        <span class="small muted mono">n = {trialCount} · {h.models} models · {h.runs} runs</span>
       </div>
     </footer>
   </body>
@@ -171,7 +192,7 @@ const favicon =
     line-height: 1;
     border-bottom: 2px solid transparent;
   }
-  .nav a[aria-current='page'] {
+  .nav a[aria-current] {
     border-bottom-color: var(--ink);
   }
 

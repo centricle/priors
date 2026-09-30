@@ -12,7 +12,9 @@ export default defineConfig({
   site: 'https://centricle.com',
   base: '/curios/priors',
   trailingSlash: 'always',
-  integrations: [sitemap()],
+  // One lastmod for every URL: the corpus is frozen, so a page changes only when
+  // the site is rebuilt, and the build date is the honest answer.
+  integrations: [sitemap({ lastmod: new Date() })],
   server: { port: 7064, allowedHosts: true },
   devToolbar: { enabled: false },
 });
