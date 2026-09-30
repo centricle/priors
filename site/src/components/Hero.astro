@@ -1,0 +1,210 @@
+---
+/**
+ * The seed, and the button.
+ *
+ * `picks` is built by the page from the four circle sample runs: one entry
+ * per counted trial with its render, its metrics and its feature flags. The
+ * client script (src/scripts/improve.ts) does the rest.
+ */
+interface Props {
+  picks: Record<string, unknown[]>;
+  labels: Record<string, string>;
+  seedLines: number;
+  total: string;
+  models: number;
+}
+const { picks, labels, seedLines, total, models } = Astro.props;
+const json = JSON.stringify({ picks, labels, seedLines });
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+const modelsWord = WORDS[models] ?? String(models);
+const order = ['haiku', 'sonnet', 'opus', 'fable'];
+---
+
+<section class="hero grid" data-improve>
+  <script type="application/json" set:html={json} />
+  <div class="copy stack-lg">
+    <h1>
+      Give a model<br />a black circle.<br />Say <mark>improve</mark>.
+    </h1>
+    <p class="dek">
+      Do it {total} times, across {modelsWord} models, in a room with nothing else in it. Then look
+      at what each one reached for.
+    </p>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Model">
+        {order.map((m) => (
+          <button type="button" data-model={m} aria-pressed={m === 'haiku' ? 'true' : 'false'}>
+            {labels[m]}
+          </button>
+        ))}
+      </div>
+      <div class="go">
+        <button type="button" class="btn btn-go" data-go disabled>
+          improve
+          <span class="prompt mono" aria-hidden="true">0.html</span>
+        </button>
+        <button type="button" class="reset" data-reset hidden>back to the seed</button>
+      </div>
+      <p class="hint small muted">
+        Every frame is a real output from one trial. Same file, same one-word prompt, fresh
+        session each time. Press it more than once.
+      </p>
+    </div>
+  </div>
+
+  <figure class="frame-wrap">
+    <div class="frame" data-frame>
+      <div class="seed" data-seed>
+        <svg class="seed-circle" viewBox="0 0 800 800" aria-label="The seed: a black circle on white">
+          <circle cx="400" cy="400" r="200" />
+        </svg>
+      </div>
+      <img class="layer" data-layer="a" alt="" width="800" height="800" decoding="async" />
+      <img class="layer" data-layer="b" alt="" width="800" height="800" decoding="async" />
+    </div>
+    <figcaption class="caption mono small" data-caption>
+      seed · 0.html · {seedLines} lines · a black circle
+    </figcaption>
+  </figure>
+</section>
+
+<style>
+  .hero {
+    padding-block: calc(var(--row) * 8) calc(var(--row) * 10);
+    row-gap: calc(var(--row) * 5);
+    align-items: start;
+  }
+  @media (min-width: 900px) {
+    .hero {
+      padding-block: calc(var(--row) * 12) calc(var(--row) * 14);
+    }
+    .hero > .copy {
+      grid-column: 1 / span 7;
+    }
+    .hero > .frame-wrap {
+      grid-column: 8 / -1;
+    }
+  }
+  @media (min-width: 1200px) {
+    .hero > .copy {
+      grid-column: 1 / span 7;
+    }
+    .hero > .frame-wrap {
+      grid-column: 8 / -1;
+    }
+  }
+
+  .copy h1 {
+    font-size: clamp(2.6rem, 1rem + 4.4vw, 5.2rem);
+  }
+  .copy h1 mark {
+    background: linear-gradient(var(--mark), var(--mark)) no-repeat 0 100% / 100% 0.78em;
+    padding: 0 0.06em;
+    margin: 0 -0.06em;
+  }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--row) * 2.5);
+    align-items: flex-start;
+  }
+  .go {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--row) * 3);
+    flex-wrap: wrap;
+  }
+  .btn-go {
+    font-size: var(--t-lg);
+    padding: 0.7em 1.2em;
+    gap: 0.8em;
+  }
+  .btn-go .prompt {
+    font-weight: 400;
+    opacity: 0.6;
+    font-size: 0.8em;
+  }
+  .btn-go:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  :global(.btn-go.is-pressed) {
+    transform: translateY(2px);
+  }
+  .reset {
+    appearance: none;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--t-sm);
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+    cursor: pointer;
+    padding: 0;
+    color: var(--ink-2);
+  }
+  .reset:hover {
+    background: var(--mark);
+    color: var(--mark-ink);
+  }
+  .hint {
+    max-width: 30em;
+    margin: 0;
+  }
+
+  .frame-wrap {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--row) * 1.5);
+  }
+  .frame {
+    position: relative;
+    aspect-ratio: 1;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .seed,
+  .layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 260ms var(--ease);
+  }
+  .seed {
+    opacity: 1;
+  }
+  :global(.seed.is-hidden) {
+    opacity: 0;
+  }
+  .layer {
+    opacity: 0;
+    object-fit: cover;
+    display: block;
+  }
+  :global(.layer.is-front) {
+    opacity: 1;
+  }
+  :global(.frame.is-still)::after {
+    content: 'unchanged';
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    background: var(--mark);
+    color: var(--mark-ink);
+    padding: 0.2em 0.5em;
+  }
+  .caption {
+    color: var(--ink-2);
+    min-height: 1.5em;
+  }
+</style>
+
+<script>
+  import '../scripts/improve.ts';
+</script>

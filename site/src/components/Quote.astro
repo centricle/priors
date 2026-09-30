@@ -1,0 +1,47 @@
+---
+/**
+ * A model's own words, verbatim, with a link to the trial it came from.
+ * Truncation is the caller's job; this only sets the type.
+ */
+import { href } from '../lib/href.mjs';
+import { pad3, MODEL_LABEL, type Trial } from '../lib/data.ts';
+
+interface Props {
+  trial: Trial;
+  /** Characters to keep from the start of the final message. */
+  chars?: number;
+  text?: string;
+}
+const { trial, chars = 220, text } = Astro.props;
+const raw = (text ?? trial.result ?? '').replace(/\s+/g, ' ').trim();
+const cut = raw.length > chars ? raw.slice(0, chars).replace(/\s+\S*$/, '') + ' …' : raw;
+const url = href(`/runs/${trial.run}/${pad3(trial.step)}/`);
+---
+
+<figure class="quote">
+  <blockquote class="mono">{cut}</blockquote>
+  <figcaption class="mono small">
+    <a href={url}>{MODEL_LABEL[trial.model]} · {trial.task} {trial.mode} · trial {pad3(trial.step)}</a>
+  </figcaption>
+</figure>
+
+<style>
+  .quote {
+    margin: 0;
+    padding-left: calc(var(--gutter) * 0.75);
+    border-left: 2px solid var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--row) * 1);
+  }
+  blockquote {
+    margin: 0;
+    font-size: var(--t-sm);
+    line-height: 1.5;
+    color: var(--ink);
+    text-wrap: pretty;
+  }
+  figcaption {
+    color: var(--ink-2);
+  }
+</style>

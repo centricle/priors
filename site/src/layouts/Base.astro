@@ -145,6 +145,25 @@ const favicon =
     gap: clamp(10px, 2vw, 28px);
     font-size: var(--t-sm);
     font-weight: 600;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+  @media (max-width: 480px) {
+    .top {
+      gap: 8px;
+    }
+    .nav {
+      gap: 12px;
+      font-size: var(--t-xs);
+    }
+    .wordmark {
+      font-size: 1.1rem;
+    }
   }
   .nav a {
     text-decoration: none;
