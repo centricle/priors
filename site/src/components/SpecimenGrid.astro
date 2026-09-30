@@ -1,0 +1,293 @@
+---
+/**
+ * A grid of square renders, one per trial. Each cell is a link to the trial's
+ * page. Hairlines between cells, no gaps, no radius.
+ *
+ * The cell says a little without being asked: a mark in the corner when the
+ * model left the file unchanged, a tilde when the render is only one of many
+ * the page could produce. Hover or focus reads out the trial number, lines and
+ * cost. For relay runs (`showModel`) each cell carries the initial of the model
+ * that wrote the step, with a key above the grid.
+ */
+import type { Trial } from '../lib/data.ts';
+import { MODEL_LABEL, fmtUsd, pad3, thumbPath } from '../lib/data.ts';
+import { href } from '../lib/href.mjs';
+
+interface Props {
+  trials: Trial[];
+  /** Columns above 700px. Under 700px the grid drops to four (or fewer, if asked for fewer). */
+  cols?: number;
+  /** 'thumb' loads the 200px thumbs (and the 800px render on dense screens); 'full' the 800px render. */
+  size?: 'thumb' | 'full';
+  caption?: string;
+  /** Label each cell with the model that wrote the step. For relay runs. */
+  showModel?: boolean;
+  /** Placement class from the page grid, e.g. "full" or "wide". */
+  class?: string;
+}
+
+const { trials, cols = 8, size = 'thumb', caption, showModel = false, class: cls = '' } = Astro.props;
+const colsSm = Math.min(cols, 4);
+const px = size === 'full' ? 800 : 200;
+const sizes = `(max-width: 699px) calc(100vw / ${colsSm}), calc(100vw / ${cols})`;
+
+const legend = showModel
+  ? [...new Set(trials.map((t) => t.model))].map((m) => ({ initial: MODEL_LABEL[m][0], label: MODEL_LABEL[m] }))
+  : [];
+
+function cell(t: Trial) {
+  const full = t.renderPath ? href(t.renderPath) : null;
+  const thumb = t.renderPath ? href(thumbPath(t)!) : null;
+  const label = MODEL_LABEL[t.model];
+  const n = pad3(t.step);
+  const alt =
+    `${t.task} ${t.mode}, ${label}, trial ${n}` +
+    (t.lines !== null ? `: ${t.lines} lines` : '') +
+    (t.unchanged ? ', unchanged' : '');
+  const parts = [
+    { text: n, cls: 'p-n' },
+    t.lines !== null ? { text: `${t.lines} lines`, cls: 'p-lines' } : null,
+    t.cost_usd !== null ? { text: fmtUsd(t.cost_usd), cls: 'p-cost' } : null,
+    showModel ? { text: label, cls: 'p-model' } : null,
+  ].filter((p): p is { text: string; cls: string } => p !== null);
+  return {
+    url: href(`/runs/${t.run}/${n}/`),
+    src: size === 'full' ? full : thumb,
+    srcset: size === 'thumb' && full && thumb ? `${thumb} 200w, ${full} 800w` : undefined,
+    alt,
+    parts,
+    initial: label[0],
+    label,
+    n,
+    t,
+  };
+}
+const cells = trials.map(cell);
+---
+
+<figure class:list={['sg', cls]} style={`--cols:${cols};--cols-sm:${colsSm}`}>
+  {(caption || legend.length > 0) && (
+    <figcaption class="head">
+      {caption && <span class="cap">{caption}</span>}
+      {legend.length > 0 && (
+        <span class="key" aria-label="Model key">
+          {legend.map((l) => (
+            <span class="key-item">
+              <span class="chip key-chip" aria-hidden="true">{l.initial}</span>
+              {l.label}
+            </span>
+          ))}
+        </span>
+      )}
+    </figcaption>
+  )}
+  <div class="cells">
+    {cells.map((c) => (
+      <a class="specimen" href={c.url}>
+        {c.src ? (
+          <img
+            src={c.src}
+            srcset={c.srcset}
+            sizes={c.srcset ? sizes : undefined}
+            width={px}
+            height={px}
+            alt={c.alt}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <span class="none">{c.n}<span class="sr-only"> no render</span></span>
+        )}
+        {showModel && (
+          <span class="chip who" aria-hidden="true">{c.initial}</span>
+        )}
+        {(c.t.unchanged || c.t.nondeterministic) && (
+          <span class="flags">
+            {c.t.nondeterministic && (
+              <span class="tilde" title="nondeterministic: one of many possible renders">~</span>
+            )}
+            {c.t.unchanged && <span class="still" title="unchanged"></span>}
+          </span>
+        )}
+        <span class="info" aria-hidden="true">
+          {c.parts.map((p) => (
+            <span class={p.cls}>{p.text}</span>
+          ))}
+        </span>
+      </a>
+    ))}
+  </div>
+</figure>
+
+<style>
+  .sg {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--row) * 1.5);
+    min-width: 0;
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px var(--gutter);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1.4;
+    color: var(--ink-2);
+  }
+  .key {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+  }
+  .key-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Hairlines: the grid owns the top and left edge, each cell its right and bottom. */
+  .cells {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    border-top: 1px solid var(--hair);
+    border-left: 1px solid var(--hair);
+  }
+  @media (max-width: 699px) {
+    .cells {
+      grid-template-columns: repeat(var(--cols-sm), minmax(0, 1fr));
+    }
+  }
+
+  .specimen,
+  .specimen:hover {
+    position: relative;
+    border-width: 0 1px 1px 0;
+    background: var(--paper);
+    color: var(--ink);
+    text-decoration: none;
+    container-type: inline-size;
+  }
+  .specimen:hover {
+    outline: 1px solid var(--ink);
+    outline-offset: -1px;
+    z-index: 1;
+  }
+  .specimen:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: -2px;
+    z-index: 1;
+  }
+
+  .none {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-3);
+  }
+
+  .chip {
+    display: inline-block;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .who {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 3px 4px 4px;
+    border-right: 1px solid var(--hair);
+    border-bottom: 1px solid var(--hair);
+  }
+  .key-chip {
+    padding: 2px 4px 3px;
+    border: 1px solid var(--hair);
+  }
+
+  .flags {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .tilde {
+    padding: 0 3px;
+    height: 10px;
+    background: var(--paper);
+    color: var(--ink-2);
+    border: 1px solid var(--hair);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    line-height: 6px;
+  }
+  .still {
+    width: 8px;
+    height: 8px;
+    background: var(--mark);
+    border: 1px solid var(--ink);
+  }
+
+  .info {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.5ch;
+    padding: 3px 5px 4px;
+    background: var(--paper);
+    border-top: 1px solid var(--ink);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    visibility: hidden;
+  }
+  .specimen:hover .info,
+  .specimen:focus-visible .info {
+    visibility: visible;
+  }
+  .specimen:focus-visible .info {
+    background: var(--mark);
+    color: var(--mark-ink);
+  }
+
+  /* Separators are drawn after every piece but the last, so a wrapped line ends on one. */
+  .info > span:not(:last-child)::after {
+    content: ' ·';
+  }
+
+  /* Narrow cells drop the detail, not the number. */
+  @container (max-width: 130px) {
+    .p-cost,
+    .p-model {
+      display: none;
+    }
+    .p-lines::after {
+      content: none;
+    }
+  }
+  @container (max-width: 84px) {
+    .p-lines {
+      display: none;
+    }
+    .p-n::after {
+      content: none;
+    }
+  }
+</style>

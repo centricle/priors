@@ -1,0 +1,313 @@
+---
+/**
+ * The sentence task, scrubbed. Each step adds one word to the sentence; the
+ * page opens on the last step so the reader meets the result first, and
+ * scrubbing back shows how it grew. The word added at the current step is
+ * highlighted. When the rule (one word added, none removed) was broken, the
+ * status line says so.
+ *
+ * All steps are rendered here, stacked in one grid cell with only the current
+ * one visible. That makes the block exactly as tall as the tallest step, so the
+ * slider under it never moves while the reader drags. src/scripts/sentence.ts
+ * switches steps and fills in the readouts.
+ */
+import type { Run } from '../lib/data.ts';
+import { MODEL_LABEL, pad3 } from '../lib/data.ts';
+import { sentenceChain } from '../lib/stats.ts';
+
+interface Props {
+  run: Run;
+  title?: string;
+  /** Step shown first, 1-based. Defaults to the last step. */
+  startAt?: number;
+  /** Placement class from the page grid, e.g. "full" or "wide". */
+  class?: string;
+}
+
+const { run, title, startAt, class: cls = '' } = Astro.props;
+
+const chain = sentenceChain(run);
+const n = chain.steps.length;
+const start = Math.min(Math.max(Math.round(startAt ?? n), 1), n) - 1;
+
+// ---- which words were added
+
+interface Tok {
+  start: number;
+  end: number;
+  core: string;
+}
+
+// A word's core is what is left when the case and the punctuation around it go.
+function tokens(s: string): Tok[] {
+  const out: Tok[] = [];
+  for (const m of s.matchAll(/\S+/g)) {
+    const raw = m[0];
+    const core = raw.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '') || raw.toLowerCase();
+    out.push({ start: m.index!, end: m.index! + raw.length, core });
+  }
+  return out;
+}
+
+// Diff the previous sentence against this one on word cores (longest common
+// subsequence). The words left over are the new ones. The recorded `added`
+// list decides which of them count; if the diff and the list disagree, fall
+// back to the first word in the sentence that matches an added core.
+function markRanges(prev: string, text: string, added: string[]): [number, number][] {
+  if (added.length === 0) return [];
+  const a = tokens(prev);
+  const b = tokens(text);
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let x = a.length - 1; x >= 0; x--) {
+    for (let y = b.length - 1; y >= 0; y--) {
+      dp[x][y] = a[x].core === b[y].core ? dp[x + 1][y + 1] + 1 : Math.max(dp[x + 1][y], dp[x][y + 1]);
+    }
+  }
+  const matched = new Set<number>();
+  for (let x = 0, y = 0; x < a.length && y < b.length; ) {
+    if (a[x].core === b[y].core && dp[x][y] === dp[x + 1][y + 1] + 1) {
+      matched.add(y);
+      x++;
+      y++;
+    } else if (dp[x + 1][y] >= dp[x][y + 1]) x++;
+    else y++;
+  }
+
+  const want = new Map<string, number>();
+  for (const w of added) {
+    const core = tokens(w)[0]?.core;
+    if (core) want.set(core, (want.get(core) ?? 0) + 1);
+  }
+  const picked = new Set<number>();
+  const take = (y: number) => {
+    const left = want.get(b[y].core) ?? 0;
+    if (left <= 0) return false;
+    want.set(b[y].core, left - 1);
+    picked.add(y);
+    return true;
+  };
+  b.forEach((_, y) => {
+    if (!matched.has(y)) take(y);
+  });
+  // Anything the diff could not place: first match in the sentence, unmatched or not.
+  for (const [core, left] of [...want]) {
+    for (let r = 0; r < left; r++) {
+      let y = b.findIndex((t, k) => t.core === core && !picked.has(k) && !matched.has(k));
+      if (y < 0) y = b.findIndex((t, k) => t.core === core && !picked.has(k));
+      if (y >= 0) take(y);
+    }
+  }
+
+  // Neighbors merge into one mark.
+  const ys = [...picked].sort((p, q) => p - q);
+  const ranges: [number, number][] = [];
+  for (const y of ys) {
+    const last = ranges[ranges.length - 1];
+    if (last && ys.includes(y - 1)) last[1] = b[y].end;
+    else ranges.push([b[y].start, b[y].end]);
+  }
+  return ranges;
+}
+
+function segments(text: string, ranges: [number, number][]): { t: string; m: boolean }[] {
+  const out: { t: string; m: boolean }[] = [];
+  let at = 0;
+  for (const [s, e] of ranges) {
+    if (s > at) out.push({ t: text.slice(at, s), m: false });
+    out.push({ t: text.slice(s, e), m: true });
+    at = e;
+  }
+  if (at < text.length) out.push({ t: text.slice(at), m: false });
+  return out;
+}
+
+const rows = chain.steps.map((s, k) => ({
+  ...s,
+  model: MODEL_LABEL[run.trials[k].model],
+  segs: segments(s.text, markRanges(k === 0 ? chain.seed : chain.steps[k - 1].text, s.text, s.added)),
+}));
+
+const data = rows.map((r) => ({ step: r.step, added: r.added, removed: r.removed, ok: r.ok, model: r.model }));
+const cur = rows[start];
+const ruleText = (r: (typeof rows)[number]) =>
+  r.ok
+    ? 'one word added, none removed'
+    : r.added.length === 0 && r.removed.length === 0
+      ? 'rule broken: nothing added'
+      : `rule broken: +${r.added.length} / -${r.removed.length}`;
+---
+
+<div class:list={['scrub', cls]} data-sentence data-start={start + 1} role="group" aria-label={title ?? run.label}>
+  <script type="application/json" set:html={JSON.stringify(data)} />
+
+  <div class="head">
+    {title ? <span class="title">{title}</span> : <span></span>}
+    <span class="kind">{run.label}</span>
+  </div>
+
+  <div class="meta">
+    <span class="stepno">step <span data-no>{pad3(cur.step)}</span> / {pad3(rows[n - 1].step)}</span>
+    {run.isRelay && <span class="who">written by <span data-model>{cur.model}</span></span>}
+  </div>
+
+  <div class="lines" data-lines>
+    {rows.map((r, k) => (
+      <p class:list={['line', k === start && 'is-on']} data-i={k}>
+        {r.segs.map((g) => (g.m ? <mark>{g.t}</mark> : g.t))}
+      </p>
+    ))}
+  </div>
+
+  <p class="removed" data-removed data-empty={cur.removed.length === 0 ? '' : undefined}>
+    <span class="lbl">removed</span> <del data-removed-words>{cur.removed.join(' ')}</del>
+  </p>
+
+  <p class="rule"><span class="rule-text" data-rule class:list={[!cur.ok && 'is-broken']}>{ruleText(cur)}</span></p>
+
+  <div class="controls" data-controls hidden>
+    <div class="btns">
+      <button type="button" class="btn btn-ghost btn-sm" data-prev aria-label="Previous step">prev</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-next aria-label="Next step">next</button>
+    </div>
+    <input type="range" data-range min="1" max={n} step="1" value={start + 1} aria-label="Step" />
+    <span class="out" data-out aria-hidden="true">step {pad3(cur.step)}</span>
+  </div>
+</div>
+
+<style>
+  .scrub {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--row) * 2.5);
+    min-width: 0;
+  }
+
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px var(--gutter);
+  }
+  .title {
+    font-weight: 700;
+    font-size: var(--t-lg);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+  .kind {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-2);
+  }
+
+  .meta {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px var(--gutter);
+    padding-top: calc(var(--row) * 1.5);
+    border-top: 1px solid var(--ink);
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One grid cell holds every step; the tallest sets the height. */
+  .lines {
+    display: grid;
+  }
+  .line {
+    grid-area: 1 / 1;
+    margin: 0;
+    max-width: 30em;
+    font-size: var(--t-xl);
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    text-wrap: pretty;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    visibility: hidden;
+  }
+  .line:global(.is-on) {
+    visibility: visible;
+  }
+
+  .removed {
+    margin: 0;
+    min-height: 1.5em;
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+  }
+  .removed[data-empty] {
+    visibility: hidden;
+  }
+  .removed .lbl {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+  }
+  .removed del {
+    text-decoration-thickness: 1px;
+  }
+
+  .rule {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+  }
+  .rule-text:global(.is-broken) {
+    background: var(--mark);
+    color: var(--mark-ink);
+    padding: 0.1em 0.5em;
+    margin-left: -0.1em;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--row) * 1.5) calc(var(--row) * 2.5);
+  }
+  .controls[hidden] {
+    display: none;
+  }
+  .btns {
+    display: flex;
+    gap: 6px;
+  }
+  .controls input[type='range'] {
+    flex: 1 1 200px;
+    min-width: 0;
+    width: auto;
+  }
+  @media (max-width: 599px) {
+    /* The slider gets the whole first row; the buttons and the step number share the second. */
+    .controls input[type='range'] {
+      order: -1;
+      flex-basis: 100%;
+    }
+    .out {
+      margin-left: auto;
+    }
+  }
+  .out {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    font-variant-numeric: tabular-nums;
+    min-width: 7ch;
+    text-align: right;
+  }
+  .btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    background: transparent;
+    color: var(--ink);
+  }
+</style>
+
+<script>
+  import '../scripts/sentence.ts';
+</script>
