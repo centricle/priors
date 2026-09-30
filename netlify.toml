@@ -1,0 +1,37 @@
+# Built from site/ and served through a path-preserving proxy at
+# https://centricle.com/curios/priors/. The upstream host serves the same
+# prefix (see site/scripts/stage-base.mjs), so header rules carry it too.
+
+[build]
+  base = "site"
+  command = "npm run build"
+  publish = "site/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/"
+  to = "/curios/priors/"
+  status = 301
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/curios/priors/_astro/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/curios/priors/r/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/curios/priors/t/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
