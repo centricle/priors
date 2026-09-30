@@ -4,8 +4,8 @@
 # Headless Chrome at a fixed 800x800 viewport with no network (every host
 # resolves to NOTFOUND). --virtual-time-budget runs the page's clock for a
 # fixed 2000 ms of virtual time before the capture, so CSS animations are
-# caught at the same phase every time. Outputs that call Math.random or read
-# the clock (tally.mjs flags them "nondeterministic") still differ run to run.
+# usually caught at the same phase, though not always. An output that calls
+# Math.random or the clock (tally.mjs flags it "nondeterministic") may vary too.
 #
 # prefers-color-scheme is pinned to light (preferredColorScheme=1). Unpinned,
 # headless Chrome follows the OS appearance, so a dark-mode Mac renders every

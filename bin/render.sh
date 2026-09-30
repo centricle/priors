@@ -10,8 +10,8 @@
 #
 # Measured 2026-09-28: a static page renders byte-identically every time. A page
 # with CSS animation matched in 4 of 6 renders, and the others differed in
-# about 0.2% of pixels (animation phase). Pages flagged "nondeterministic" in
-# data/trials.csv differ by design.
+# about 0.2% of pixels (animation phase). A page flagged "nondeterministic" in
+# data/trials.csv calls Math.random or the clock; a render may vary.
 
 set -uo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd -P)
@@ -71,9 +71,9 @@ viewport, prefers-color-scheme pinned to light, 2000 ms of virtual time, then
 - Rendered: $(date -u +%Y-%m-%d)
 
 Renders only reproduce on the same Chrome build and fonts. Static pages render
-byte-identically. Animated pages can differ by a fraction of a percent of pixels
-(animation phase), and pages flagged \`nondeterministic\` in
-\`data/trials.csv\` (Math.random or the clock) differ on every load.
+byte-identically. Animated pages can differ from one render to the next
+(animation phase). Pages flagged \`nondeterministic\` in \`data/trials.csv\`
+call Math.random or the clock; a render may vary.
 
 \`pilot-import/\` holds fresh renders of the pilot's outputs, runs 23-26
 included. They are not the pilot's original window captures, which were grabs of

@@ -3,7 +3,9 @@
 // runs/*/trials.jsonl is the source of truth; this file is generated from it
 // plus each trial's room (runs/<run>/NNN/) and transcript (NNN.jsonl), so it
 // can always be rebuilt and never needs hand edits. Uncounted attempts stay in
-// trials.jsonl only.
+// trials.jsonl only. same_picture also reads renders/<run>/NNN.webp, so run
+// bin/render.sh before the tally for new trials; a trial without a render gets
+// an empty cell.
 //
 // The column set is frozen: COLUMNS below is the whole contract. Add a column
 // at the end if one is needed; never rename, reorder or repurpose one, since
@@ -15,14 +17,17 @@
 // server 14, all of 32). --check asserts exactly that and exits 1 otherwise.
 //
 //   --summary  print the comparison tables after writing the CSV
-//   --check    only verify the pilot acceptance counts and the seed hashes
+//   --check    only verify the pilot acceptance counts, the seed hashes and the input renders
 import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync, lstatSync, readlinkSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { FAMILIES, stripCode, count as spellCount, transcript } from './spelling.mjs';
+import { countLines } from './lines.mjs';
 
 const REPO = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 const RUNS = join(REPO, 'runs');
+const RENDERS = join(REPO, 'renders');
 const OUT = join(REPO, 'data', 'trials.csv');
 
 export const COLUMNS = [
@@ -44,6 +49,8 @@ export const COLUMNS = [
   'result_chars', 'mentions_server',
   // spelling: prose counts per family, then code totals (null without a transcript)
   ...Object.keys(FAMILIES).flatMap((f) => [`${f}_p_uk`, `${f}_p_us`]), 'spell_c_uk', 'spell_c_us',
+  // appended 2026-09-30: the render against its input's render
+  'same_picture',
 ];
 
 // ------------------------------------------------------------------ features
@@ -56,14 +63,16 @@ const RE = {
   linear_gradient: /linear-gradient|linearGradient/i,
   pulse: /pulse/i,
   script: /<script\b/i,
-  // Output that renders differently on every load: renders of it are not reproducible.
+  // Output that calls Math.random or the clock. That alone says nothing about
+  // whether the render varies: many of these only read the year.
   nondeterministic: /Math\.random|Date\.now|new Date\b|performance\.now|getRandomValues/,
   svg_filter: /<filter\b/i,
 };
 // The self-report mentions a server. The pilot's hand count (14/32) was "asks to
-// start a server or asks permission", but /server/ alone reproduces it, and
-// "permission" also catches reports of a denied command, which Fable writes often.
-const MENTIONS_SERVER = /server/i;
+// start a server or asks permission", but the word server alone reproduces it,
+// and "permission" also catches reports of a denied command, which Fable writes
+// often. Whole word only: a bare /server/ also matched IntersectionObserver.
+const MENTIONS_SERVER = /\bserver\b/i;
 // 3, 4, 6 or 8 hex digits, not an HTML entity; alpha is dropped, shorthand expanded.
 const HEX = /(?<![&\w])#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})(?![0-9a-z_-])/gi;
 
@@ -98,20 +107,31 @@ function treeSha(root) {
 const unmark = (s) => s.replace(/[*_`]/g, '').trim();
 const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
 
-function parseNumber(raw, digitOnly) {
+// A reply that asks a question and puts no answer in **bold** is a decline,
+// even when it names a value in passing: "A specific range (like 1-100, or
+// 1-10)?" is not the number 1, and "I'll choose one!" is not the word one. A
+// reply that asks and then commits in bold (number/haiku/018, "I'll go with
+// **42**") keeps its answer. On the campaign this flags exactly three replies,
+// all Haiku's: number 007 and 055, word 051.
+const DECLINE = Object.freeze({ value: '', form: 'none', ok: false });
+export const declines = (raw) => raw.includes('?') && !/\*\*[^*]+\*\*/.test(raw);
+
+export function parseNumber(raw, digitOnly) {
+  if (declines(raw)) return DECLINE;
   const t = unmark(raw);
   const m = t.match(/-?\d[\d,]*(\.\d+)?/);
-  if (!m) return { value: '', form: 'none', ok: false };
+  if (!m) return DECLINE;
   const value = m[0].replace(/,/g, '');
   const bare = t.replace(/[.!]$/, '') === m[0];
   const ok = digitOnly ? /^-?\d$/.test(value) : true;
   return { value, form: bare ? 'bare' : 'framed', ok };
 }
 
-function parseWord(raw) {
+export function parseWord(raw) {
   const t = raw.trim();
   const plain = unmark(t).replace(/[.!"“”]+$/g, '').replace(/^["“]+/, '');
   if (/^[\p{L}'-]+$/u.test(plain)) return { value: plain.toLowerCase(), form: 'bare', ok: true };
+  if (declines(t)) return DECLINE;
   // Framed: prefer the first bold span, else the last quoted or trailing word.
   const bold = t.match(/\*\*([^*]+)\*\*/);
   const pick = bold ? bold[1] : (t.match(/["“]([^"”]+)["”]/)?.[1] ?? t.split(/\s+/).pop());
@@ -146,10 +166,86 @@ const seedCache = {};
 function seedOf(task) {
   if (seedCache[task]) return seedCache[task];
   const dir = join(REPO, 'tasks', task, 'seed');
-  const s = existsSync(dir)
-    ? { dir, file: readdirSync(dir)[0], sha: treeSha(dir) }
-    : { dir: null, file: null, sha: null };
+  const file = existsSync(dir) ? readdirSync(dir)[0] : null;
+  const s = file
+    ? { dir, file, sha: treeSha(dir), text: readFileSync(join(dir, file), 'utf8') }
+    : { dir: null, file: null, sha: null, text: null };
   return (seedCache[task] = s);
+}
+
+// ------------------------------------------------------------------ renders
+
+// same_picture is `unchanged` for the picture: did the trial leave the picture
+// as it found it? Its input is the seed for a sample (and whenever from_seed is
+// true), else the previous step's output, matched by room hash (input_sha256
+// against that step's output_sha256).
+//
+// An output file byte-identical to its input's is the same picture by
+// definition. The renders are not compared then, because an animated or random
+// page can render differently from one load to the next: 43 chain steps that
+// changed nothing have a render that differs from the step before's, every one
+// of them a page with @keyframes or a Math.random or clock call. Otherwise the
+// render files are compared, so a changed file whose page animates can read
+// false on render variance alone.
+//
+// Render files, not decoded pixels, are compared. That is exact for this set:
+// cwebp is deterministic, so equal screenshots give equal bytes, and no two
+// distinct files among the 1,120 renders decode to the same pixels (checked
+// 2026-09-30 with sharp).
+//
+// The seed's render is the render of any trial whose output file is still the
+// seed, byte for byte: the same bytes through the same renderer. Every artifact
+// task has such trials, and check() refuses a set where they disagree, which
+// would mean renders from different Chrome builds or a seed that is not static.
+// A fresh render of each seed with bin/shot.sh matched them on 2026-09-30.
+const renderMeta = new WeakMap(); // row -> { sha, file, isSeed }; off the row, since every row key is a column
+const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
+
+function renderSha(run, step) {
+  const p = join(RENDERS, run, `${nnn(step)}.webp`);
+  return existsSync(p) ? sha256(readFileSync(p)) : null;
+}
+
+/** Per task, the distinct render hashes of trials whose output is the seed. */
+function seedRenders(rows) {
+  const by = {};
+  for (const r of rows) {
+    const m = renderMeta.get(r);
+    if (m?.isSeed && m.sha) (by[r.task] ||= new Set()).add(m.sha);
+  }
+  return by;
+}
+
+/**
+ * For every row that has a render, its input's render hash and output-file
+ * hash, or null when the input's render cannot be resolved (check() reports
+ * those). Rows without a render (text tasks, the sentence chain, an artifact
+ * trial not yet rendered) are absent.
+ */
+function inputRenders(rows) {
+  const seeds = seedRenders(rows);
+  const at = new Map(rows.map((r) => [`${r.run}|${r.step}`, r]));
+  const out = new Map();
+  for (const r of rows) {
+    if (!renderMeta.get(r)?.sha) continue;
+    let input = null;
+    if (r.from_seed) {
+      if (seeds[r.task]?.size === 1) input = { sha: [...seeds[r.task]][0], file: sha256(seedOf(r.task).text) };
+    } else {
+      const prev = at.get(`${r.run}|${r.step - 1}`);
+      const m = prev && prev.output_sha256 === r.input_sha256 ? renderMeta.get(prev) : null;
+      if (m?.sha) input = { sha: m.sha, file: m.file };
+    }
+    out.set(r, input);
+  }
+  return out;
+}
+
+function samePicture(rows) {
+  for (const [r, input] of inputRenders(rows)) {
+    const m = renderMeta.get(r);
+    r.same_picture = input ? m.file === input.file || m.sha === input.sha : null;
+  }
 }
 
 function modelOf(r) {
@@ -157,7 +253,7 @@ function modelOf(r) {
   return ret.length ? ret.join('+') : r.model_asked;
 }
 
-function tally() {
+export function tally() {
   const rows = [];
   for (const run of readdirSync(RUNS).sort()) {
     const dir = join(RUNS, run), tj = join(dir, 'trials.jsonl');
@@ -166,6 +262,7 @@ function tally() {
       .filter((r) => r.counted === true);
     for (const t of trials) rows.push(row(t, dir));
   }
+  samePicture(rows);
   return rows;
 }
 
@@ -183,8 +280,10 @@ function row(t, dir) {
     bash_calls: tc ? (tc.Bash ?? 0) : null,
     edit_calls: tc ? (tc.Edit ?? 0) + (tc.Write ?? 0) : null,
     input_sha256: t.input_sha256, output_sha256: t.output_sha256,
+    // Both empty for the text tasks. They have no seed file, so their room is
+    // empty before and after, and the two hashes would match trivially.
     from_seed: seed.sha ? t.input_sha256 === seed.sha : null,
-    unchanged: t.input_sha256 === t.output_sha256,
+    unchanged: seed.file ? t.input_sha256 === t.output_sha256 : null,
     result_chars: (t.result ?? '').length,
     mentions_server: MENTIONS_SERVER.test(t.result ?? ''),
   };
@@ -195,7 +294,7 @@ function row(t, dir) {
     const path = join(room, seed.file);
     const body = existsSync(path) ? readFileSync(path, 'utf8') : '';
     Object.assign(o, {
-      file: seed.file, bytes: Buffer.byteLength(body), lines: body ? body.split('\n').length : 0,
+      file: seed.file, bytes: Buffer.byteLength(body), lines: countLines(body),
       extra_files: files.filter((f) => f !== seed.file).length,
     });
     if (t.task === 'sentence') {
@@ -212,6 +311,7 @@ function row(t, dir) {
       const hex = hexColors(body);
       o.hex_count = hex.length;
       o.hex_colors = hex.join(' ');
+      renderMeta.set(o, { sha: renderSha(relative(RUNS, dir), t.step), file: sha256(body), isSeed: body === seed.text });
     }
   } else if (['number', 'digit', 'word'].includes(t.task)) {
     const raw = (t.result ?? '').trim();
@@ -255,6 +355,15 @@ function check(rows) {
   for (const r of rows) {
     const firstOfChain = r.mode === 'chain' && r.step === 1;
     if ((r.mode === 'sample' || firstOfChain) && r.from_seed === false) problems.push(`${r.run} ${r.step}: input is not the seed`);
+  }
+  // same_picture needs every rendered trial's input render (see "renders" above).
+  const seeds = seedRenders(rows);
+  for (const task of new Set(rows.filter((r) => renderMeta.get(r)?.sha).map((r) => r.task))) {
+    if (!seeds[task]) problems.push(`${task}: no trial left the seed as it was, so there is no render of the seed to compare with`);
+    else if (seeds[task].size > 1) problems.push(`${task}: outputs identical to the seed have ${seeds[task].size} different renders`);
+  }
+  for (const [r, input] of inputRenders(rows)) {
+    if (!input) problems.push(`${r.run} ${r.step}: no render of its input (the seed's, or the previous step's output)`);
   }
   for (const r of rows) for (const c of Object.keys(r)) if (!COLUMNS.includes(c)) problems.push(`unknown column ${c}`);
   return [...new Set(problems)];
@@ -344,14 +453,18 @@ function summary(rows) {
 
 // --------------------------------------------------------------------- main
 
-const rows = tally();
-const problems = check(rows);
-if (process.argv.includes('--check')) {
-  console.log(problems.length ? problems.join('\n') : `ok: ${rows.length} rows, pilot acceptance counts reproduce`);
-  process.exit(problems.length ? 1 : 0);
+// Only when run as a script: test/tally.test.mjs imports the parsers, and an
+// import must not rewrite data/trials.csv.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const rows = tally();
+  const problems = check(rows);
+  if (process.argv.includes('--check')) {
+    console.log(problems.length ? problems.join('\n') : `ok: ${rows.length} rows, pilot acceptance counts reproduce`);
+    process.exit(problems.length ? 1 : 0);
+  }
+  if (problems.length) { console.error(`tally: refusing to write:\n  ${problems.join('\n  ')}`); process.exit(1); }
+  mkdirSync(join(REPO, 'data'), { recursive: true });
+  writeFileSync(OUT, toCsv(rows));
+  console.log(`wrote ${relative(REPO, OUT)}: ${rows.length} rows, ${COLUMNS.length} columns`);
+  if (process.argv.includes('--summary')) console.log(summary(rows));
 }
-if (problems.length) { console.error(`tally: refusing to write:\n  ${problems.join('\n  ')}`); process.exit(1); }
-mkdirSync(join(REPO, 'data'), { recursive: true });
-writeFileSync(OUT, toCsv(rows));
-console.log(`wrote ${relative(REPO, OUT)}: ${rows.length} rows, ${COLUMNS.length} columns`);
-if (process.argv.includes('--summary')) console.log(summary(rows));
