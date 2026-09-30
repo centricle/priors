@@ -90,10 +90,19 @@ function init(el: HTMLElement) {
     return bits.join(' · ');
   }
 
+  // Each press gets a ticket. A cached image can fire `onload` after the
+  // synchronous path already swapped, and a slow one can land after a newer
+  // press; both are ignored, so the front layer only ever changes once per press.
+  let ticket = 0;
+
   function show(p: Pick) {
     const back = 1 - front;
     const img = layers[back];
+    const mine = ++ticket;
+    let done = false;
     const swap = () => {
+      if (done || mine !== ticket) return;
+      done = true;
       layers[back].classList.add('is-front');
       layers[front].classList.remove('is-front');
       seed.classList.add('is-hidden');
@@ -105,12 +114,8 @@ function init(el: HTMLElement) {
       caption.appendChild(a);
       frame.classList.toggle('is-still', p.unchanged);
     };
-    if (img.src.endsWith(p.render) && img.complete) {
-      swap();
-      return;
-    }
     img.onload = swap;
-    img.src = p.render;
+    if (!img.src.endsWith(p.render)) img.src = p.render;
     if (img.complete && img.naturalWidth) swap();
   }
 

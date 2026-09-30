@@ -246,7 +246,8 @@ const cells = trials.map(cell);
     right: 0;
     bottom: 0;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow: hidden;
     column-gap: 0.5ch;
     padding: 3px 5px 4px;
     background: var(--paper);
@@ -273,7 +274,7 @@ const cells = trials.map(cell);
   }
 
   /* Narrow cells drop the detail, not the number. */
-  @container (max-width: 130px) {
+  @container (max-width: 175px) {
     .p-cost,
     .p-model {
       display: none;

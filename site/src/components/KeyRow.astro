@@ -1,0 +1,76 @@
+---
+/**
+ * A row of headline numbers at one size.
+ *
+ * Every value in the row shares a font size, chosen so the longest one fits
+ * its equal-width column; the captions start on the same line under them.
+ * The size comes from the row's own width (container units), so the row
+ * never overflows and never needs a breakpoint of its own.
+ */
+interface Props {
+  items: { value: string; caption: string; mark?: boolean }[];
+  /** Upper bound on the value size. */
+  max?: 'giant' | 'xl' | 'lg';
+  class?: string;
+}
+const { items, max = 'xl', class: cls = '' } = Astro.props;
+const maxChars = Math.max(3, ...items.map((i) => i.value.length));
+---
+
+<div class:list={['keyrow', `max-${max}`, cls]} style={`--items:${items.length};--maxchars:${maxChars}`}>
+  {items.map((i) => (
+    <div class="key">
+      <div class="value"><span class:list={[i.mark && 'mark']}>{i.value}</span></div>
+      <div class="caption">{i.caption}</div>
+    </div>
+  ))}
+</div>
+
+<style>
+  .keyrow {
+    --gap: clamp(16px, 2.4vw, 40px);
+    --cols: var(--items);
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    gap: calc(var(--row) * 4) var(--gap);
+    align-items: start;
+  }
+  @media (max-width: 700px) {
+    .keyrow {
+      --cols: 2;
+    }
+  }
+  .key {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--row) * 1.5);
+    min-width: 0;
+  }
+  .value {
+    font-weight: 800;
+    font-variation-settings: var(--wide);
+    letter-spacing: -0.05em;
+    line-height: 0.85;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    /* Wide glyphs average about 0.8em each; the longest value sets the row. */
+    --fit: calc((100cqi - (var(--cols) - 1) * var(--gap)) / var(--cols) / (var(--maxchars) * 0.84));
+    font-size: min(var(--cap), var(--fit));
+  }
+  .max-giant .value {
+    --cap: var(--t-giant);
+  }
+  .max-xl .value {
+    --cap: var(--t-3xl);
+  }
+  .max-lg .value {
+    --cap: var(--t-2xl);
+  }
+  .caption {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+    text-wrap: pretty;
+  }
+</style>

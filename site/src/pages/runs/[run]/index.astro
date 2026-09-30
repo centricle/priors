@@ -15,7 +15,7 @@ import SentenceScrub from '../../../components/SentenceScrub.astro';
 import { COLUMNS } from '../../../lib/columns.ts';
 import { ARTIFACT_TASKS, MODEL_LABEL, fmtPct, fmtSec, fmtUsd, loadAll, pad3, promptOf, seedOf } from '../../../lib/data.ts';
 import { href } from '../../../lib/href.mjs';
-import { CHAIN_MARKS, FEATURES, answerDistribution, chainCurve, featureShares, marginOfError, sum } from '../../../lib/stats.ts';
+import { CHAIN_MARKS, FEATURES, answerDistribution, chainCurve, featureShares, featureLabel, marginOfError, sum } from '../../../lib/stats.ts';
 import '../_runs.css';
 
 export function getStaticPaths() {
@@ -111,7 +111,7 @@ const bars = dist
                 const s = features.shares[f];
                 return (
                   <tr>
-                    <td class="mono" title={meaning(f)}>{f}</td>
+                    <td title={`${f}: ${meaning(f)}`}>{featureLabel(f)}</td>
                     <td class="num">{s.count}</td>
                     <td class="num">{s.n}</td>
                     <td class:list={['num', s.share === 0 && 'zero']}>{fmtPct(s.share)}</td>

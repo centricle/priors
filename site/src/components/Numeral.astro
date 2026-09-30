@@ -8,14 +8,16 @@ interface Props {
   caption?: string;
   size?: 'giant' | 'xl' | 'lg';
   mark?: boolean;
+  /** Size the value to its container (default). Off, a parent sets --numeral-size for a whole row. */
+  fit?: boolean;
   class?: string;
 }
-const { value, caption, size = 'xl', mark = false, class: cls = '' } = Astro.props;
-// Wide glyphs run about 0.8em each; the value must never leave its column.
+const { value, caption, size = 'xl', mark = false, fit = true, class: cls = '' } = Astro.props;
+// Wide glyphs run up to 1em each ("%" and "$" are the widest); the value must never leave its column.
 const chars = Math.max(value.length, 3);
 ---
 
-<div class:list={['numeral', `is-${size}`, cls]} style={`--chars:${chars}`}>
+<div class:list={['numeral', `is-${size}`, fit ? 'is-fit' : 'is-row', cls]} style={`--chars:${chars}`}>
   <div class="value"><span class:list={[mark && 'mark']}>{value}</span></div>
   {caption && <div class="caption">{caption}</div>}
 </div>
@@ -26,8 +28,13 @@ const chars = Math.max(value.length, 3);
     flex-direction: column;
     gap: calc(var(--row) * 1.5);
     min-width: 0;
+  }
+  .is-fit {
     container-type: inline-size;
-    --fit: calc(100cqi / (var(--chars) * 0.82));
+    --fit: calc(100cqi / (var(--chars) * 0.96));
+  }
+  .is-row {
+    --fit: var(--numeral-size, var(--t-3xl));
   }
   .value {
     font-weight: 800;

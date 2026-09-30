@@ -65,13 +65,15 @@ const width = (v: number) => (top > 0 ? Math.max(0, Math.min(100, (v / top) * 10
   }
   .cap {
     margin-bottom: calc(var(--row) * 1.5);
+    padding-top: calc(var(--row) * 1.5);
+    border-top: 1px solid var(--hair);
   }
   .rows {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: fit-content(16em) minmax(0, 1fr) max-content;
+    grid-template-columns: 7.5em minmax(0, 1fr) max-content;
     column-gap: calc(var(--row) * 1.5);
     row-gap: calc(var(--row) * 0.75);
   }

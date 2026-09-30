@@ -1,4 +1,5 @@
 ---
+import { featureLabel } from '../lib/stats.ts';
 /**
  * Everything the tally recorded about one trial, as a definition table.
  * A missing value prints as a middle dot, never "null". Rows that cannot
@@ -53,7 +54,7 @@ const calls = [t.tool_calls, t.bash_calls, t.edit_calls].map(int).join(' / ');
         <tr>
           <th scope="row">features</th>
           <td>
-            {flags.length ? flags.map((f) => <span class="tag">{f}</span>) : <span class="mono">none</span>}
+            {flags.length ? flags.map((f) => <span class="tag" title={f}>{featureLabel(f)}</span>) : <span class="mono">none</span>}
           </td>
         </tr>
         <tr>

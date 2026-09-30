@@ -43,6 +43,23 @@ export const FEATURES = [
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
+/** What each flag is called on the page. The CSV column names stay as they are. */
+export const FEATURE_LABEL: Record<string, string> = {
+  glow_or_shadow: 'glow',
+  glow: 'the word glow',
+  keyframes: 'animation',
+  radial_gradient: 'radial gradient',
+  linear_gradient: 'linear gradient',
+  pulse: 'pulse',
+  gradient_667eea: 'the gradient',
+  script: 'script',
+  nondeterministic: 'nondeterministic',
+  svg_filter: 'svg filter',
+  unchanged: 'unchanged',
+  mentions_server: 'mentions a server',
+};
+export const featureLabel = (f: string): string => FEATURE_LABEL[f] ?? f;
+
 export interface FeatureShares {
   n: number;
   shares: Record<Feature, Share>;

@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import Chapter from '../components/Chapter.astro';
 import Numeral from '../components/Numeral.astro';
+import KeyRow from '../components/KeyRow.astro';
 import Quote from '../components/Quote.astro';
 import SpecimenGrid from '../components/SpecimenGrid.astro';
 import Filmstrip from '../components/Filmstrip.astro';
@@ -101,8 +102,9 @@ const digit = answerDistribution(trials.filter((t) => t.task === 'digit'));
 const number = Object.fromEntries(ORDER.map((m) => [m, answerDistribution(trials.filter((t) => t.task === 'number' && t.model === m))]));
 const word = Object.fromEntries(ORDER.map((m) => [m, answerDistribution(trials.filter((t) => t.task === 'word' && t.model === m))]));
 const refusal = trials.find((t) => t.task === 'number' && t.model === 'haiku' && t.answer_value === null);
+// Only an answer that came back every single time gets the highlighter.
 const toBars = (d: ReturnType<typeof answerDistribution>, top = 6) =>
-  d.values.slice(0, top).map((v, i) => ({ label: v.parsed ? v.value : 'no answer', value: v.count, share: v.share, hi: i === 0 }));
+  d.values.slice(0, top).map((v) => ({ label: v.parsed ? v.value : 'no answer', value: v.count, share: v.share, hi: v.count === d.n }));
 
 // § 6
 const sentences = [...ORDER.map((m) => chain('sentence', m)), relay('sentence')];
@@ -127,12 +129,16 @@ const pctPt = (share: number) => Math.round(share * 100);
   <Hero picks={picks} labels={MODEL_LABEL} seedLines={seedLines} total={num(h.trialsCampaign)} models={h.models} />
 
   <section class="keyline grid rule-ink">
-    <div class="full keys">
-      <Numeral value={num(h.trialsCampaign)} caption="trials, each a fresh session" size="lg" />
-      <Numeral value={String(h.models)} caption="models: Fable 5.1, Opus 5.5, Sonnet 5, Haiku 4.5" size="lg" />
-      <Numeral value={String(h.runs)} caption="runs: eight tasks, sample and chain" size="lg" />
-      <Numeral value={fmtUsd(h.costCampaign)} caption="API-equivalent cost of the campaign" size="lg" />
-    </div>
+    <KeyRow
+      class="full"
+      max="xl"
+      items={[
+        { value: num(h.trialsCampaign), caption: 'trials, each a fresh session' },
+        { value: String(h.models), caption: 'models: Fable 5.1, Opus 5.5, Sonnet 5, Haiku 4.5' },
+        { value: String(h.runs), caption: 'runs: eight tasks, sample and chain' },
+        { value: fmtUsd(h.costCampaign), caption: 'API-equivalent cost of the campaign' },
+      ]}
+    />
   </section>
 
   <Chapter n={1} id="circle" title="The circle" dek="Haiku has the prior. Nobody else does." rule="none">
@@ -174,7 +180,7 @@ const pctPt = (share: number) => Math.round(share * 100);
     <div class="prose">
       <p class="lede">
         <code>#667eea</code> to <code>#764ba2</code>. If you have used the web since about 2019 you have seen
-        it: the default gradient of a thousand template landing pages, the purple that means "modern". This
+        it: the default gradient of a thousand template landing pages, the purple that means “modern”. This
         section is the only place on the site that wears it.
       </p>
       <p>
@@ -184,12 +190,15 @@ const pctPt = (share: number) => Math.round(share * 100);
         they were editing Haiku's work with the gradient already in the file.
       </p>
     </div>
-    <div class="wide keys">
-      <Numeral value={`${circle.haiku.shares.gradient_667eea.count}/${circle.haiku.shares.gradient_667eea.n}`} caption="circle samples, clean room" size="xl" />
-      <Numeral value={fmtPct(h.haikuArtifacts.hex667eea.share)} caption={`of every artifact Haiku touched (${h.haikuArtifacts.n} trials)`} size="xl" />
-      <Numeral value={`${pilotPrior.count}/${pilotPrior.n}`} caption="in the contaminated pilot" size="xl" />
-      <Numeral value={fmtPct(roomPrior.share)} caption="in the pilot's clean-room replica" size="xl" />
-    </div>
+    <KeyRow
+      class="wide"
+      items={[
+        { value: `${circle.haiku.shares.gradient_667eea.count}/${circle.haiku.shares.gradient_667eea.n}`, caption: 'circle samples, clean room' },
+        { value: fmtPct(h.haikuArtifacts.hex667eea.share), caption: `of every artifact Haiku touched (${h.haikuArtifacts.n} trials)` },
+        { value: `${pilotPrior.count}/${pilotPrior.n}`, caption: 'in the contaminated pilot' },
+        { value: fmtPct(roomPrior.share), caption: 'in the pilot’s clean-room replica' },
+      ]}
+    />
   </Chapter>
 
   <section class="grid section hexes">
@@ -217,7 +226,7 @@ const pctPt = (share: number) => Math.round(share * 100);
     <div class="prose">
       <p class="lede">
         The empty SVG is forty-one bytes: a root element and nothing else. The empty HTML page is a doctype and a
-        title. The prompt is still "improve".
+        title. The prompt is still “improve”.
       </p>
       <p>
         Given either, Opus changed nothing in <mark>{frac(svg.opus.shares.unchanged)}</mark> SVG trials and asked
@@ -273,7 +282,7 @@ const pctPt = (share: number) => Math.round(share * 100);
       <h3>Lines in the file at steps 1, 8, 16, 32 and 64</h3>
       <div class="two">
         {(['circle', 'html'] as const).map((task) => (
-          <table>
+          <div class="scroll"><table>
             <thead>
               <tr>
                 <th>{task} chain</th>
@@ -296,7 +305,7 @@ const pctPt = (share: number) => Math.round(share * 100);
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ))}
       </div>
     </div>
@@ -325,16 +334,16 @@ const pctPt = (share: number) => Math.round(share * 100);
 
   <Chapter n={5} id="seven" title="The number is 7" dek="Text priors are close to deterministic. Four models, one digit.">
     <div class="wide seven">
-      <Numeral value={digit.values[0]?.value ?? ''} caption={`"Choose a single-digit integer." ${digit.values[0]?.count} of ${digit.n}, all four models, every time.`} size="giant" />
+      <Numeral value={digit.values[0]?.value ?? ''} caption={`“Choose a single-digit integer.” ${digit.values[0]?.count} of ${digit.n}, all four models, every time.`} size="giant" />
     </div>
     <div class="prose">
       <p class="lede">
-        "Choose a number." is looser, and the models split along family lines. Fable says 37, then 42. Opus
+        “Choose a number.” is looser, and the models split along family lines. Fable says 37, then 42. Opus
         says 42, then 7 and 47. Haiku splits 42 and 7. Sonnet says 7, {number.sonnet.values[0]?.count} times out of
         {number.sonnet.n}.
       </p>
       <p>
-        "choose a word." is the strangest result here. Fable and Opus both say
+        “choose a word.” is the strangest result here. Fable and Opus both say
         <mark>lantern</mark>, {h.wordLantern.byModel.fable.count} of {h.wordLantern.byModel.fable.n} and
         {h.wordLantern.byModel.opus.count} of {h.wordLantern.byModel.opus.n}. Haiku says serendipity. Sonnet is
         the only one with range: kaleidoscope, ember, lighthouse, lantern, marmalade, kite.
@@ -342,13 +351,13 @@ const pctPt = (share: number) => Math.round(share * 100);
     </div>
     <div class="wide two">
       <div class="stack">
-        <h3>"Choose a number."</h3>
+        <h3>“Choose a number.”</h3>
         {ORDER.map((m) => (
           <Bars title={MODEL_LABEL[m]} items={toBars(number[m], 5)} max={100} format="count" />
         ))}
       </div>
       <div class="stack">
-        <h3>"choose a word."</h3>
+        <h3>“choose a word.”</h3>
         {ORDER.map((m) => (
           <Bars title={MODEL_LABEL[m]} items={toBars(word[m], 6)} max={100} format="count" />
         ))}
@@ -362,10 +371,10 @@ const pctPt = (share: number) => Math.round(share * 100);
     )}
   </Chapter>
 
-  <Chapter n={6} id="sentences" title="Sentences" dek="The seed is one word: The. Add a single word, keep it a sentence, sixty-four times. Every model's first word was end.">
+  <Chapter n={6} id="sentences" title="Sentences" dek="The seed is one word: The. Add a single word, keep it a sentence, sixty-four times. Every model’s first word was end.">
     <div class="prose">
       <p class="lede">
-        From "The end." the chains diverge into four voices. Fable and Opus keep the rule
+        From “The end.” the chains diverge into four voices. Fable and Opus keep the rule
         {sentenceChain(sentences[0]).kept}/{sentenceChain(sentences[0]).total} and
         {sentenceChain(sentences[1]).kept}/{sentenceChain(sentences[1]).total} and stack adjectives. Haiku turns
         martial. Sonnet goes archaic Title Case and declines to add a word
@@ -396,8 +405,15 @@ const pctPt = (share: number) => Math.round(share * 100);
         the harness.
       </p>
     </div>
-    <table class="wide">
+    <div class="wide scroll">
+    <table>
       <thead>
+        <tr>
+          <th></th>
+          <th></th>
+          <th class="num group" colspan="3">the word for hue</th>
+          <th class="num group" colspan="3">the word for the middle</th>
+        </tr>
         <tr>
           <th>model</th>
           <th class="num">trials</th>
@@ -424,6 +440,7 @@ const pctPt = (share: number) => Math.round(share * 100);
         ))}
       </tbody>
     </table>
+    </div>
   </Chapter>
 
   <Chapter n={8} id="contamination" title="Contamination" dek="Most of the pilot's spectacle came from the trials seeing each other, not from the prior.">
@@ -441,7 +458,8 @@ const pctPt = (share: number) => Math.round(share * 100);
         and the server talk were the trials talking to each other.
       </p>
     </div>
-    <table class="wide">
+    <div class="wide scroll">
+    <table>
       <thead>
         <tr>
           <th>condition</th>
@@ -471,6 +489,7 @@ const pctPt = (share: number) => Math.round(share * 100);
         ))}
       </tbody>
     </table>
+    </div>
     <div class="wide stack">
       <div class="flex between">
         <h3>The pilot, re-rendered</h3>
@@ -483,13 +502,17 @@ const pctPt = (share: number) => Math.round(share * 100);
   </Chapter>
 
   <Chapter n={9} id="cost" title="Cost, and what this cannot say" dek="A hundred dollars of API-equivalent spend, and four questions it does not answer.">
-    <div class="wide keys">
-      <Numeral value={fmtUsd(cost.totalCampaign)} caption="the campaign, API-equivalent" size="xl" />
-      <Numeral value={fmtPct(cost.campaignShare.fable)} caption={`of it was Fable, for ${fmtPct(cost.campaign.fable.n / h.trialsCampaign)} of the trials`} size="xl" />
-      <Numeral value={`${(totalWall / 3600).toFixed(1)} h`} caption="of wall clock, summed across trials" size="xl" />
-      <Numeral value={String(halted)} caption="session halted and retried: the CLI served Fable a different system prompt once" size="xl" />
-    </div>
-    <table class="wide">
+    <KeyRow
+      class="wide"
+      items={[
+        { value: fmtUsd(cost.totalCampaign), caption: 'the campaign, API-equivalent' },
+        { value: fmtPct(cost.campaignShare.fable), caption: `of it was Fable, for ${fmtPct(cost.campaign.fable.n / h.trialsCampaign)} of the trials` },
+        { value: `${(totalWall / 3600).toFixed(1)} h`, caption: 'of wall clock, summed across trials' },
+        { value: String(halted), caption: 'session halted and retried: the CLI served Fable a different system prompt once' },
+      ]}
+    />
+    <div class="wide scroll">
+    <table>
       <thead>
         <tr>
           <th>model</th>
@@ -515,6 +538,7 @@ const pctPt = (share: number) => Math.round(share * 100);
         ))}
       </tbody>
     </table>
+    </div>
     <div class="prose">
       <h3>What this campaign cannot say</h3>
       <ul>
@@ -526,7 +550,7 @@ const pctPt = (share: number) => Math.round(share * 100);
         </li>
         <li>Much at n=32: a 50% share carries about ±{pctPt(marginOfError(32))} points at 95%, less near 0% or 100%.</li>
       </ul>
-      <h3>What it invites</h3>
+      <h3 class="later">What comes next</h3>
       <ul>
         <li>Effort arms. Does higher effort turn Opus and Sonnet from askers into actors? Cheapest on the empty SVG.</li>
         <li>The word, at temperature. Is "lantern" the room's system prompt or the model? An API arm would tell them apart.</li>
@@ -542,10 +566,17 @@ const pctPt = (share: number) => Math.round(share * 100);
 
   <section class="grid section rule-ink">
     <div class="no"></div>
-    <div class="wide more">
-      <a class="btn" href={href('/runs/')}>Browse all {h.runs} runs</a>
-      <a class="btn btn-ghost" href={href('/method/')}>How the room was built</a>
-      <a class="btn btn-ghost" href={href('/data/')}>Download the data</a>
+    <div class="wide stack-lg">
+      <h2>Every trial is here.</h2>
+      <p class="dek">
+        {num(h.trialsAll)} pages, one per trial, with the render, the source, the diff and what the model said it
+        did. The room is documented down to the argv. The CSV is one click.
+      </p>
+      <div class="more">
+        <a class="btn" href={href('/runs/')}>Browse all {h.runs} runs</a>
+        <a class="btn btn-ghost" href={href('/method/')}>How the room was built</a>
+        <a class="btn btn-ghost" href={href('/data/')}>Download the data</a>
+      </div>
     </div>
   </section>
 </Base>
@@ -553,16 +584,6 @@ const pctPt = (share: number) => Math.round(share * 100);
 <style>
   .keyline {
     padding-block: calc(var(--row) * 5);
-  }
-  .keys {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: calc(var(--row) * 4) var(--gutter);
-  }
-  @media (min-width: 900px) {
-    .keys {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
   }
 
   /* The one place the site wears the prior. */
@@ -631,5 +652,13 @@ const pctPt = (share: number) => Math.round(share * 100);
 
   h3 {
     margin-bottom: calc(var(--row) * 1);
+  }
+  .prose h3 {
+    margin-top: calc(var(--row) * 5);
+  }
+  th.group {
+    text-align: center;
+    border-bottom: 1px solid var(--hair);
+    color: var(--ink-3);
   }
 </style>

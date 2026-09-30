@@ -161,7 +161,7 @@ const halt = uncounted[0];
     <div class="prose">
       <ul>
         <li>{h.trialsCampaign.toLocaleString('en-US')} counted trials in {h.runs} runs, plus the 32-trial pilot kept separately as its own condition.</li>
-        <li>{uncounted.length} attempt{uncounted.length === 1 ? '' : 's'} halted and retried{halt ? `: ${halt.run} step ${halt.step}, ${halt.halt}` : ''}. The CLI served that session a system prompt with different section headings. Cause unresolved.</li>
+        <li>{uncounted.length} attempt{uncounted.length === 1 ? '' : 's'} halted and retried{halt ? `: ${halt.run}, step ${halt.step}` : ''}. The CLI served that session a system prompt with different section headings, so its record did not hash against the run's golden. Cause unresolved.</li>
         <li>Feature flags are regular expressions over the output file: a glow is a shadow property, a blur filter or the word itself; the gradient flag needs both hex values present; nondeterministic means <code>Math.random</code>, <code>Date.now</code>, <code>new Date</code>, <code>performance.now</code> or <code>getRandomValues</code>.</li>
         <li>Spelling is counted in prose only, with code blocks and tool inputs stripped, and separately in code.</li>
         <li>"Unchanged" means the output hashes the same as the input. A model that rewrote the file identically counts as unchanged.</li>
@@ -199,6 +199,9 @@ const halt = uncounted[0];
     .seeds {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+  }
+  .seed {
+    min-width: 0;
   }
   .seed pre {
     max-height: 22em;
