@@ -9,6 +9,7 @@
  * how many it left out. Nothing here goes through set:html: every line is a
  * text node.
  */
+import { fmtInt, plural } from '../lib/data.ts';
 import type { Trial } from '../lib/data.ts';
 
 interface Props {
@@ -155,7 +156,7 @@ const mark: Record<Row['kind'], string> = { ctx: ' ', add: '+', del: '-', gap: '
 <section class="src">
   <header class="bar">
     <span class="fname mono">{name}</span>
-    <span class="stat mono">{lineCount.toLocaleString('en-US')} lines · {bytes.toLocaleString('en-US')} bytes</span>
+    <span class="stat mono">{plural(lineCount, 'line')} · {plural(bytes, 'byte')}</span>
     <button type="button" class="btn btn-sm btn-ghost copy" data-copy hidden>copy</button>
   </header>
   <pre class="code"><code data-code>{source}</code></pre>
@@ -172,7 +173,7 @@ const mark: Record<Row['kind'], string> = { ctx: ' ', add: '+', del: '-', gap: '
           <>
             <p class="small mono muted">
               +{added} / -{removed} lines
-              {totalRows > CAP && ` · showing the first ${CAP} of ${totalRows.toLocaleString('en-US')} rows`}
+              {totalRows > CAP && ` · showing the first ${CAP} of ${fmtInt(totalRows)} rows`}
             </p>
             <pre class="diff">{rows.map((r) => (
               <span class:list={['ln', r.kind]}>{r.kind === 'gap' ? `⋯ ${r.text}` : mark[r.kind] + ' ' + r.text}</span>

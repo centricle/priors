@@ -16,6 +16,9 @@ interface Step {
   render: string;
   thumb: string;
   lines: number | null;
+  /** Lines with separators ("1,092"), and as a phrase ("1 line"), built by the page. */
+  linesText: string | null;
+  linesLabel: string;
   cost: string | null;
   model: string;
   flags: string[];
@@ -41,7 +44,6 @@ function init(el: HTMLElement) {
   const linesEl = q('[data-lines]')!;
   const costEl = q('[data-cost]')!;
   const flagEls = [...el.querySelectorAll<HTMLElement>('[data-flag]')];
-  const noFlags = q('[data-noflags]')!;
   const openEl = q<HTMLAnchorElement>('[data-open]')!;
   const plot = q('[data-plot]');
   const cursor = q('[data-cursor]');
@@ -116,15 +118,14 @@ function init(el: HTMLElement) {
     const s = steps[i];
     const n = pad3(s.step);
     range.value = String(i + 1);
-    range.setAttribute('aria-valuetext', `step ${s.step} of ${steps[last].step}, ${s.model}, ${s.lines ?? 'no'} lines`);
+    range.setAttribute('aria-valuetext', `step ${s.step} of ${steps[last].step}, ${s.model}, ${s.linesLabel}`);
     noEl.textContent = n;
     modelEl.textContent = s.model;
-    linesEl.textContent = s.lines === null ? 'none' : String(s.lines);
+    linesEl.textContent = s.linesText ?? 'none';
     costEl.textContent = s.cost ?? 'none';
     for (const f of flagEls) f.hidden = !s.flags.includes(f.dataset.flag!);
-    noFlags.hidden = s.flags.length > 0;
     openEl.href = s.url;
-    frame.setAttribute('aria-label', `step ${s.step} render, ${s.model}, ${s.lines ?? 'no'} lines`);
+    frame.setAttribute('aria-label', `step ${s.step} render, ${s.model}, ${s.linesLabel}`);
 
     if (cursor && dot) {
       const x = last ? (i / last) * 100 : 0;

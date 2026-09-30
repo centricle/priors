@@ -3,9 +3,11 @@
  * The seed, and the button.
  *
  * `picks` is built by the page from the four circle sample runs: one entry
- * per counted trial with its render, its metrics and its feature flags. The
- * client script (src/scripts/improve.ts) does the rest.
+ * per counted trial with its render, its line and cost strings and its change
+ * labels. The client script (src/scripts/improve.ts) does the rest.
  */
+import { plural } from '../lib/data.ts';
+
 interface Props {
   picks: Record<string, unknown[]>;
   labels: Record<string, string>;
@@ -14,7 +16,9 @@ interface Props {
   models: number;
 }
 const { picks, labels, seedLines, total, models } = Astro.props;
-const json = JSON.stringify({ picks, labels, seedLines });
+// What the caption says before the first press, and again after "back to the seed".
+const seedCaption = `seed · 0.html · ${plural(seedLines, 'line')} · a black circle`;
+const json = JSON.stringify({ picks, labels, seedCaption });
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
 const modelsWord = WORDS[models] ?? String(models);
 const order = ['haiku', 'sonnet', 'opus', 'fable'];
@@ -27,8 +31,8 @@ const order = ['haiku', 'sonnet', 'opus', 'fable'];
       Give a model<br />a black circle.<br />Say <mark>improve</mark>.
     </h1>
     <p class="dek">
-      Do it {total} times, across {modelsWord} models, in a room with nothing else in it. Then look
-      at what each one reached for.
+      Do it {total} times, across {modelsWord} models, each in a fresh session. Then look at what
+      each one reached for.
     </p>
     <div class="controls">
       <div class="seg" role="group" aria-label="Model">
@@ -62,9 +66,7 @@ const order = ['haiku', 'sonnet', 'opus', 'fable'];
       <img class="layer" data-layer="a" alt="" width="800" height="800" decoding="async" />
       <img class="layer" data-layer="b" alt="" width="800" height="800" decoding="async" />
     </div>
-    <figcaption class="caption mono small" data-caption>
-      seed · 0.html · {seedLines} lines · a black circle
-    </figcaption>
+    <figcaption class="caption mono small" data-caption aria-live="polite">{seedCaption}</figcaption>
   </figure>
 </section>
 
@@ -95,7 +97,7 @@ const order = ['haiku', 'sonnet', 'opus', 'fable'];
   }
 
   .copy h1 {
-    font-size: clamp(2.6rem, 1rem + 4.4vw, 5.2rem);
+    font-size: clamp(2.1rem, 1rem + 4.4vw, 5.2rem);
   }
   .copy h1 mark {
     background: linear-gradient(var(--mark), var(--mark)) no-repeat 0 100% / 100% 0.78em;
@@ -188,8 +190,9 @@ const order = ['haiku', 'sonnet', 'opus', 'fable'];
   :global(.layer.is-front) {
     opacity: 1;
   }
-  :global(.frame.is-still)::after {
-    content: 'unchanged';
+  /* The picture's verdict, set by improve.ts: a frame that renders exactly as the seed did. */
+  .frame[data-mark]::after {
+    content: attr(data-mark);
     position: absolute;
     right: 8px;
     top: 8px;
@@ -199,9 +202,69 @@ const order = ['haiku', 'sonnet', 'opus', 'fable'];
     color: var(--mark-ink);
     padding: 0.2em 0.5em;
   }
+  /* Room for the longest caption (two lines, three on a phone) and the running
+     line under it, so the first press does not push the page down. */
   .caption {
     color: var(--ink-2);
-    min-height: 1.5em;
+    min-height: 3lh;
+  }
+  :global(.caption .tally) {
+    display: block;
+  }
+
+  /*
+   * On a phone the result is the point, so it comes straight after the
+   * headline and the controls sit under it: the button, the frame and the
+   * caption share one screen at 390 by 700. `display: contents` lifts the
+   * copy column's children into the hero grid so they can be reordered; the
+   * frame is also capped by the viewport height, since a full-width square
+   * alone would fill a short screen.
+   */
+  @media (max-width: 899px) {
+    .hero {
+      padding-block: calc(var(--row) * 2) calc(var(--row) * 6);
+      row-gap: 0;
+    }
+    .hero > .copy,
+    .hero .controls {
+      display: contents;
+    }
+    .hero > .copy > h1 {
+      order: 1;
+      grid-column: 1 / -1;
+    }
+    .hero > .frame-wrap {
+      order: 2;
+      grid-column: 1 / -1;
+      margin-top: calc(var(--row) * 1.5);
+    }
+    .hero .seg {
+      order: 3;
+      grid-column: 1 / -1;
+      justify-self: start;
+      margin-top: calc(var(--row) * 1.5);
+    }
+    .hero .go {
+      order: 4;
+      grid-column: 1 / -1;
+      margin-top: calc(var(--row) * 1.25);
+    }
+    .hero > .copy > .dek {
+      order: 5;
+      grid-column: 1 / -1;
+      margin-top: calc(var(--row) * 5);
+    }
+    .hero .hint {
+      order: 6;
+      grid-column: 1 / -1;
+      margin-top: calc(var(--row) * 1.5);
+    }
+    .frame {
+      width: min(100%, max(240px, calc(100svh - 410px)));
+    }
+    .caption {
+      min-height: 4lh;
+    }
   }
 </style>
 

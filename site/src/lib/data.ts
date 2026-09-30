@@ -7,12 +7,17 @@
 // `trial.output` and outputOf() read it from runs/<run>/NNN/ on demand, so
 // 2,640 rows do not hold every version of every page in memory.
 //
-// Plain TypeScript, Node built-ins only, and nothing that Node's type stripping
-// cannot erase, so scripts/print-stats.mjs can import it without a build step.
+// Plain TypeScript, Node built-ins only (plus the tally's plain-JavaScript line
+// counter), and nothing that Node's type stripping cannot erase, so
+// scripts/print-stats.mjs can import it without a build step.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COLUMNS } from './columns.ts';
+
+// The tally's line count, so a number the site computes from a file (the
+// seed's) agrees with the `lines` column for the same bytes.
+export { countLines } from '../../../bin/lines.mjs';
 
 // ------------------------------------------------------------------ models
 
@@ -91,7 +96,8 @@ export interface Trial {
   input_sha256: string;
   output_sha256: string;
   from_seed: boolean | null;
-  unchanged: boolean;
+  /** Null for the text tasks, which have no file (the same as from_seed). */
+  unchanged: boolean | null;
   // the output file
   file: string | null;
   bytes: number | null;
@@ -133,6 +139,8 @@ export interface Trial {
   ize_p_us: number | null;
   spell_c_uk: number | null;
   spell_c_us: number | null;
+  /** The render is pixel-identical to its input's render (the seed, or the previous chain step). Null without a render. */
+  same_picture: boolean | null;
 
   // joined from runs/<run>/trials.jsonl
   /** The model's final message (markdown). Empty when the attempt line is missing. */
@@ -221,18 +229,32 @@ export function parseCsv(text: string): string[][] {
 
 export const pad3 = (n: number): string => String(n).padStart(3, '0');
 
-// Two decimals, three below ten cents: per-trial costs are fractions of a cent.
+// Four decimals below a cent, three below ten cents, two above: per-trial costs
+// are fractions of a cent and a totals column is dollars. The format is chosen
+// after rounding, so a cost that rounds up across a boundary prints in the
+// coarser format ($0.0999 is "$0.10", never "$0.100").
 export function fmtUsd(n: number): string {
-  const digits = Math.abs(n) < 0.1 ? 3 : 2;
+  const a = Math.abs(n);
+  let digits = a === 0 ? 2 : a < 0.01 ? 4 : a < 0.1 ? 3 : 2;
+  if (digits === 4 && Number(a.toFixed(4)) >= 0.01) digits = 3;
+  if (digits === 3 && Number(a.toFixed(3)) >= 0.1) digits = 2;
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 export const fmtPct = (share: number): string => `${Math.round(share * 100)}%`;
 
+/** A whole number with thousands separators, the one spelling the site uses for counts. */
+export const fmtInt = (n: number): string => n.toLocaleString('en-US');
+
+/** "1 line", "37 lines", "1,092 lines". Pass `many` when the plural is not just an s. */
+export const plural = (n: number, one: string, many = `${one}s`): string => `${fmtInt(n)} ${n === 1 ? one : many}`;
+
+// Rounded to tenths before splitting into minutes, so 59.96 is "1m 00s" and not "60.0s" or "0m 60s".
 export function fmtSec(n: number): string {
-  if (n < 60) return `${n.toFixed(1)}s`;
-  const m = Math.floor(n / 60);
-  return `${m}m ${String(Math.round(n - m * 60)).padStart(2, '0')}s`;
+  if (Math.round(n * 10) / 10 < 60) return `${n.toFixed(1)}s`;
+  const whole = Math.round(n);
+  const m = Math.floor(whole / 60);
+  return `${m}m ${String(whole - m * 60).padStart(2, '0')}s`;
 }
 
 // -------------------------------------------------------------------- paths
@@ -397,7 +419,7 @@ export function loadAll(): Loaded {
       wall_s: num(r.wall_s), cost_usd: num(r.cost_usd), turns: num(r.turns), output_tokens: num(r.output_tokens),
       thinking_blocks: num(r.thinking_blocks), denials: num(r.denials), tool_calls: num(r.tool_calls),
       bash_calls: num(r.bash_calls), edit_calls: num(r.edit_calls),
-      input_sha256: r.input_sha256, output_sha256: r.output_sha256, from_seed: flag(r.from_seed), unchanged: r.unchanged === 'true',
+      input_sha256: r.input_sha256, output_sha256: r.output_sha256, from_seed: flag(r.from_seed), unchanged: flag(r.unchanged),
       file: str(r.file), bytes: num(r.bytes), lines: num(r.lines), extra_files: num(r.extra_files),
       glow_or_shadow: flag(r.glow_or_shadow), glow: flag(r.glow), keyframes: flag(r.keyframes),
       radial_gradient: flag(r.radial_gradient), linear_gradient: flag(r.linear_gradient), pulse: flag(r.pulse),
@@ -410,7 +432,7 @@ export function loadAll(): Loaded {
       result_chars: Number(r.result_chars), mentions_server: r.mentions_server === 'true',
       color_p_uk: num(r.color_p_uk), color_p_us: num(r.color_p_us), center_p_uk: num(r.center_p_uk), center_p_us: num(r.center_p_us),
       gray_p_uk: num(r.gray_p_uk), gray_p_us: num(r.gray_p_us), ize_p_uk: num(r.ize_p_uk), ize_p_us: num(r.ize_p_us),
-      spell_c_uk: num(r.spell_c_uk), spell_c_us: num(r.spell_c_us),
+      spell_c_uk: num(r.spell_c_uk), spell_c_us: num(r.spell_c_us), same_picture: flag(r.same_picture),
       result: j?.result ?? '', tokens: j?.tokens ?? null,
       isRelay: r.run.includes('relay'), hasRender,
       renderPath: hasRender ? `/r/${r.run}/${pad3(step)}.webp` : null,

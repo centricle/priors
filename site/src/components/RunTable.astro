@@ -14,7 +14,7 @@
 import { MODELS, MODEL_LABEL, fmtPct, fmtUsd, promptOf } from '../lib/data.ts';
 import type { Run, Task } from '../lib/data.ts';
 import { href } from '../lib/href.mjs';
-import { answerDistribution, runSummary } from '../lib/stats.ts';
+import { RECOLORED_WHY, answerDistribution, colorLabel, runSummary } from '../lib/stats.ts';
 
 interface Props {
   runs: Run[];
@@ -36,7 +36,8 @@ const groups = TASK_ORDER.map((task) => ({
   runs: runs.filter((r) => r.task === task).sort(order),
 })).filter((g) => g.runs.length > 0);
 
-const COLS = 10;
+// Artifact groups are the widest: run, model, n and eight measures. The others span the same width.
+const COLS = 11;
 const pct = (s: number) => fmtPct(s);
 const cls = (s: number) => (s === 0 ? 'num zero' : 'num');
 const shorten = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
@@ -73,9 +74,10 @@ const rowData = (kind: string, r: Run) => {
             <th scope="col">run</th>
             <th scope="col">model</th>
             <th scope="col" class="num">n</th>
-            <th scope="col" class="num" title="Adds a glow or shadow">glow</th>
+            <th scope="col" class="num" title="Has a shadow, a blur or the word glow">shadow or glow</th>
             <th scope="col" class="num" title="Uses @keyframes">keyframes</th>
             <th scope="col" class="num" title="Contains both #667eea and #764ba2">gradient</th>
+            <th scope="col" class="num" title={RECOLORED_WHY}>{colorLabel(g.task)}</th>
             <th scope="col" class="num" title="Contains a script tag">script</th>
             <th scope="col" class="num" title="Left the file exactly as it found it">unchanged</th>
             <th scope="col" class="num" title="Median line count of the output">lines</th>
@@ -87,10 +89,10 @@ const rowData = (kind: string, r: Run) => {
             <th scope="col">run</th>
             <th scope="col">model</th>
             <th scope="col" class="num">n</th>
-            <th scope="col" colspan="3">top answer</th>
+            <th scope="col" colspan="4">top answer</th>
             <th scope="col" class="num">share</th>
             <th scope="col" class="num" title="Replies that were only the value">bare</th>
-            <th scope="col" class="num" title="Answers that met the task's rule">rule met</th>
+            <th scope="col" class="num" title="Answers that met the task’s rule">rule met</th>
             <th scope="col" class="num">cost</th>
           </tr>
         )}
@@ -99,7 +101,7 @@ const rowData = (kind: string, r: Run) => {
             <th scope="col">run</th>
             <th scope="col">model</th>
             <th scope="col" class="num">n</th>
-            <th scope="col" colspan="5" title="Steps that added exactly one word and removed none">rule kept</th>
+            <th scope="col" colspan="6" title="Steps that added exactly one word and removed none">rule kept</th>
             <th scope="col" class="num" title="Words in the sentence after the last step">final words</th>
             <th scope="col" class="num">cost</th>
           </tr>
@@ -110,7 +112,7 @@ const rowData = (kind: string, r: Run) => {
             <tr>
               <td>
                 <a href={href(`/runs/${r.name}/`)} aria-label={r.label}>{linkText(r)}</a>
-                {r.mode === 'pilot' && <div class="note">pilot (hand-run, contaminated)</div>}
+                {r.mode === 'pilot' && <div class="note">pilot (scripted loop, contaminated)</div>}
               </td>
               <td title={relayTitle(r)}>{who(r)}</td>
               <td class="num">{r.n}</td>
@@ -119,6 +121,7 @@ const rowData = (kind: string, r: Run) => {
                   <td class={cls(x.s.features.shares.glow_or_shadow.share)}>{pct(x.s.features.shares.glow_or_shadow.share)}</td>
                   <td class={cls(x.s.features.shares.keyframes.share)}>{pct(x.s.features.shares.keyframes.share)}</td>
                   <td class={cls(x.s.features.shares.gradient_667eea.share)}>{pct(x.s.features.shares.gradient_667eea.share)}</td>
+                  <td class={cls(x.s.features.shares.recolored.share)}>{pct(x.s.features.shares.recolored.share)}</td>
                   <td class={cls(x.s.features.shares.script.share)}>{pct(x.s.features.shares.script.share)}</td>
                   <td class={cls(x.s.features.shares.unchanged.share)}>{pct(x.s.features.shares.unchanged.share)}</td>
                   <td class="num">{x.s.features.medianLines ?? '·'}</td>
@@ -127,7 +130,7 @@ const rowData = (kind: string, r: Run) => {
               )}
               {g.kind === 'text' && x.d && x.top && (
                 <>
-                  <td colspan="3" class="ans" title={x.top.value}>{shorten(x.top.value.replace(/\s+/g, ' '), 28)}</td>
+                  <td colspan="4" class="ans" title={x.top.value}>{shorten(x.top.value.replace(/\s+/g, ' '), 28)}</td>
                   <td class="num">{pct(x.top.share)}</td>
                   <td class={cls(x.d.bareShare)}>{pct(x.d.bareShare)}</td>
                   <td class={cls(x.d.okShare)}>{pct(x.d.okShare)}</td>
@@ -136,7 +139,7 @@ const rowData = (kind: string, r: Run) => {
               )}
               {g.kind === 'sentence' && (
                 <>
-                  <td colspan="5" class="ans">
+                  <td colspan="6" class="ans">
                     {x.kept}/{r.n}
                   </td>
                   <td class="num">{x.finalWords ?? '·'}</td>

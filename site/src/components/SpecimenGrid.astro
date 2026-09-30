@@ -4,13 +4,13 @@
  * page. Hairlines between cells, no gaps, no radius.
  *
  * The cell says a little without being asked: a mark in the corner when the
- * model left the file unchanged, a tilde when the render is only one of many
- * the page could produce. Hover or focus reads out the trial number, lines and
- * cost. For relay runs (`showModel`) each cell carries the initial of the model
- * that wrote the step, with a key above the grid.
+ * model left the file unchanged, a tilde when the file calls Math.random or the
+ * clock (so the render may vary). Hover or focus reads out the trial number,
+ * lines and cost. For relay runs (`showModel`) each cell carries the initial of
+ * the model that wrote the step, with a key above the grid.
  */
 import type { Trial } from '../lib/data.ts';
-import { MODEL_LABEL, fmtUsd, pad3, thumbPath } from '../lib/data.ts';
+import { MODEL_LABEL, fmtUsd, pad3, plural, thumbPath } from '../lib/data.ts';
 import { href } from '../lib/href.mjs';
 
 interface Props {
@@ -42,11 +42,11 @@ function cell(t: Trial) {
   const n = pad3(t.step);
   const alt =
     `${t.task} ${t.mode}, ${label}, trial ${n}` +
-    (t.lines !== null ? `: ${t.lines} lines` : '') +
+    (t.lines !== null ? `: ${plural(t.lines, 'line')}` : '') +
     (t.unchanged ? ', unchanged' : '');
   const parts = [
     { text: n, cls: 'p-n' },
-    t.lines !== null ? { text: `${t.lines} lines`, cls: 'p-lines' } : null,
+    t.lines !== null ? { text: plural(t.lines, 'line'), cls: 'p-lines' } : null,
     t.cost_usd !== null ? { text: fmtUsd(t.cost_usd), cls: 'p-cost' } : null,
     showModel ? { text: label, cls: 'p-model' } : null,
   ].filter((p): p is { text: string; cls: string } => p !== null);
@@ -104,7 +104,7 @@ const cells = trials.map(cell);
         {(c.t.unchanged || c.t.nondeterministic) && (
           <span class="flags">
             {c.t.nondeterministic && (
-              <span class="tilde" title="nondeterministic: one of many possible renders">~</span>
+              <span class="tilde" title="calls Math.random or the clock; the render may vary">~</span>
             )}
             {c.t.unchanged && <span class="still" title="unchanged"></span>}
           </span>
@@ -273,7 +273,8 @@ const cells = trials.map(cell);
     content: ' ·';
   }
 
-  /* Narrow cells drop the detail, not the number. */
+  /* Narrow cells drop the detail, not the number. The 120px cut is the width
+     "064 · 2,470 lines" needs, so a label is shown whole or only as the step. */
   @container (max-width: 175px) {
     .p-cost,
     .p-model {
@@ -283,7 +284,7 @@ const cells = trials.map(cell);
       content: none;
     }
   }
-  @container (max-width: 84px) {
+  @container (max-width: 120px) {
     .p-lines {
       display: none;
     }

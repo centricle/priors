@@ -8,7 +8,8 @@
 import Base from '../../../layouts/Base.astro';
 import TrialMeta from '../../../components/TrialMeta.astro';
 import SourceView from '../../../components/SourceView.astro';
-import { MODEL_LABEL, isArtifact, loadAll, outputOf, pad3, prevOutput } from '../../../lib/data.ts';
+import { isArtifact, loadAll, outputOf, pad3, plural, prevOutput } from '../../../lib/data.ts';
+import { describeChange } from '../../../lib/stats.ts';
 import { href } from '../../../lib/href.mjs';
 import '../_runs.css';
 
@@ -43,13 +44,21 @@ const answer = t.answer_value ?? '';
 const NIL = '·';
 
 const pageTitle = `${run.label} ${n}`;
+// The run label already names the model, so the description says what happened.
+const outcome = art
+  ? [describeChange(t), t.lines === null ? null : plural(t.lines, 'line')].filter(Boolean).join(', ')
+  : sentence
+    ? `${t.answer_ok ? 'one word added' : 'rule broken'}, ${plural(t.words ?? 0, 'word')}`
+    : answer
+      ? `answered ${answer.length > 40 ? answer.slice(0, 39) + '…' : answer}`
+      : 'gave no answer';
 const stepUrl = (s: number) => href(`/runs/${run.name}/${pad3(s)}/`);
 ---
 
 <Base
   title={pageTitle}
   path={`/runs/${run.name}/${n}/`}
-  description={`${chain ? 'Step' : 'Trial'} ${n} of ${run.label}: ${MODEL_LABEL[t.model]} at effort low.`}
+  description={`${chain ? 'Step' : 'Trial'} ${n} of ${run.label}: ${outcome}.`}
 >
   <header class="grid trial-head">
     <div class="full stack-sm">
@@ -75,7 +84,7 @@ const stepUrl = (s: number) => href(`/runs/${run.name}/${pad3(s)}/`);
             )}
           </div>
           <p class="cap mono">offline render, Chrome 154, light scheme, 2 s of virtual time</p>
-          {t.nondeterministic && <p class="cap mono">this page uses randomness or the clock; the render is one of many</p>}
+          {t.nondeterministic && <p class="cap mono">This page calls Math.random or the clock, so a live run can differ from this render.</p>}
           {source !== null && (
             <>
               <div class="live">
@@ -163,6 +172,10 @@ const stepUrl = (s: number) => href(`/runs/${run.name}/${pad3(s)}/`);
       }
     </div>
   </nav>
+
+  <script>
+    import '../../../scripts/runit.ts';
+  </script>
 </Base>
 
 <style>
@@ -286,6 +299,3 @@ const stepUrl = (s: number) => href(`/runs/${run.name}/${pad3(s)}/`);
   }
 </style>
 
-<script>
-  import '../../../scripts/runit.ts';
-</script>

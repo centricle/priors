@@ -13,9 +13,11 @@ import SpecimenGrid from '../../../components/SpecimenGrid.astro';
 import Filmstrip from '../../../components/Filmstrip.astro';
 import SentenceScrub from '../../../components/SentenceScrub.astro';
 import { COLUMNS } from '../../../lib/columns.ts';
-import { ARTIFACT_TASKS, MODEL_LABEL, fmtPct, fmtSec, fmtUsd, loadAll, pad3, promptOf, seedOf } from '../../../lib/data.ts';
+import { ARTIFACT_TASKS, MODEL_LABEL, fmtInt, fmtPct, fmtSec, fmtUsd, loadAll, pad3, plural, promptOf, seedOf } from '../../../lib/data.ts';
 import { href } from '../../../lib/href.mjs';
-import { CHAIN_MARKS, FEATURES, answerDistribution, chainCurve, featureShares, featureLabel, marginOfError, sum } from '../../../lib/stats.ts';
+import {
+  CHAIN_MARKS, FEATURES, RECOLORED_WHY, answerDistribution, chainCurve, colorLabel, featureShares, featureLabel, marginOfError, sum,
+} from '../../../lib/stats.ts';
 import '../_runs.css';
 
 export function getStaticPaths() {
@@ -50,13 +52,15 @@ const features = artifact && !chain ? featureShares(run.trials) : null;
 const curve = artifact && chain ? chainCurve(run) : null;
 // Chat answers.
 const dist = !artifact && !sentence ? answerDistribution(run.trials) : null;
+// The declines are one "no answer" row in the chart, not an answer.
+const distinct = dist ? dist.values.filter((v) => v.parsed).length : 0;
+const declined = dist ? dist.values.find((v) => !v.parsed)?.count ?? 0 : 0;
 const TOP = 12;
 const bars = dist
   ? dist.values.slice(0, TOP).map((v, i) => ({
       label: shorten(oneLine(v.value), 40) || '(empty)',
       value: v.count,
       hi: i === 0,
-      note: v.parsed ? undefined : 'no value found',
     }))
   : [];
 ---
@@ -64,7 +68,7 @@ const bars = dist
 <Base
   title={run.label}
   path={`/runs/${run.name}/`}
-  description={`${run.label}: ${run.n} trials of "${prompt}".`}
+  description={`${run.label}: ${run.n} trials of “${prompt}”${/[.?!]$/.test(prompt) ? '' : '.'}`}
 >
   <header class="grid run-head">
     <div class="full stack">
@@ -86,7 +90,7 @@ const bars = dist
       }
       {pilot && (
         <p class="small muted">
-          Pilot: hand-run, and contaminated, so kept for comparison and left out of the counted trials.
+          Pilot: a scripted loop, contaminated, so kept for comparison and left out of the counted trials.
         </p>
       )}
     </div>
@@ -111,7 +115,7 @@ const bars = dist
                 const s = features.shares[f];
                 return (
                   <tr>
-                    <td title={`${f}: ${meaning(f)}`}>{featureLabel(f)}</td>
+                    <td title={f === 'recolored' ? RECOLORED_WHY : `${f}: ${meaning(f)}`}>{f === 'recolored' ? colorLabel(run.task) : featureLabel(f)}</td>
                     <td class="num">{s.count}</td>
                     <td class="num">{s.n}</td>
                     <td class:list={['num', s.share === 0 && 'zero']}>{fmtPct(s.share)}</td>
@@ -121,7 +125,7 @@ const bars = dist
             </tbody>
           </table>
           <p class="facts">
-            median {features.medianLines ?? NIL} lines · median {features.medianCost === null ? NIL : fmtUsd(features.medianCost)} per trial ·
+            median {features.medianLines === null ? `${NIL} lines` : plural(features.medianLines, 'line')} · median {features.medianCost === null ? NIL : fmtUsd(features.medianCost)} per trial ·
             each share is good to about ±{Math.round(marginOfError(run.n) * 100)} points at n = {run.n} (95%, worst case)
           </p>
         </div>
@@ -159,7 +163,7 @@ const bars = dist
                 <tr>
                   <td>lines</td>
                   {CHAIN_MARKS.map((m) => (
-                    <td class="num">{curve.at[m] ?? NIL}</td>
+                    <td class="num">{curve.at[m] === null ? NIL : fmtInt(curve.at[m])}</td>
                   ))}
                 </tr>
               </tbody>
@@ -228,7 +232,7 @@ const bars = dist
           <div class="full stack">
             <h2 class="sec-head">What came back</h2>
             <p class="facts">
-              {dist.values.length} distinct {dist.values.length === 1 ? 'answer' : 'answers'} in {dist.n} trials · bare reply in {fmtPct(dist.bareShare)} · rule met in {fmtPct(dist.okShare)}
+              {distinct} distinct {distinct === 1 ? 'answer' : 'answers'} in {dist.n} trials{declined > 0 && ` · no answer in ${declined}`} · bare reply in {fmtPct(dist.bareShare)} · rule met in {fmtPct(dist.okShare)}
             </p>
             <div class="bars-wrap">
               <Bars items={bars} format="count" title={dist.values.length > TOP ? `Top ${TOP} answers` : 'Answers'} />

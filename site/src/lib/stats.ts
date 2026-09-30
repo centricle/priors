@@ -37,28 +37,139 @@ export const marginOfError = (n: number): number => 1.96 * Math.sqrt(0.25 / n);
 
 // ----------------------------------------------------------------- features
 
+// The flag columns, plus `recolored`, which the build derives from hex_colors.
 export const FEATURES = [
-  'glow_or_shadow', 'keyframes', 'radial_gradient', 'pulse', 'gradient_667eea',
-  'script', 'nondeterministic', 'unchanged', 'mentions_server',
+  'glow_or_shadow', 'keyframes', 'radial_gradient', 'pulse', 'gradient_667eea', 'recolored',
+  'script', 'nondeterministic', 'same_picture', 'unchanged', 'mentions_server',
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
 /** What each flag is called on the page. The CSV column names stay as they are. */
 export const FEATURE_LABEL: Record<string, string> = {
-  glow_or_shadow: 'glow',
+  glow_or_shadow: 'shadow or glow',
   glow: 'the word glow',
   keyframes: 'animation',
   radial_gradient: 'radial gradient',
   linear_gradient: 'linear gradient',
   pulse: 'pulse',
   gradient_667eea: 'the gradient',
+  recolored: 'recolored',
   script: 'script',
-  nondeterministic: 'nondeterministic',
+  nondeterministic: 'calls Math.random or the clock',
   svg_filter: 'svg filter',
+  same_picture: 'same picture',
   unchanged: 'unchanged',
   mentions_server: 'mentions a server',
 };
 export const featureLabel = (f: string): string => FEATURE_LABEL[f] ?? f;
+
+// ------------------------------------------------------------- what changed
+
+/**
+ * The widest gap between a color's largest and smallest channel that still
+ * reads as gray. The circle's own colors (black, white, the off-whites a page
+ * puts around it) spread 0 to 2. Of the 83 circle samples that once got the
+ * "still a black circle" caption, the 19 that turned blue all carry a hex
+ * above this and none of Fable's or Opus's 64 does. In the circle samples no
+ * hex falls between 17 and 27, so the cut is not close.
+ */
+export const GRAY_SPREAD = 24;
+
+const spread = (hex: string): number => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return Math.max(r, g, b) - Math.min(r, g, b);
+};
+
+/** A hex color that is neither black, white nor a gray appears in the output. */
+export const isRecolored = (t: Trial): boolean => t.hex_colors.some((h) => spread(h) > GRAY_SPREAD);
+
+export const RECOLORED_WHY = 'A hex color other than black, white or gray appears in the file.';
+
+/** The html and svg seeds are blank, so there is nothing to recolor: the model adds color. */
+export const colorLabel = (task: string): string => (task === 'html' || task === 'svg' ? 'added color' : 'recolored');
+
+export type ChangeId =
+  | 'unchanged' | 'same_picture' | 'recolored' | 'gradient_pair' | 'gradient'
+  | 'shadow_or_glow' | 'animation' | 'script' | 'changed';
+
+export interface ChangeLabel {
+  id: ChangeId;
+  text: string;
+  /** What the label claims and what it is read from, for a tooltip. */
+  why: string;
+}
+
+/** The order labels come out in, and so the order of a filmstrip's tags. */
+export const CHANGE_ORDER: readonly ChangeId[] = [
+  'unchanged', 'same_picture', 'recolored', 'gradient_pair', 'gradient', 'shadow_or_glow', 'animation', 'script', 'changed',
+];
+
+/**
+ * The output's calls to Math.random or the clock. Not a change label: a regex
+ * cannot tell whether the call reaches the picture, so it claims only that the
+ * call is there.
+ */
+export const NONDETERMINISTIC = {
+  id: 'nondeterministic',
+  text: 'calls Math.random or the clock',
+  why: 'The file calls Math.random or the clock, so the render may vary.',
+} as const;
+
+/**
+ * What the model did to the file, in words its output supports. Every
+ * per-trial description goes through this one function (hero, trial page, run
+ * table, filmstrip, page descriptions), so two surfaces cannot describe the
+ * same trial differently. Nothing here says what the picture looks like beyond
+ * what a column or a hex value shows: there is no "black circle".
+ *
+ * The first two labels end the list. A file byte-identical to its input is
+ * `unchanged`. A rewritten file whose render equals its input's render is
+ * `same_picture`, and whatever else it contains did not reach the picture.
+ * Otherwise the labels that apply follow in a fixed order, and `changed`
+ * stands alone when none does. The gradient pair already means new colors, so
+ * it replaces `recolored` instead of joining it.
+ *
+ * Empty for the chat tasks and the sentence chain, which have no file.
+ */
+export function changeLabels(t: Trial): ChangeLabel[] {
+  if (!isArtifact(t)) return [];
+  if (t.unchanged) {
+    return [{ id: 'unchanged', text: 'unchanged', why: 'The output is byte-identical to its input.' }];
+  }
+  if (t.same_picture === true) {
+    return [{ id: 'same_picture', text: 'rewritten, same picture', why: 'The file changed. Its render is pixel-identical to its input’s render.' }];
+  }
+  const out: ChangeLabel[] = [];
+  if (t.gradient_667eea) {
+    out.push({ id: 'gradient_pair', text: 'the gradient', why: 'Both #667eea and #764ba2 appear in the file. Whether they reach the render is not claimed.' });
+  } else if (isRecolored(t)) {
+    out.push({ id: 'recolored', text: colorLabel(t.task), why: RECOLORED_WHY });
+  }
+  if (!t.gradient_667eea && (t.radial_gradient || t.linear_gradient)) {
+    const kind = [t.radial_gradient && 'radial', t.linear_gradient && 'linear'].filter(Boolean).join(' and ');
+    out.push({ id: 'gradient', text: `${kind} gradient`, why: 'The file has a radial or linear gradient other than the purple pair.' });
+  }
+  if (t.glow_or_shadow) out.push({ id: 'shadow_or_glow', text: 'shadow or glow', why: 'The file has a shadow, a blur or the word glow.' });
+  if (t.keyframes) out.push({ id: 'animation', text: 'animation', why: 'The file defines @keyframes.' });
+  if (t.script) out.push({ id: 'script', text: 'script', why: 'The file has a script tag.' });
+  if (out.length === 0) out.push({ id: 'changed', text: 'changed', why: 'The file and its render changed, in no way the flags name.' });
+  return out;
+}
+
+/** The labels as one phrase, for a sentence or a meta description. */
+export const describeChange = (t: Trial, sep = ', '): string => changeLabels(t).map((l) => l.text).join(sep);
+
+/** How many trials render exactly as their input did, whether or not the file changed. */
+export function samePictureCount(trials: readonly Trial[]): Share {
+  const known = trials.filter((t) => t.same_picture !== null);
+  return shareOf(known.filter((t) => t.same_picture === true).length, known.length);
+}
+
+/** A trial's value for one feature: the column, or the derived recolor test. Null when it does not apply. */
+function readFeature(t: Trial, k: Feature): boolean | null {
+  if (k === 'recolored') return isArtifact(t) ? isRecolored(t) : null;
+  return t[k];
+}
 
 export interface FeatureShares {
   n: number;
@@ -70,8 +181,8 @@ export interface FeatureShares {
 export function featureShares(trials: Trial[]): FeatureShares {
   const shares = {} as Record<Feature, Share>;
   for (const k of FEATURES) {
-    const known = trials.filter((t) => t[k] !== null);
-    shares[k] = shareOf(known.filter((t) => t[k] === true).length, known.length);
+    const known = trials.filter((t) => readFeature(t, k) !== null);
+    shares[k] = shareOf(known.filter((t) => readFeature(t, k) === true).length, known.length);
   }
   return {
     n: trials.length,
@@ -122,7 +233,7 @@ export interface ChainCurve {
 }
 
 export function chainCurve(run: Run): ChainCurve {
-  const points = run.trials.map((t) => ({ step: t.step, lines: t.lines, cost: t.cost_usd, unchanged: t.unchanged }));
+  const points = run.trials.map((t) => ({ step: t.step, lines: t.lines, cost: t.cost_usd, unchanged: t.unchanged === true }));
   const at: Record<number, number | null> = {};
   for (const s of CHAIN_MARKS) at[s] = points.find((p) => p.step === s)?.lines ?? null;
   return {
@@ -140,7 +251,7 @@ export interface AnswerCount {
   value: string;
   count: number;
   share: number;
-  /** False when the tally found no value and `value` is the raw reply (a refusal, say). */
+  /** False for the one row that holds every reply the tally found no value in; its `value` is NO_ANSWER. */
   parsed: boolean;
 }
 
@@ -151,18 +262,27 @@ export interface AnswerDistribution {
   okShare: number;
 }
 
-/** Number, digit and word trials: how often each answer came back. */
+/** The label of the row that pools the declines. */
+export const NO_ANSWER = 'no answer';
+
+/**
+ * Number, digit and word trials: how often each answer came back. Every reply
+ * with no value (answer_form none) goes into one NO_ANSWER row. Keyed by their
+ * raw text, two declines worded differently would each get a row of their own.
+ */
 export function answerDistribution(trials: Trial[]): AnswerDistribution {
   const counts = new Map<string, AnswerCount>();
   for (const t of trials) {
-    const value = t.answer_value ?? t.answer_raw ?? '';
-    const entry = counts.get(value) ?? { value, count: 0, share: 0, parsed: t.answer_value !== null };
+    const parsed = t.answer_form !== 'none' && t.answer_value !== null;
+    const key = parsed ? `=${t.answer_value}` : 'none';
+    const value = parsed ? t.answer_value! : NO_ANSWER;
+    const entry = counts.get(key) ?? { value, count: 0, share: 0, parsed };
     entry.count++;
-    counts.set(value, entry);
+    counts.set(key, entry);
   }
   const values = [...counts.values()]
     .map((e) => ({ ...e, share: e.count / trials.length }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.count - a.count || Number(b.parsed) - Number(a.parsed));
   return {
     n: trials.length,
     values,
@@ -324,12 +444,12 @@ export interface ReplicaRow {
 }
 
 const REPLICA_LABEL: Record<ReplicaCondition, string> = {
-  pilot: 'Pilot (harness, hand-run)',
+  pilot: 'Pilot (harness, scripted loop)',
   harness: 'Harness replica',
-  room: 'Clean-room replica',
+  room: 'Room replica',
 };
 
-/** The same prompt and seed under three conditions: the pilot, the harness replay, the clean room. */
+/** The same prompt and seed under three conditions: the pilot, the harness replay, the room replay. */
 export function replicaTable(trials: Trial[]): ReplicaRow[] {
   const replica = trials.filter((t) => t.task === 'replica');
   const condition = (t: Trial): ReplicaCondition => (t.mode === 'pilot' ? 'pilot' : t.profile === 'harness' ? 'harness' : 'room');

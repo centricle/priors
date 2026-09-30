@@ -8,9 +8,10 @@
  * page still shows that frame and a strip of thumbnails that link to the
  * trials. src/scripts/filmstrip.ts turns on the controls and does the rest.
  */
-import type { Run, Trial } from '../lib/data.ts';
-import { MODEL_LABEL, fmtUsd, pad3, thumbPath } from '../lib/data.ts';
+import { MODEL_LABEL, fmtInt, fmtUsd, pad3, plural, thumbPath } from '../lib/data.ts';
+import type { Run } from '../lib/data.ts';
 import { href } from '../lib/href.mjs';
+import { CHANGE_ORDER, NONDETERMINISTIC, changeLabels } from '../lib/stats.ts';
 
 interface Props {
   run: Run;
@@ -25,24 +26,32 @@ interface Props {
 
 const { run, title, sparkline = true, startAt = 1, class: cls = '' } = Astro.props;
 
-const FLAGS: [string, (t: Trial) => boolean | null][] = [
-  ['glow', (t) => t.glow_or_shadow],
-  ['keyframes', (t) => t.keyframes],
-  ['script', (t) => t.script],
-  ['nondeterministic', (t) => t.nondeterministic],
-  ['unchanged', (t) => t.unchanged],
-];
+// Each step's tags are what changeLabels says about it, plus the output's own
+// calls to Math.random or the clock. The tags in the markup are the ones any
+// step of this run uses; the script shows and hides them as the step changes.
+const tagText = new Map<string, { text: string; why: string }>();
 
-const steps = run.trials.map((t) => ({
-  step: t.step,
-  render: t.renderPath ? href(t.renderPath) : '',
-  thumb: t.renderPath ? href(thumbPath(t)!) : '',
-  lines: t.lines,
-  cost: t.cost_usd === null ? null : fmtUsd(t.cost_usd),
-  model: MODEL_LABEL[t.model],
-  flags: FLAGS.filter(([, test]) => test(t) === true).map(([name]) => name),
-  url: href(`/runs/${t.run}/${pad3(t.step)}/`),
-}));
+const steps = run.trials.map((t) => {
+  const labels = changeLabels(t);
+  for (const l of labels) tagText.set(l.id, l);
+  if (t.nondeterministic) tagText.set(NONDETERMINISTIC.id, NONDETERMINISTIC);
+  return {
+    step: t.step,
+    render: t.renderPath ? href(t.renderPath) : '',
+    thumb: t.renderPath ? href(thumbPath(t)!) : '',
+    lines: t.lines,
+    // Counted the way the rest of the site counts: separators, and "1 line".
+    linesText: t.lines === null ? null : fmtInt(t.lines),
+    linesLabel: t.lines === null ? 'no lines' : plural(t.lines, 'line'),
+    cost: t.cost_usd === null ? null : fmtUsd(t.cost_usd),
+    model: MODEL_LABEL[t.model],
+    flags: [...labels.map((l) => l.id as string), ...(t.nondeterministic ? [NONDETERMINISTIC.id] : [])],
+    url: href(`/runs/${t.run}/${pad3(t.step)}/`),
+  };
+});
+const tags = [...CHANGE_ORDER, NONDETERMINISTIC.id]
+  .filter((id) => tagText.has(id))
+  .map((id) => ({ id, ...tagText.get(id)! }));
 
 const n = steps.length;
 const start = Math.min(Math.max(Math.round(startAt), 1), n) - 1;
@@ -65,7 +74,7 @@ const yOf = (i: number) => ((max - lines[i]) / max) * 100;
     <span class="kind">{run.label}</span>
   </div>
 
-  <div class="frame" data-frame role="img" aria-label={`step ${cur.step} render, ${cur.model}, ${cur.lines} lines`}>
+  <div class="frame" data-frame role="img" aria-label={`step ${cur.step} render, ${cur.model}, ${cur.linesLabel}`}>
     <img class="layer is-front" data-layer="a" src={cur.render || undefined} width="800" height="800" alt="" loading="lazy" decoding="async" />
     <img class="layer" data-layer="b" width="800" height="800" alt="" decoding="async" />
   </div>
@@ -87,20 +96,19 @@ const yOf = (i: number) => ((max - lines[i]) / max) * 100;
 
     <dl class="facts">
       <div><dt>model</dt><dd data-model>{cur.model}</dd></div>
-      <div><dt>lines</dt><dd data-lines>{cur.lines ?? 'none'}</dd></div>
+      <div><dt>lines</dt><dd data-lines>{cur.linesText ?? 'none'}</dd></div>
       <div><dt>cost</dt><dd data-cost>{cur.cost ?? 'none'}</dd></div>
     </dl>
 
     <div class="tags" aria-label="Features in this step">
-      {FLAGS.map(([name]) => (
-        <span class="tag" data-flag={name} hidden={!cur.flags.includes(name)}>{name}</span>
+      {tags.map((tag) => (
+        <span class="tag" data-flag={tag.id} title={tag.why} hidden={!cur.flags.includes(tag.id)}>{tag.text}</span>
       ))}
-      <span class="tag none" data-noflags hidden={cur.flags.length > 0}>no flags</span>
     </div>
 
     {sparkline && (
       <div class="spark" aria-hidden="true">
-        <div class="spark-head"><span>lines per step</span><span>max {max}</span></div>
+        <div class="spark-head"><span>lines per step</span><span>max {fmtInt(max)}</span></div>
         <div class="plot" data-plot>
           <svg viewBox={`0 0 ${Math.max(n - 1, 1)} ${max}`} preserveAspectRatio="none" focusable="false">
             <polyline points={points} />
@@ -123,7 +131,7 @@ const yOf = (i: number) => ((max - lines[i]) / max) * 100;
         data-cell
         data-i={i}
         href={s.url}
-        aria-label={`Step ${s.step}${s.lines !== null ? `, ${s.lines} lines` : ''}`}
+        aria-label={`Step ${s.step}${s.lines !== null ? `, ${s.linesLabel}` : ''}`}
         aria-current={i === start ? 'step' : undefined}
       >
         {s.thumb ? (
@@ -282,7 +290,8 @@ const yOf = (i: number) => ((max - lines[i]) / max) * 100;
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    min-height: 1.9em;
+    /* Two rows: the longest step (shadow, animation, script and a clock call) wraps. */
+    min-height: 3.8em;
     align-items: flex-start;
     margin-bottom: auto;
   }
@@ -300,11 +309,6 @@ const yOf = (i: number) => ((max - lines[i]) / max) * 100;
     background: var(--mark);
     color: var(--mark-ink);
     border-color: var(--ink);
-  }
-  .tag.none {
-    border-color: transparent;
-    padding-left: 0;
-    color: var(--ink-3);
   }
 
   /* ---------- sparkline ---------- */

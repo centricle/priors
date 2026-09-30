@@ -1,12 +1,17 @@
 ---
-import { featureLabel } from '../lib/stats.ts';
 /**
  * Everything the tally recorded about one trial, as a definition table.
  * A missing value prints as a middle dot, never "null". Rows that cannot
  * apply to the task (hex colors on a pick-a-number trial) are left out.
+ *
+ * "what changed" is the build's reading (changeLabels); "features" is the
+ * tally's own flags, so a recolor shows in the first even where the second
+ * has nothing to report.
  */
-import { MODEL_LABEL, fmtSec, fmtUsd, isArtifact } from '../lib/data.ts';
+import { MODEL_LABEL, fmtInt, fmtSec, fmtUsd, isArtifact } from '../lib/data.ts';
 import type { Trial } from '../lib/data.ts';
+import { COLUMNS } from '../lib/columns.ts';
+import { changeLabels, featureLabel } from '../lib/stats.ts';
 
 interface Props {
   t: Trial;
@@ -14,7 +19,7 @@ interface Props {
 const { t } = Astro.props;
 
 const NIL = '·';
-const int = (x: number | null) => (x === null ? NIL : x.toLocaleString('en-US'));
+const int = (x: number | null) => (x === null ? NIL : fmtInt(x));
 const yn = (b: boolean | null) => (b === null ? NIL : b ? 'yes' : 'no');
 const started = t.started_utc ? t.started_utc.replace('T', ' ').replace('Z', ' UTC') : NIL;
 
@@ -23,6 +28,8 @@ const FLAGS = [
   'pulse', 'gradient_667eea', 'script', 'nondeterministic', 'svg_filter',
 ] as const;
 const flags = FLAGS.filter((k) => t[k] === true);
+const changes = changeLabels(t);
+const meaning = (name: string) => COLUMNS.find((c) => c.name === name)?.meaning ?? name;
 
 const art = isArtifact(t);
 const sentence = t.task === 'sentence';
@@ -52,9 +59,23 @@ const calls = [t.tool_calls, t.bash_calls, t.edit_calls].map(int).join(' / ');
         <tr><th scope="row">lines</th><td class="mono">{int(t.lines)}</td></tr>
         <tr><th scope="row">bytes</th><td class="mono">{int(t.bytes)}</td></tr>
         <tr>
+          <th scope="row">what changed</th>
+          <td>
+            <ul class="tags" role="list">
+              {changes.map((c) => <li class="tag" title={c.why}>{c.text}</li>)}
+            </ul>
+          </td>
+        </tr>
+        <tr>
           <th scope="row">features</th>
           <td>
-            {flags.length ? flags.map((f) => <span class="tag" title={f}>{featureLabel(f)}</span>) : <span class="mono">none</span>}
+            {flags.length ? (
+              <ul class="tags" role="list">
+                {flags.map((f) => <li class="tag" title={`${f}: ${meaning(f)}`}>{featureLabel(f)}</li>)}
+              </ul>
+            ) : (
+              <span class="mono">no flagged features</span>
+            )}
           </td>
         </tr>
         <tr>
@@ -126,9 +147,15 @@ const calls = [t.tool_calls, t.bash_calls, t.edit_calls].map(int).join(' / ');
     margin-left: 0.5em;
     overflow-wrap: anywhere;
   }
+  .tags {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+  }
   .tag {
-    display: inline-block;
-    margin: 0 0.35em 0.35em 0;
     padding: 0.1em 0.45em;
     border: 1px solid var(--hair);
     font-family: var(--mono);
