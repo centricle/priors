@@ -1,0 +1,164 @@
+---
+import '../styles/global.css';
+import { href } from '../lib/href.mjs';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Site-relative path of this page, e.g. '/runs/'. Used for canonical and OG. */
+  path?: string;
+  ogImage?: string;
+}
+
+const SITE = 'https://centricle.com';
+const {
+  title,
+  description = 'Give four Claude models a black circle and the word improve. Do it 2,608 times. See what they reach for.',
+  path = '/',
+  ogImage = '/og.png',
+} = Astro.props;
+
+const fullTitle = title ? `${title} · priors` : 'priors';
+const canonical = `${SITE}${href(path)}`;
+const og = `${SITE}${href(ogImage)}`;
+const REPO = 'https://github.com/centricle/priors';
+
+const nav = [
+  ['Story', '/'],
+  ['Runs', '/runs/'],
+  ['Method', '/method/'],
+  ['Data', '/data/'],
+];
+
+// A black circle, the seed, as the tab icon.
+const favicon =
+  'data:image/svg+xml,' +
+  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/></svg>');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={favicon} type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="priors" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={og} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#ffffff" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <a class="wordmark" href={href('/')} aria-label="priors, home">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="currentColor" /></svg>
+        <span>priors</span>
+      </a>
+      <nav class="nav" aria-label="Site">
+        {nav.map(([label, p]) => (
+          <a href={href(p)} aria-current={href(p) === href(path) ? 'page' : undefined}>{label}</a>
+        ))}
+        <a href={REPO} rel="noopener">GitHub</a>
+      </nav>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <footer class="foot grid">
+      <div class="full flex between">
+        <span class="small muted">
+          priors is a <a href="https://centricle.com/curios/">curio</a>. MIT licensed;
+          the outputs are the models' own.
+        </span>
+        <span class="small muted mono">n = 2,608 · 4 models · 41 runs</span>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .skip {
+    position: absolute;
+    left: var(--edge);
+    top: -3em;
+    background: var(--mark);
+    color: var(--mark-ink);
+    padding: 0.5em 0.8em;
+    z-index: 100;
+  }
+  .skip:focus {
+    top: 0.5em;
+  }
+
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gutter);
+    height: 52px;
+    padding-inline: var(--edge);
+    background: var(--paper);
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    text-decoration: none;
+    font-weight: 800;
+    font-variation-settings: var(--wide);
+    letter-spacing: -0.04em;
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .wordmark:hover {
+    background: none;
+    color: inherit;
+  }
+  .wordmark:hover span {
+    background: var(--mark);
+    color: var(--mark-ink);
+  }
+  .wordmark svg {
+    flex: none;
+    transition: transform 300ms var(--ease);
+  }
+  .wordmark:hover svg {
+    transform: scale(1.15);
+  }
+
+  .nav {
+    display: flex;
+    gap: clamp(10px, 2vw, 28px);
+    font-size: var(--t-sm);
+    font-weight: 600;
+  }
+  .nav a {
+    text-decoration: none;
+    padding: 0.35em 0.1em 0.25em;
+    line-height: 1;
+    border-bottom: 2px solid transparent;
+  }
+  .nav a[aria-current='page'] {
+    border-bottom-color: var(--ink);
+  }
+
+  .foot {
+    border-top: 1px solid var(--ink);
+    padding-block: calc(var(--row) * 4);
+    margin-top: calc(var(--row) * 8);
+  }
+</style>

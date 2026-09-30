@@ -14,4 +14,5 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [sitemap()],
   server: { port: 7064, allowedHosts: true },
+  devToolbar: { enabled: false },
 });

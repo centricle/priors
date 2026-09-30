@@ -1,0 +1,56 @@
+---
+/**
+ * A giant tabular number with a caption under it. The site's loudest element:
+ * used for the findings that are one number, like 400/400 and 200/200.
+ */
+interface Props {
+  value: string;
+  caption?: string;
+  size?: 'giant' | 'xl' | 'lg';
+  mark?: boolean;
+  class?: string;
+}
+const { value, caption, size = 'xl', mark = false, class: cls = '' } = Astro.props;
+// Wide glyphs run about 0.8em each; the value must never leave its column.
+const chars = Math.max(value.length, 3);
+---
+
+<div class:list={['numeral', `is-${size}`, cls]} style={`--chars:${chars}`}>
+  <div class="value"><span class:list={[mark && 'mark']}>{value}</span></div>
+  {caption && <div class="caption">{caption}</div>}
+</div>
+
+<style>
+  .numeral {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--row) * 1.5);
+    min-width: 0;
+    container-type: inline-size;
+    --fit: calc(100cqi / (var(--chars) * 0.82));
+  }
+  .value {
+    font-weight: 800;
+    font-variation-settings: var(--wide);
+    letter-spacing: -0.05em;
+    line-height: 0.85;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .is-giant .value {
+    font-size: min(var(--t-giant), var(--fit));
+  }
+  .is-xl .value {
+    font-size: min(var(--t-3xl), var(--fit));
+  }
+  .is-lg .value {
+    font-size: min(var(--t-2xl), var(--fit));
+  }
+  .caption {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+    max-width: 30em;
+    text-wrap: pretty;
+  }
+</style>

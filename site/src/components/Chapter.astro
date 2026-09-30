@@ -1,0 +1,64 @@
+---
+/**
+ * One finding. A numbered section on the 12-column grid: the numeral sits in
+ * the left two columns on wide screens, the title and dek in the next seven,
+ * and the body places itself with .prose / .wide / .full.
+ */
+interface Props {
+  n: number | string;
+  id: string;
+  title: string;
+  dek?: string;
+  /** 'ink' draws the heavy rule above; 'hair' the light one; 'none' skips it. */
+  rule?: 'ink' | 'hair' | 'none';
+  class?: string;
+}
+const { n, id, title, dek, rule = 'hair', class: cls = '' } = Astro.props;
+const num = typeof n === 'number' ? String(n).padStart(2, '0') : n;
+---
+
+<section class:list={['chapter', 'section', 'grid', cls, rule !== 'none' && `rule-${rule}`]} id={id}>
+  <div class="no">
+    <a class="no-link" href={`#${id}`}><span class="sect">§</span> {num}</a>
+  </div>
+  <div class="head stack">
+    <h2>{title}</h2>
+    {dek && <p class="dek">{dek}</p>}
+  </div>
+  <slot />
+</section>
+
+<style>
+  .chapter {
+    row-gap: calc(var(--row) * 4);
+    scroll-margin-top: 52px;
+  }
+  .chapter.rule-hair {
+    border-top: 1px solid var(--hair);
+  }
+  .chapter.rule-ink {
+    border-top: 2px solid var(--ink);
+  }
+  .no {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    color: var(--ink-2);
+    align-self: start;
+  }
+  .no-link {
+    text-decoration: none;
+  }
+  .no-link:hover {
+    background: var(--mark);
+    color: var(--mark-ink);
+  }
+  .sect {
+    color: var(--ink-3);
+  }
+  @media (min-width: 900px) {
+    .no {
+      position: sticky;
+      top: 68px;
+    }
+  }
+</style>
