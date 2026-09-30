@@ -12,16 +12,48 @@ import Bars from '../components/Bars.astro';
 import HexChart from '../components/HexChart.astro';
 import { href } from '../lib/href.mjs';
 import {
-  loadAll, MODELS, MODEL_LABEL, MODEL_ID, pad3, fmtUsd, fmtPct, thumbPath, outputOf, seedOf, isArtifact,
+  loadAll, MODELS, MODEL_LABEL, MODEL_ID, pad3, fmtUsd, fmtPct, fmtInt, outputOf, seedOf, promptOf, isArtifact, isCampaign,
+  countLines, plural,
   type Model, type Trial, type Run,
 } from '../lib/data.ts';
 import {
   headline, featureShares, chainCurve, answerDistribution, hexShares, spellingByModel, costByModel,
-  replicaTable, marginOfError, sentenceChain,
+  replicaTable, marginOfError, sentenceChain, changeLabels, samePictureCount, FEATURE_LABEL, GRAY_SPREAD, CHAIN_MARKS,
+  type AnswerDistribution, type Feature,
 } from '../lib/stats.ts';
+
+const num = fmtInt;
+const pctPt = (share: number) => Math.round(share * 100);
+
+// Small counts in words, so a sentence can open with one and it is still computed.
+const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+  'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+function say(n: number): string {
+  if (!Number.isInteger(n) || n < 0 || n > 999) throw new Error(`index: no words for ${n}`);
+  if (n >= 100) return `${ONES[Math.floor(n / 100)]} hundred${n % 100 ? ` ${say(n % 100)}` : ''}`;
+  if (n < 20) return ONES[n];
+  return TENS[Math.floor(n / 10)] + (n % 10 ? `-${ONES[n % 10]}` : '');
+}
+const Say = (n: number) => say(n).replace(/^./, (c) => c.toUpperCase());
+const times = (n: number) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${say(n)} times`);
+const list = (xs: readonly (string | number)[]) =>
+  xs.length < 3 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+const NAME = (m: Model) => MODEL_LABEL[m].split(' ')[0];
+
+/**
+ * Some sentences below say "every", "never" or "none" in words rather than
+ * with a number. Each one is checked here, so the build fails on the day the
+ * data stops saying it.
+ */
+function claim(ok: boolean, what: string): void {
+  if (!ok) throw new Error(`index: the copy says ${what}, and the data no longer does`);
+}
 
 const { trials, runs, runByName } = loadAll();
 const h = headline(trials);
+const campaign = trials.filter(isCampaign);
+const tasksRun = new Set(campaign.map((t) => t.task)).size;
 const run = (name: string): Run => {
   const r = runByName.get(name);
   if (!r) throw new Error(`no run ${name}`);
@@ -35,13 +67,8 @@ const relay = (task: string) => run(`${task}-chain-relay-low`);
 const ORDER: Model[] = ['fable', 'opus', 'sonnet', 'haiku'];
 
 // The hero: every counted circle sample, by model, with what the button needs.
-const featureNames: [keyof Trial, string][] = [
-  ['glow_or_shadow', 'glow'],
-  ['gradient_667eea', 'the gradient'],
-  ['keyframes', 'animation'],
-  ['pulse', 'pulse'],
-  ['script', 'script'],
-];
+// Labels and the preformatted line and cost strings are built here so the
+// caption says what every other page says about the same trial.
 const picks = Object.fromEntries(
   MODELS.map((m) => [
     m,
@@ -49,16 +76,32 @@ const picks = Object.fromEntries(
       run: t.run,
       step: t.step,
       n: sample('circle', m).n,
-      lines: t.lines,
-      cost: t.cost_usd,
-      features: featureNames.filter(([k]) => t[k] === true).map(([, label]) => label),
-      unchanged: t.unchanged,
+      lines: plural(t.lines!, 'line'),
+      cost: fmtUsd(t.cost_usd!),
+      labels: changeLabels(t).map((l) => l.text),
+      samePicture: t.same_picture === true,
       render: href(t.renderPath!),
       url: href(`/runs/${t.run}/${pad3(t.step)}/`),
     })),
   ]),
 );
-const seedLines = seedOf('circle').split('\n').filter((l) => l.length).length;
+const circleSeed = seedOf('circle');
+const seedLines = countLines(circleSeed);
+const seedDiameter = 2 * Number(/<circle\b[^>]*\br="(\d+)"/.exec(circleSeed)?.[1]);
+claim(Number.isInteger(seedDiameter), 'how wide the seed circle is');
+const sampleN = sample('circle', 'fable').n;
+claim(
+  MODELS.every((m) => ['circle', 'html', 'svg'].every((task) => sample(task, m).n === sampleN)),
+  `every sample run has ${sampleN} trials`,
+);
+
+// The relays take turns in one fixed order.
+const relayOrder = relay('html').trials.slice(0, MODELS.length).map((t) => t.model);
+claim(
+  ['circle', 'html', 'sentence'].every((task) => relay(task).trials.every((t, i) => t.model === relayOrder[i % relayOrder.length])),
+  'every relay goes round in the same order',
+);
+const relayNames = relayOrder.map(NAME).join(', ');
 
 // § 1
 const circle = Object.fromEntries(ORDER.map((m) => [m, featureShares(sample('circle', m).trials)])) as Record<
@@ -66,25 +109,106 @@ const circle = Object.fromEntries(ORDER.map((m) => [m, featureShares(sample('cir
   ReturnType<typeof featureShares>
 >;
 const frac = (s: { count: number; n: number }) => `${s.count} of ${s.n}`;
+const circleSame = Object.fromEntries(ORDER.map((m) => [m, samePictureCount(sample('circle', m).trials)])) as Record<
+  Model,
+  ReturnType<typeof samePictureCount>
+>;
+claim(
+  (['fable', 'opus'] as const).every((m) =>
+    (['glow_or_shadow', 'gradient_667eea', 'keyframes', 'recolored'] as const).every((k) => circle[m].shares[k].count === 0),
+  ),
+  'Fable and Opus add no shadow, gradient, animation or color to the circle',
+);
+// Sonnet's recolors, by hue: every changed sample carries a blue between sky and indigo.
+function hue(hex: string): number | null {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d <= GRAY_SPREAD) return null;
+  const h6 = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return h6 * 60;
+}
+const isBlue = (t: Trial) => t.hex_colors.some((x) => {
+  const deg = hue(x);
+  return deg !== null && deg >= 190 && deg <= 250;
+});
+const sonnetChanged = sample('circle', 'sonnet').trials.filter((t) => !t.unchanged);
+claim(sonnetChanged.every(isBlue), 'Sonnet paints the circle blue every time it changes the file');
+// The stat line under each model's heading. An unchanged file is always the same
+// picture, so when the two counts match they are one fact and the line says it once.
+const READOUT: Feature[] = ['glow_or_shadow', 'gradient_667eea', 'recolored', 'keyframes'];
+claim(
+  ORDER.every((m) => sample('circle', m).trials.every((t) => !t.unchanged || t.same_picture === true)),
+  'every unchanged circle sample is also the same picture',
+);
+function readout(m: Model): string {
+  const s = circle[m].shares;
+  const same = `${FEATURE_LABEL.same_picture} ${fmtPct(s.same_picture.share)}`;
+  const tail = s.unchanged.count !== s.same_picture.count
+    ? [same, `${FEATURE_LABEL.unchanged} ${fmtPct(s.unchanged.share)}`]
+    : [s.unchanged.count > 0 ? `${same}, all unchanged` : same];
+  return [...READOUT.map((k) => `${FEATURE_LABEL[k]} ${fmtPct(s[k].share)}`), ...tail].join(' · ');
+}
 
-// § 2
-const hex = hexShares(trials.filter(isArtifact));
-const prior = ['#667eea', '#764ba2'];
-const priorShare = hex.overall.find((x) => x.hex === prior[0]);
-const priorByOthers = trials.filter((t) => isArtifact(t) && t.model !== 'haiku' && t.hex_colors.includes(prior[0])).length;
-const relayHexByOthers = relay('circle').trials.concat(relay('html').trials).filter(
-  (t) => t.model !== 'haiku' && t.hex_colors.includes(prior[0]),
-).length;
+// § 2: the charts and the "most common" sentence count samples only. A chain
+// step inherits its colors, so pooling chains would count one lineage 64 times.
+const PAIR = ['#667eea', '#764ba2'];
+const hasPair = (t: Trial) => PAIR.some((x) => t.hex_colors.includes(x));
+const samples = trials.filter((t) => isArtifact(t) && t.mode === 'sample' && t.task !== 'replica');
+const hex = hexShares(samples);
+const white = hex.overall.find((x) => x.hex === '#ffffff');
+claim(
+  PAIR.includes(hex.overall[0].hex) && PAIR.includes(hex.overall[1].hex) && hex.overall[2].hex === '#ffffff',
+  'the pair’s two values are the two most common colors in the samples, ahead of white',
+);
+const pairSamples = samples.filter(hasPair);
+claim(pairSamples.every((t) => PAIR.every((x) => t.hex_colors.includes(x))), 'every sample that uses one value of the pair uses both');
+claim(pairSamples.every((t) => t.model === 'haiku'), 'every sample with the pair is Haiku’s');
+claim(!trials.some((t) => isArtifact(t) && t.model !== 'haiku' && hasPair(t)), 'the other three models never used either value');
+const relaySteps = [...relay('circle').trials, ...relay('html').trials];
+const relayHaiku = relaySteps.filter((t) => t.model === 'haiku').length;
+claim(!relaySteps.some(hasPair), 'neither value of the pair appears in a relay step');
+const haikuArt = campaign.filter((t) => isArtifact(t) && t.model === 'haiku' && t.hex_count !== null);
+const haikuArtPair = haikuArt.filter((t) => t.hex_colors.includes(PAIR[0])).length / haikuArt.length;
 const pilotPrior = featureShares(trials.filter((t) => t.mode === 'pilot')).shares.gradient_667eea;
 const roomPrior = featureShares(run('replica-sample-claude-haiku-4-5-20251001-low').trials).shares.gradient_667eea;
+const beyondWhite = (m: Model) => hex.byModel[m].top.filter((x) => x.hex !== '#ffffff');
+claim(beyondWhite('haiku').slice(0, 2).every((x) => PAIR.includes(x.hex)), 'Haiku’s palette beyond white is the pair');
+const sonnetPalette = beyondWhite('sonnet').slice(0, 3).map((x) => x.hex);
+const writesHex = (m: Model) => samples.filter((t) => t.model === m && t.hex_colors.length > 0).length;
+claim(writesHex('fable') === 1 && writesHex('opus') === 1, 'Fable and Opus each write a hex value in one sample');
 
 // § 3
 const svg = Object.fromEntries(ORDER.map((m) => [m, featureShares(sample('svg', m).trials)])) as Record<Model, ReturnType<typeof featureShares>>;
 const html = Object.fromEntries(ORDER.map((m) => [m, featureShares(sample('html', m).trials)])) as Record<Model, ReturnType<typeof featureShares>>;
+const svgSeedBytes = new TextEncoder().encode(seedOf('svg')).length;
+const asks = (t: Trial) => t.result.includes('?');
+claim(sample('svg', 'opus').trials.filter((t) => t.unchanged).every(asks), 'Opus asks in every empty SVG it leaves alone');
+const opusHtml = sample('html', 'opus').trials;
+const isSkeleton = (t: Trial) => {
+  const o = outputOf(t) ?? '';
+  return /^<!doctype html>/i.test(o) && /<html\b[^>]*\blang=/i.test(o) && /<meta\s+charset=/i.test(o) && /<body\b/i.test(o);
+};
+const opusSkeletons = opusHtml.filter(isSkeleton).length;
+claim(!opusHtml.some(asks), 'Opus asks nothing on the empty HTML page');
+claim(samePictureCount(opusHtml).count === opusHtml.length, 'Opus’s HTML skeletons render as blank as the seed');
 const fableSvg = sample('svg', 'fable').trials;
 const drew = fableSvg.filter((t) => /<(path|circle|rect|ellipse|polygon|polyline|line|text)\b/i.test(outputOf(t) ?? ''));
 const fableSvgChanged = fableSvg.filter((t) => !t.unchanged).length;
-const opusAsks = sample('svg', 'opus').trials[1];
+claim(
+  drew.every((t) => /\b(numeral|digit)\s*["“]?0\b/i.test(t.result) && /file ?name/i.test(t.result)),
+  'each Fable drawing is a numeral 0, guessed from the file name by its own account',
+);
+claim(
+  fableSvg.filter((t) => !t.unchanged && t.same_picture === true).length === fableSvgChanged - drew.length,
+  'every Fable SVG that drew nothing still renders blank',
+);
+const fableBlank = samePictureCount(fableSvg).count;
+const haikuSvgChanged = sample('svg', 'haiku').trials.filter((t) => !t.unchanged);
+claim(haikuSvgChanged.every((t) => /<circle\b/i.test(outputOf(t) ?? '')), 'every empty SVG Haiku changed draws a circle');
+const haikuSvgGradients = haikuSvgChanged.filter((t) => t.linear_gradient || t.radial_gradient).length;
+const haikuSvgPair = haikuSvgChanged.filter((t) => t.gradient_667eea).length;
+const opusAsksQuote = sample('svg', 'opus').trials[1];
 const fableDraws = drew[0];
 const sonnetAsks = sample('html', 'sonnet').trials[1];
 
@@ -94,35 +218,106 @@ const curves = {
   html: [...ORDER.map((m) => [MODEL_LABEL[m], chainCurve(chain('html', m))] as const), ['relay', chainCurve(relay('html'))] as const],
 };
 const haikuCircleChain = chain('circle', 'haiku');
-const lateHaiku = featureShares(haikuCircleChain.trials.filter((t) => t.step >= 49));
+const chainN = haikuCircleChain.n;
+const lateFrom = chainN - 15; // the last sixteen steps
+const lateHaiku = featureShares(haikuCircleChain.trials.filter((t) => t.step >= lateFrom));
+claim(
+  (['glow_or_shadow', 'keyframes', 'script', 'nondeterministic'] as const).every((k) => lateHaiku.shares[k].count === lateHaiku.n),
+  `Haiku's circle chain steps ${lateFrom} to ${chainN} all have a shadow or glow, an animation and a script, and all call Math.random or the clock`,
+);
+claim(
+  (['fable', 'opus'] as const).every((m) => samePictureCount(chain('circle', m).trials).count === chain('circle', m).n),
+  'no step of the Fable or Opus circle chain changes the picture',
+);
+const sonnetCircleChainAnim = featureShares(chain('circle', 'sonnet').trials).shares.keyframes;
+claim(sonnetCircleChainAnim.count === sonnetCircleChainAnim.n, 'Sonnet’s circle chain animates at every step');
+claim(circle.sonnet.shares.keyframes.count === 0, 'none of Sonnet’s circle samples animate');
+claim(featureShares(chain('html', 'sonnet').trials).shares.keyframes.count === 0, 'Sonnet’s HTML chain never animates');
+// In the relays: each time a step inherits a flagged feature, does the next model keep it?
+const CHAIN_FLAGS = [
+  'glow_or_shadow', 'keyframes', 'radial_gradient', 'linear_gradient', 'pulse', 'gradient_667eea', 'script', 'nondeterministic', 'svg_filter',
+] as const;
+let handedOn = 0;
+const dropped: Trial[] = [];
+for (const r of [relay('circle'), relay('html')]) {
+  r.trials.forEach((t, i) => {
+    const prev = r.trials[i - 1];
+    if (!prev) return;
+    for (const k of CHAIN_FLAGS) {
+      if (prev[k] !== true) continue;
+      handedOn++;
+      if (t[k] !== true) dropped.push(t);
+    }
+  });
+}
+const droppers = [...new Set(dropped.map((t) => t.model))];
 const opusPlateau = chain('circle', 'opus').trials.find((t) => t.step === 23)!;
 
 // § 5
 const digit = answerDistribution(trials.filter((t) => t.task === 'digit'));
-const number = Object.fromEntries(ORDER.map((m) => [m, answerDistribution(trials.filter((t) => t.task === 'number' && t.model === m))]));
-const word = Object.fromEntries(ORDER.map((m) => [m, answerDistribution(trials.filter((t) => t.task === 'word' && t.model === m))]));
-const refusal = trials.find((t) => t.task === 'number' && t.model === 'haiku' && t.answer_value === null);
+claim(
+  digit.values[0]?.count === digit.n && MODELS.every((m) => trials.some((t) => t.task === 'digit' && t.model === m)),
+  'all four models gave the same digit every time',
+);
+const number = Object.fromEntries(ORDER.map((m) => [m, answerDistribution(trials.filter((t) => t.task === 'number' && t.model === m))])) as Record<Model, AnswerDistribution>;
+const word = Object.fromEntries(ORDER.map((m) => [m, answerDistribution(trials.filter((t) => t.task === 'word' && t.model === m))])) as Record<Model, AnswerDistribution>;
+// A model's favorite numbers: the answers in at least a tenth of its trials, most common first.
+function favorites(m: Model): string {
+  const d = number[m];
+  const [a, ...rest] = d.values.filter((v) => v.parsed && v.share >= 0.1);
+  if (!rest.length) return `says ${a.value}, ${a.count} times out of ${d.n}`;
+  if (rest.length === 1 && a.count - rest[0].count < d.n / 10) return `splits ${a.value} and ${rest[0].value}`;
+  return `says ${a.value}, then ${list(rest.map((v) => v.value))}`;
+}
+const lantern = word.fable.values[0];
+claim(word.opus.values[0]?.value === lantern.value, 'Fable and Opus give the same word');
+const wordRange = (m: Model) => word[m].values.filter((v) => v.parsed);
+claim(ORDER.every((m) => m === 'sonnet' || wordRange(m).length < wordRange('sonnet').length), 'Sonnet has the most range');
+const SONNET_WORDS = 5;
+const refusals = trials.filter((t) => t.task === 'number' && t.model === 'haiku' && t.answer_form === 'none');
 // Only an answer that came back every single time gets the highlighter.
 const toBars = (d: ReturnType<typeof answerDistribution>, top = 6) =>
-  d.values.slice(0, top).map((v) => ({ label: v.parsed ? v.value : 'no answer', value: v.count, share: v.share, hi: v.count === d.n }));
+  d.values.slice(0, top).map((v) => ({ label: v.value, value: v.count, share: v.share, hi: v.count === d.n }));
 
 // § 6
 const sentences = [...ORDER.map((m) => chain('sentence', m)), relay('sentence')];
+const sentenceSeed = seedOf('sentence').trim();
+const sc = sentences.map(sentenceChain);
+const firstWords = sentences.map((r) => (r.trials[0].added?.[0] ?? '').replace(/\W+$/, '').toLowerCase());
+claim(firstWords.every((w) => w === firstWords[0]), 'every chain’s first word was the same');
+const firstText = sc[0].steps[0].text;
+const oddFirst = sentences
+  .map((r, i) => ({ r, text: sc[i].steps[0].text }))
+  .filter((x) => x.text !== firstText)
+  .map((x) => `${x.r.isRelay ? 'the relay' : NAME(x.r.models[0])}: “${x.text}”`);
+const sonnetBreaks = sc[2].steps.filter((s) => !s.ok);
+// "The relay takes it personally": its last sentence is the only one in the first person singular.
+claim(sc.every((c, i) => /\b(me|my|I)\b/.test(c.final) === sentences[i].isRelay), 'only the relay ends in the first person');
+const sonnetAddedNothing = sonnetBreaks.filter((s) => s.added.length === 0).length;
 
-// § 7
-const spelling = spellingByModel(trials, { transcriptOnly: false });
+// § 7: the campaign only. The pilot is counted in chapter 8 and nowhere else.
+const spelling = spellingByModel(campaign, { transcriptOnly: false });
+const P_UK = ['color_p_uk', 'center_p_uk', 'gray_p_uk', 'ize_p_uk'] as const;
+const steady = campaign.filter((t) => t.model === 'haiku' || t.model === 'sonnet');
+const steadyUk = steady.reduce((a, t) => a + P_UK.reduce((b, k) => b + (t[k] ?? 0), 0) + (t.spell_c_uk ?? 0), 0);
+const codeUk = campaign.filter((t) => (t.spell_c_uk ?? 0) > 0);
+claim(
+  codeUk.length === 1 && codeUk[0].model === 'fable' && runByName.get(codeUk[0].run)?.isRelay === true,
+  'British forms in code appear in one trial, a relay step of Fable’s',
+);
+const codeUkForms = codeUk.reduce((a, t) => a + (t.spell_c_uk ?? 0), 0);
 
 // § 8
 const replica = replicaTable(trials);
 const pilotRun = run('pilot-import');
+const pilotOffSeed = pilotRun.trials.filter((t) => t.from_seed === false).length;
+claim(seedOf('replica') === circleSeed, 'the pilot’s file is the same circle');
 
 // § 9
+claim(trials.every((t) => t.effort === 'low'), 'every row ran at low effort');
 const cost = costByModel(trials);
-const totalWall = trials.filter((t) => t.mode !== 'pilot').reduce((a, t) => a + (t.wall_s ?? 0), 0);
+const totalWall = campaign.reduce((a, t) => a + (t.wall_s ?? 0), 0);
 const halted = loadAll().uncounted.length;
-
-const num = (n: number) => n.toLocaleString('en-US');
-const pctPt = (share: number) => Math.round(share * 100);
 ---
 
 <Base path="/">
@@ -134,27 +329,28 @@ const pctPt = (share: number) => Math.round(share * 100);
       max="xl"
       items={[
         { value: num(h.trialsCampaign), caption: 'trials, each a fresh session' },
-        { value: String(h.models), caption: 'models: Fable 5.1, Opus 5.5, Sonnet 5, Haiku 4.5' },
-        { value: String(h.runs), caption: 'runs: eight tasks, sample and chain' },
+        { value: String(h.models), caption: `models: ${MODELS.map((m) => MODEL_LABEL[m]).join(', ')}` },
+        { value: String(h.runs), caption: `runs: ${say(tasksRun)} tasks, sample and chain` },
         { value: fmtUsd(h.costCampaign), caption: 'API-equivalent cost of the campaign' },
       ]}
     />
   </section>
 
-  <Chapter n={1} id="circle" title="The circle" dek="Haiku has the prior. Nobody else does." rule="none">
+  <Chapter n={1} id="circle" title="The circle" dek="Haiku reaches for a purple gradient. Sonnet paints the circle blue. Fable and Opus leave it black." rule="none">
     <div class="prose">
       <p class="lede">
-        The seed is {seedLines} lines of HTML that draw one black circle, four hundred pixels across, centered on
-        the page. The prompt is <code>improve 0.html</code>. Thirty-two fresh sessions per model, a room with
-        nothing in it but the file, and no second turn.
+        The seed is {seedLines} lines of HTML that draw one black circle, {say(seedDiameter)} pixels across,
+        centered on the page. The prompt is <code>{promptOf('circle')}</code>. {Say(sampleN)} fresh sessions per
+        model, a room with nothing in it but the file, and no second turn.
       </p>
       <p>
-        Haiku adds a glow or shadow in <mark>{frac(circle.haiku.shares.glow_or_shadow)}</mark> samples and
+        Haiku adds a shadow or glow in <mark>{frac(circle.haiku.shares.glow_or_shadow)}</mark> samples and
         reaches for the same two hex values in <mark>{frac(circle.haiku.shares.gradient_667eea)}</mark>. Fable and
         Opus add none of it. They tidy the file ({circle.fable.medianLines} and {circle.opus.medianLines} lines
-        against the seed's {seedLines}) and leave a black circle. Sonnet is in between: it changes nothing in
-        {fmtPct(circle.sonnet.shares.unchanged.share)} of trials and adds a glow in
-        {fmtPct(circle.sonnet.shares.glow_or_shadow.share)}.
+        against the seed’s {seedLines}) and leave a black circle: {frac(circleSame.fable)} Fable renders and
+        {frac(circleSame.opus)} Opus renders are the seed’s, pixel for pixel. Sonnet leaves the file untouched in
+        {fmtPct(circle.sonnet.shares.unchanged.share)} of trials. Whenever it does touch it, the circle turns blue:
+        {sonnetChanged.length} of {sonnetChanged.length}.
       </p>
       <p class="small muted">
         Every cell below is one trial. Click any of them for the source, the render and what the model said it
@@ -166,9 +362,8 @@ const pctPt = (share: number) => Math.round(share * 100);
         <div class="flex between">
           <h3>{MODEL_LABEL[m]}</h3>
           <span class="mono small muted">
-            glow {fmtPct(circle[m].shares.glow_or_shadow.share)} · gradient {fmtPct(circle[m].shares.gradient_667eea.share)} ·
-            animation {fmtPct(circle[m].shares.keyframes.share)} · unchanged {fmtPct(circle[m].shares.unchanged.share)} ·
-            median {circle[m].medianLines} lines · <a href={href(`/runs/${sample('circle', m).name}/`)}>every trial</a>
+            {readout(m)} ·
+            median {plural(circle[m].medianLines ?? 0, 'line')} · <a href={href(`/runs/${sample('circle', m).name}/`)}>every trial</a>
           </span>
         </div>
         <SpecimenGrid trials={sample('circle', m).trials} cols={8} />
@@ -176,7 +371,7 @@ const pctPt = (share: number) => Math.round(share * 100);
     ))}
   </Chapter>
 
-  <Chapter n={2} id="gradient" title="The gradient" dek="One pair of hex values, and one model that cannot stop reaching for them." class="prior" rule="none">
+  <Chapter n={2} id="gradient" title="The gradient" dek="One pair of hex values, and the one model that reaches for them." class="prior" rule="none">
     <div class="prose">
       <p class="lede">
         <code>#667eea</code> to <code>#764ba2</code>. If you have used the web since about 2019 you have seen
@@ -184,19 +379,19 @@ const pctPt = (share: number) => Math.round(share * 100);
         section is the only place on the site that wears it.
       </p>
       <p>
-        It is the most common color in the corpus after white ({fmtPct(priorShare?.share ?? 0)} of all artifact
-        trials use it), and every one of those trials is Haiku's. The other three models used it
-        {priorByOthers === 0 ? 'zero times' : `${priorByOthers} times`}, including in the relay chains, where
-        they were editing Haiku's work with the gradient already in the file.
+        Its two values are the two most common colors in the samples, ahead of white: {pairSamples.length} of the
+        {num(hex.n)} sample trials use both, to white’s {white?.count ?? 0}, and every one of them is Haiku’s. The
+        other three models never used either, in a sample or a chain. The pair never reached the relays: in
+        {relaySteps.length} relay steps, Haiku’s own {relayHaiku} included, neither value appears.
       </p>
     </div>
     <KeyRow
       class="wide"
       items={[
-        { value: `${circle.haiku.shares.gradient_667eea.count}/${circle.haiku.shares.gradient_667eea.n}`, caption: 'circle samples, clean room' },
-        { value: fmtPct(h.haikuArtifacts.hex667eea.share), caption: `of every artifact Haiku touched (${h.haikuArtifacts.n} trials)` },
+        { value: `${circle.haiku.shares.gradient_667eea.count}/${circle.haiku.shares.gradient_667eea.n}`, caption: 'circle samples, in the room' },
+        { value: fmtPct(haikuArtPair), caption: `of every artifact Haiku touched in the campaign (${num(haikuArt.length)} trials)` },
         { value: `${pilotPrior.count}/${pilotPrior.n}`, caption: 'in the contaminated pilot' },
-        { value: fmtPct(roomPrior.share), caption: 'in the pilot’s clean-room replica' },
+        { value: fmtPct(roomPrior.share), caption: 'in the pilot’s room replica' },
       ]}
     />
   </Chapter>
@@ -204,8 +399,8 @@ const pctPt = (share: number) => Math.round(share * 100);
   <section class="grid section hexes">
     <div class="no"></div>
     <div class="wide stack">
-      <h3>Every hex value, by how many artifact trials used it</h3>
-      <HexChart shares={hex.overall} n={hex.n} title={`top 15 of ${num(hex.n)} artifact trials`} size="lg" />
+      <h3>The hex values the samples use most</h3>
+      <HexChart shares={hex.overall} n={hex.n} title={`top ${hex.overall.length} of ${num(hex.n)} sample trials`} size="lg" />
       <div class="permodel">
         {ORDER.map((m) => (
           <div class="stack">
@@ -215,30 +410,33 @@ const pctPt = (share: number) => Math.round(share * 100);
         ))}
       </div>
       <p class="small muted">
-        White is white. Beyond it, Haiku's palette is the gradient pair; Sonnet's is a navy night sky
-        (<code>#1a1a2e</code>, <code>#0d0d17</code>) with a blue orb; Fable and Opus mostly stay in black and
-        near-black, with one Tailwind blue between them.
+        White is white. Beyond it, Haiku’s palette is the gradient pair; Sonnet’s is off-white and Tailwind blue
+        ({sonnetPalette.map((x, i) => <>{i > 0 && ', '}<code>{x}</code></>)}); Fable and Opus barely write a hex
+        value at all. Each did so in {say(writesHex('fable'))} of its {hex.byModel.fable.n} samples, so Opus’s
+        {say(hex.byModel.opus.top.length)} bars all come from one trial. Chain steps are left out, since each one starts from the colors of the step before.
       </p>
     </div>
   </section>
 
-  <Chapter n={3} id="empty" title="Askers and actors" dek="Given nothing at all, Opus asks what you want. Fable draws a zero.">
+  <Chapter n={3} id="empty" title="Askers and actors" dek="Given an empty SVG, Opus asks what you want. Fable sometimes draws a zero.">
     <div class="prose">
       <p class="lede">
-        The empty SVG is forty-one bytes: a root element and nothing else. The empty HTML page is a doctype and a
-        title. The prompt is still “improve”.
+        The empty SVG is {say(svgSeedBytes)} bytes: a root element and nothing else. The empty HTML page is a
+        doctype and a title. The prompt is still “improve”.
       </p>
       <p>
-        Given either, Opus changed nothing in <mark>{frac(svg.opus.shares.unchanged)}</mark> SVG trials and asked
-        what it should be. Sonnet did the same ({fmtPct(svg.sonnet.shares.unchanged.share)} on the SVG,
-        {fmtPct(html.sonnet.shares.unchanged.share)} on the HTML). Fable acted: it changed {fableSvgChanged} of
-        {fableSvg.length} SVGs, and <mark>{drew.length}</mark> of those drew something, usually a numeral 0 guessed
-        from the file name. The rest got structural edits and still render blank. Haiku left
-        {fmtPct(svg.haiku.shares.unchanged.share)} alone and filled the rest with the usual.
+        Given the empty SVG, Opus changed nothing in <mark>{frac(svg.opus.shares.unchanged)}</mark> trials and
+        asked what it should be. Given the empty HTML page, it asked nothing and wrote a standard HTML5 skeleton,
+        {opusSkeletons} times in {opusHtml.length}, which renders as blank as the page it replaced. Sonnet left both
+        alone ({fmtPct(svg.sonnet.shares.unchanged.share)} and {fmtPct(html.sonnet.shares.unchanged.share)}).
+        Fable acted: it changed {fableSvgChanged} of {fableSvg.length} SVGs, and <mark>{drew.length}</mark> of those
+        drew something, each a numeral 0 it guessed, by its own account, from the file name. The rest got structural
+        edits and still render blank. Haiku left {fmtPct(svg.haiku.shares.unchanged.share)} alone. The other
+        {haikuSvgChanged.length} all draw a circle: {haikuSvgGradients} add a gradient, {haikuSvgPair} of them the pair.
       </p>
     </div>
     <div class="wide quotes">
-      <Quote trial={opusAsks} chars={230} />
+      <Quote trial={opusAsksQuote} chars={230} />
       <Quote trial={fableDraws} chars={230} />
       <Quote trial={sonnetAsks} chars={230} />
     </div>
@@ -246,62 +444,69 @@ const pctPt = (share: number) => Math.round(share * 100);
       <div class="flex between">
         <h3>Fable, the empty SVG</h3>
         <span class="mono small muted">
-          changed {fableSvgChanged}/{fableSvg.length} · drew {drew.length} ·
+          changed {fableSvgChanged}/{fableSvg.length} · drew {drew.length} · blank {fableBlank} ·
           <a href={href(`/runs/${sample('svg', 'fable').name}/`)}>every trial</a>
         </span>
       </div>
       <SpecimenGrid trials={fableSvg} cols={8} />
+      <p class="small muted">
+        The empty cells are not missing images: {fableBlank} of the {fableSvg.length} render as a blank page, as the
+        seed does.
+      </p>
     </div>
   </Chapter>
 
-  <Chapter n={4} id="chains" title="Chains" dek="Sixty-four sessions in a row, each handed the last one's output. A chain amplifies whatever a model already does.">
+  <Chapter n={4} id="chains" title="Chains" dek={`${Say(chainN)} sessions in a row, each handed the last one’s output. Chains do things the samples never do.`}>
     <div class="prose">
       <p class="lede">
-        Haiku's circle chain grows from {curves.circle[3][1].first} lines to
+        Haiku’s circle chain grows from {curves.circle[3][1].first} lines to
         <mark>{num(curves.circle[3][1].last ?? 0)}</mark>. Its HTML chain, from a doctype and a title, reaches
-        {num(curves.html[3][1].last ?? 0)}. By steps 49 to 64 every step has a glow
-        ({fmtPct(lateHaiku.shares.glow_or_shadow.share)}), an animation ({fmtPct(lateHaiku.shares.keyframes.share)})
-        and a script ({fmtPct(lateHaiku.shares.script.share)}), and {fmtPct(lateHaiku.shares.nondeterministic.share)} of
-        them use <code>Math.random</code> or the clock, so no render of them is reproducible.
+        {num(curves.html[3][1].last ?? 0)}. Steps {lateFrom} to {chainN} of the circle chain all have a shadow or
+        glow, an animation and a script, and all of them call <code>Math.random</code> or the clock.
       </p>
       <p>
-        Fable and Opus plateau. Their circle chains end at {curves.circle[0][1].last} and {curves.circle[1][1].last}
-        lines, and {fmtPct(curves.circle[0][1].unchangedShare.share)} and
-        {fmtPct(curves.circle[1][1].unchangedShare.share)} of their steps change nothing. Sonnet grows steadily
-        and animates everything. The relay, where the four take turns, goes the way of the decorators: whatever
-        one model adds, the others keep.
+        On the circle, Fable and Opus plateau. Their chains end at {curves.circle[0][1].last} and
+        {curves.circle[1][1].last} lines, {fmtPct(curves.circle[0][1].unchangedShare.share)} and
+        {fmtPct(curves.circle[1][1].unchangedShare.share)} of their steps change nothing, and not one step changes
+        the picture. On the empty HTML page Fable keeps building, to {num(curves.html[0][1].last ?? 0)} lines.
+        Sonnet’s circle chain animates at every step ({sonnetCircleChainAnim.count} of {sonnetCircleChainAnim.n}),
+        though none of its circle samples do, and its HTML chain never does.
+      </p>
+      <p>
+        The relay, where the four take turns, goes the way of the decorators: whatever one model adds, the next
+        almost always keeps. Across both relays, a step inherited a flagged feature {num(handedOn)} times, counting
+        a call to <code>Math.random</code> or the clock as one. The feature was dropped
+        {times(dropped.length)}{droppers.length === 1 ? `${dropped.length > 1 ? ', each time' : ','} on ${NAME(droppers[0])}’s turn` : ''}.
       </p>
     </div>
     <div class="wide">
       <Quote trial={opusPlateau} chars={260} />
     </div>
     <div class="full">
-      <Filmstrip run={haikuCircleChain} title="Haiku 4.5, the circle, 64 steps" startAt={64} />
+      <Filmstrip run={haikuCircleChain} title={`${MODEL_LABEL.haiku}, the circle, ${chainN} steps`} startAt={chainN} />
     </div>
     <div class="wide stack">
-      <h3>Lines in the file at steps 1, 8, 16, 32 and 64</h3>
-      <div class="two">
+      <h3>Lines in the file at steps {list(CHAIN_MARKS)}</h3>
+      <div class="two single">
         {(['circle', 'html'] as const).map((task) => (
-          <div class="scroll"><table>
+          <div class="scroll"><table class="chains">
             <thead>
               <tr>
                 <th>{task} chain</th>
-                <th class="num">1</th>
-                <th class="num">8</th>
-                <th class="num">16</th>
-                <th class="num">32</th>
-                <th class="num">64</th>
                 <th class="num">unchanged</th>
+                {CHAIN_MARKS.map((s) => (
+                  <th class="num">{s}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {curves[task].map(([label, c]) => (
-                <tr class:list={[label === 'Haiku 4.5' && 'is-hi']}>
+                <tr class:list={[label === MODEL_LABEL.haiku && 'is-hi']}>
                   <td>{label}</td>
-                  {[1, 8, 16, 32, 64].map((s) => (
-                    <td class="num">{c.at[s] ?? '·'}</td>
-                  ))}
                   <td class="num">{fmtPct(c.unchangedShare.share)}</td>
+                  {CHAIN_MARKS.map((s) => (
+                    <td class="num">{c.at[s] === null || c.at[s] === undefined ? '·' : num(c.at[s]!)}</td>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -310,7 +515,7 @@ const pctPt = (share: number) => Math.round(share * 100);
       </div>
     </div>
     <div class="full">
-      <Filmstrip run={relay('html')} title="The relay, an empty HTML page, 64 steps: Fable, Opus, Sonnet, Haiku, repeat" startAt={64} />
+      <Filmstrip run={relay('html')} title={`The relay, an empty HTML page, ${relay('html').n} steps: ${relayNames}, repeat`} startAt={relay('html').n} />
     </div>
     <div class="prose">
       <p class="small muted">
@@ -332,59 +537,64 @@ const pctPt = (share: number) => Math.round(share * 100);
     </div>
   </Chapter>
 
-  <Chapter n={5} id="seven" title="The number is 7" dek="Text priors are close to deterministic. Four models, one digit.">
+  <Chapter n={5} id="seven" title={`The number is ${digit.values[0].value}`} dek={`Text priors are close to deterministic. ${Say(h.models)} models, one digit.`}>
     <div class="wide seven">
-      <Numeral value={digit.values[0]?.value ?? ''} caption={`“Choose a single-digit integer.” ${digit.values[0]?.count} of ${digit.n}, all four models, every time.`} size="giant" />
+      <Numeral value={digit.values[0].value} caption={`“${promptOf('digit')}” ${num(digit.values[0].count)} of ${num(digit.n)}, all ${say(h.models)} models, every time.`} size="giant" />
     </div>
     <div class="prose">
       <p class="lede">
-        “Choose a number.” is looser, and the models split along family lines. Fable says 37, then 42. Opus
-        says 42, then 7 and 47. Haiku splits 42 and 7. Sonnet says 7, {number.sonnet.values[0]?.count} times out of
-        {number.sonnet.n}.
+        “{promptOf('number')}” is looser. Fable {favorites('fable')}. Opus {favorites('opus')}. Haiku
+        {favorites('haiku')}. Sonnet {favorites('sonnet')}.
       </p>
       <p>
-        “choose a word.” is the strangest result here. Fable and Opus both say
-        <mark>lantern</mark>, {h.wordLantern.byModel.fable.count} of {h.wordLantern.byModel.fable.n} and
-        {h.wordLantern.byModel.opus.count} of {h.wordLantern.byModel.opus.n}. Haiku says serendipity. Sonnet is
-        the only one with range: kaleidoscope, ember, lighthouse, lantern, marmalade, kite.
+        “{promptOf('word')}” is the strangest result here. Fable and Opus both say
+        <mark>{lantern.value}</mark>, {lantern.count} of {word.fable.n} and {word.opus.values[0].count} of
+        {word.opus.n}. Haiku says {word.haiku.values[0].value}, {word.haiku.values[0].count} times in
+        {word.haiku.n}. Sonnet has the most range, {wordRange('sonnet').length} different words:
+        {wordRange('sonnet').slice(0, SONNET_WORDS).map((v) => v.value).join(', ')} and
+        {wordRange('sonnet').length - SONNET_WORDS} more.
       </p>
     </div>
     <div class="wide two">
       <div class="stack">
-        <h3>“Choose a number.”</h3>
+        <h3>“{promptOf('number')}”</h3>
         {ORDER.map((m) => (
-          <Bars title={MODEL_LABEL[m]} items={toBars(number[m], 5)} max={100} format="count" />
+          <Bars title={MODEL_LABEL[m]} items={toBars(number[m], 5)} max={number[m].n} format="count" />
         ))}
       </div>
       <div class="stack">
-        <h3>“choose a word.”</h3>
+        <h3>“{promptOf('word')}”</h3>
         {ORDER.map((m) => (
-          <Bars title={MODEL_LABEL[m]} items={toBars(word[m], 6)} max={100} format="count" />
+          <Bars title={MODEL_LABEL[m]} items={toBars(word[m], 6)} max={word[m].n} format="count" />
         ))}
       </div>
     </div>
-    {refusal && (
+    {refusals.length > 0 && (
       <div class="wide stack">
-        <p class="small muted">Haiku declined exactly once in {number.haiku.n} number trials:</p>
-        <Quote trial={refusal} chars={200} />
+        <p class="small muted">
+          Haiku declined {times(refusals.length)} in {number.haiku.n} number trials: the reply below{refusals.slice(1).map((t) => (
+            <>, and <a href={href(`/runs/${t.run}/${pad3(t.step)}/`)}>trial {pad3(t.step)}</a></>
+          ))}.
+        </p>
+        <Quote trial={refusals[0]} chars={200} />
       </div>
     )}
   </Chapter>
 
-  <Chapter n={6} id="sentences" title="Sentences" dek="The seed is one word: The. Add a single word, keep it a sentence, sixty-four times. Every model’s first word was end.">
+  <Chapter n={6} id="sentences" title="Sentences" dek={`The seed is ${say(sentenceSeed.split(/\s+/).length)} word: ${sentenceSeed}. Add a single word, keep it a sentence, ${say(chainN)} times. Every model’s first word was ${firstWords[0]}.`}>
     <div class="prose">
       <p class="lede">
-        From “The end.” the chains diverge into four voices. Fable and Opus keep the rule
-        {sentenceChain(sentences[0]).kept}/{sentenceChain(sentences[0]).total} and
-        {sentenceChain(sentences[1]).kept}/{sentenceChain(sentences[1]).total} and stack adjectives. Haiku turns
-        martial. Sonnet goes archaic Title Case and declines to add a word
-        {sentenceChain(sentences[2]).total - sentenceChain(sentences[2]).kept} times.
+        From “{firstText}”{oddFirst.length > 0 && ` (${oddFirst.join('; ')})`} the {say(sentences.length)} chains diverge.
+        Fable and Opus keep the rule {sc[0].kept}/{sc[0].total} and {sc[1].kept}/{sc[1].total} and stack
+        adjectives. Haiku turns martial. Sonnet goes archaic Title Case and breaks the rule {sonnetBreaks.length}
+        times, {sonnetAddedNothing} of them by adding nothing. The relay takes it personally: its sentence is the
+        only one that ends in the first person.
       </p>
-      <p class="small muted">Scrub back from step 64 to watch each one grow. The marked word is the one that step added.</p>
+      <p class="small muted">Scrub back from step {chainN} to watch each one grow. The marked word is the one that step added.</p>
     </div>
     {sentences.map((r) => (
       <div class="wide">
-        <SentenceScrub run={r} title={r.isRelay ? 'The relay: Fable, Opus, Sonnet, Haiku, repeat' : MODEL_LABEL[r.models[0]]} />
+        <SentenceScrub run={r} title={r.isRelay ? `The relay: ${relayNames}, repeat` : MODEL_LABEL[r.models[0]]} />
       </div>
     ))}
   </Chapter>
@@ -396,13 +606,12 @@ const pctPt = (share: number) => Math.round(share * 100);
         excluded: Fable wrote the British form in {spelling.fable.families.color.ukOnly} trials, the American in
         {spelling.fable.families.color.usOnly}, and both in the same trial {spelling.fable.families.color.both}
         times. Opus went {spelling.opus.families.color.ukOnly} British to {spelling.opus.families.color.usOnly}
-        American. Haiku and Sonnet: {spelling.haiku.families.color.uk + spelling.sonnet.families.color.uk} British
-        forms in {spelling.haiku.n + spelling.sonnet.n} trials.
+        American. Haiku and Sonnet: {steadyUk} British forms in {num(steady.length)} trials.
       </p>
       <p>
-        The word for the middle follows the same pattern. Code is American throughout, because CSS keywords
-        are. Everything ran at low effort, so this says nothing about effort, and nothing about the API without
-        the harness.
+        The word for the middle follows the same pattern. Code is American in all but {say(codeUk.length)} trial,
+        and CSS leaves it little choice: the property is <code>color</code> and the value is <code>center</code>. The
+        odd one out holds {say(codeUkForms)} British forms, in comments {NAME(codeUk[0].model)} wrote in a relay step.
       </p>
     </div>
     <div class="wide scroll">
@@ -429,7 +638,7 @@ const pctPt = (share: number) => Math.round(share * 100);
         {ORDER.map((m) => (
           <tr>
             <td>{MODEL_LABEL[m]}</td>
-            <td class="num">{spelling[m].n}</td>
+            <td class="num">{num(spelling[m].n)}</td>
             <td class="num">{spelling[m].families.color.ukOnly}</td>
             <td class="num">{spelling[m].families.color.usOnly}</td>
             <td class="num">{spelling[m].families.color.both}</td>
@@ -443,18 +652,19 @@ const pctPt = (share: number) => Math.round(share * 100);
     </div>
   </Chapter>
 
-  <Chapter n={8} id="contamination" title="Contamination" dek="Most of the pilot's spectacle came from the trials seeing each other, not from the prior.">
+  <Chapter n={8} id="contamination" title="Contamination" dek="Most of the pilot’s spectacle came from the trials seeing each other, not from the prior.">
     <div class="prose">
       <p class="lede">
-        The pilot was the first loop, run by hand on a laptop before the room existed: Haiku, the same circle,
-        the same prompt, thirty-two times. It animated, it wrote scripts, and in {replica[0].features.shares.mentions_server.count} of
-        {replica[0].n} trials it asked to start a web server.
+        The pilot was the first loop, a shell script run in an ordinary Claude Code setup before the room existed:
+        Haiku, the same circle under another name, <code>{promptOf('replica')}</code>, {say(pilotRun.n)} times. It
+        animated, it wrote scripts, and {replica[0].features.shares.mentions_server.count} of its {replica[0].n}
+        replies brought up a web server, asking to start one or telling the reader how.
       </p>
       <p>
-        The trials shared a git repository. Each one saw the previous trials' commit messages in its context,
-        their screenshots in the working directory, and four of them edited the previous output instead of the
-        seed. Replayed properly, once with the full user configuration and once in the clean room, the glow and
-        the gradient survive and almost nothing else does. Those two are the prior. The animation, the scripts
+        The trials shared a git repository. Each one saw the previous trials’ commit messages in its context,
+        their screenshots in the working directory, and {say(pilotOffSeed)} of them edited the previous output
+        instead of the seed. Replayed properly, once with the full user configuration and once in the room,
+        the shadow and the gradient survive and almost nothing else does. Those two are the prior. The animation, the scripts
         and the server talk were the trials talking to each other.
       </p>
     </div>
@@ -464,7 +674,7 @@ const pctPt = (share: number) => Math.round(share * 100);
         <tr>
           <th>condition</th>
           <th class="num">n</th>
-          <th class="num">glow</th>
+          <th class="num">{FEATURE_LABEL.glow_or_shadow}</th>
           <th class="num">gradient</th>
           <th class="num">animation</th>
           <th class="num">pulse</th>
@@ -477,14 +687,14 @@ const pctPt = (share: number) => Math.round(share * 100);
         {replica.map((r) => (
           <tr>
             <td>{r.label}</td>
-            <td class="num">{r.n}</td>
+            <td class="num">{num(r.n)}</td>
             <td class="num">{fmtPct(r.features.shares.glow_or_shadow.share)}</td>
             <td class="num">{fmtPct(r.features.shares.gradient_667eea.share)}</td>
             <td class="num">{fmtPct(r.features.shares.keyframes.share)}</td>
             <td class="num">{fmtPct(r.features.shares.pulse.share)}</td>
             <td class="num">{fmtPct(r.features.shares.script.share)}</td>
             <td class="num">{fmtPct(r.features.shares.mentions_server.share)}</td>
-            <td class="num">{r.features.medianLines}</td>
+            <td class="num">{r.features.medianLines === null ? '·' : num(r.features.medianLines)}</td>
           </tr>
         ))}
       </tbody>
@@ -501,7 +711,7 @@ const pctPt = (share: number) => Math.round(share * 100);
     </div>
   </Chapter>
 
-  <Chapter n={9} id="cost" title="Cost, and what this cannot say" dek="A hundred dollars of API-equivalent spend, and four questions it does not answer.">
+  <Chapter n={9} id="cost" title="Cost, and what this cannot say" dek={`About $${num(Math.round(cost.totalCampaign))} of API-equivalent spend, and four questions it does not answer.`}>
     <KeyRow
       class="wide"
       items={[
@@ -528,7 +738,7 @@ const pctPt = (share: number) => Math.round(share * 100);
         {ORDER.map((m) => (
           <tr>
             <td>{MODEL_LABEL[m]} <span class="mono muted small">{MODEL_ID[m]}</span></td>
-            <td class="num">{cost.campaign[m].n}</td>
+            <td class="num">{num(cost.campaign[m].n)}</td>
             <td class="num">{fmtUsd(cost.campaign[m].totalCost)}</td>
             <td class="num">{fmtUsd(cost.campaign[m].medianCost ?? 0)}</td>
             <td class="num">{(cost.campaign[m].medianWall ?? 0).toFixed(1)} s</td>
@@ -545,19 +755,19 @@ const pctPt = (share: number) => Math.round(share * 100);
         <li>Anything about effort. Every row ran at <code>low</code>.</li>
         <li>Anything about the API without Claude Code. There is no API arm; the subject is the model inside the harness.</li>
         <li>
-          Whether the pilot's extras came from the shared history alone or from the history plus a dev-server rule in
+          Whether the pilot’s extras came from the shared history alone or from the history plus a dev-server rule in
           the user configuration. That needs a third arm.
         </li>
-        <li>Much at n=32: a 50% share carries about ±{pctPt(marginOfError(32))} points at 95%, less near 0% or 100%.</li>
+        <li>Much at n={sampleN}: a 50% share carries about ±{pctPt(marginOfError(sampleN))} points at 95%, less near 0% or 100%.</li>
       </ul>
       <h3 class="later">What comes next</h3>
       <ul>
         <li>Effort arms. Does higher effort turn Opus and Sonnet from askers into actors? Cheapest on the empty SVG.</li>
-        <li>The word, at temperature. Is "lantern" the room's system prompt or the model? An API arm would tell them apart.</li>
-        <li>A contamination arm that shows previous trials' commits on purpose, to reproduce the pilot.</li>
+        <li>The word, at temperature. Is “{lantern.value}” the room’s system prompt or the model? An API arm would tell them apart.</li>
+        <li>A contamination arm that shows previous trials’ commits on purpose, to reproduce the pilot.</li>
       </ul>
       <p>
-        The runner, the tasks, every output, every transcript and the tally are in the
+        The runner, the tasks, every output, every counted transcript from the room and the tally are in the
         <a href="https://github.com/centricle/priors" rel="noopener">repository</a>. Pull requests with an API arm
         are welcome.
       </p>
@@ -569,11 +779,11 @@ const pctPt = (share: number) => Math.round(share * 100);
     <div class="wide stack-lg">
       <h2>Every trial is here.</h2>
       <p class="dek">
-        {num(h.trialsAll)} pages, one per trial, with the render, the source, the diff and what the model said it
-        did. The room is documented down to the argv. The CSV is one click.
+        {num(h.trialsAll)} pages, one per trial, the pilot included, with what the model said it did and, where
+        they exist, the render, the source and the diff. The room is documented down to the argv. The CSV is one click.
       </p>
       <div class="more">
-        <a class="btn" href={href('/runs/')}>Browse all {h.runs} runs</a>
+        <a class="btn" href={href('/runs/')}>Browse all {h.runs} runs and the pilot</a>
         <a class="btn btn-ghost" href={href('/method/')}>How the room was built</a>
         <a class="btn btn-ghost" href={href('/data/')}>Download the data</a>
       </div>
@@ -590,14 +800,24 @@ const pctPt = (share: number) => Math.round(share * 100);
   :global(.chapter.prior) {
     background: linear-gradient(135deg, var(--p1) 0%, var(--p2) 100%);
     --ink: #ffffff;
-    --ink-2: rgb(255 255 255 / 0.78);
-    --ink-3: rgb(255 255 255 / 0.55);
+    /* White on #667eea is 3.66:1 at best, so nothing in here goes dimmer than white. */
+    --ink-2: #ffffff;
+    --ink-3: #ffffff;
     --hair: rgb(255 255 255 / 0.35);
     --hair-2: rgb(255 255 255 / 0.12);
     color: #fff;
   }
+  /* White on #667eea stays under 4.5:1, so the copy is sized as large text (24px), which only needs 3:1. */
+  :global(.chapter.prior .prose p),
+  :global(.chapter.prior .dek) {
+    font-size: 24px;
+    line-height: 1.35;
+  }
   :global(.chapter.prior code) {
     background: rgb(255 255 255 / 0.16);
+  }
+  :global(.chapter.prior .prose code) {
+    font-size: 1em;
   }
   :global(.chapter.prior a:hover) {
     color: var(--mark-ink);
@@ -638,6 +858,21 @@ const pctPt = (share: number) => Math.round(share * 100);
     .two {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    /* The chain tables need about 612px each; side by side at 1440 they clip the "unchanged" column. */
+    .two.single {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  /* One set of column widths for both chain tables, so their step columns line up.
+     "unchanged" comes second, so the column the prose cites is on screen at 390. */
+  .chains {
+    table-layout: fixed;
+  }
+  .chains th:nth-child(1) {
+    width: 20%;
+  }
+  .chains th:nth-child(2) {
+    width: 16%;
   }
 
   .seven {

@@ -2,12 +2,65 @@
 import Base from '../layouts/Base.astro';
 import Chapter from '../components/Chapter.astro';
 import { href } from '../lib/href.mjs';
-import { loadAll, MODELS, MODEL_LABEL, MODEL_ID, TASKS, seedOf, promptOf, fmtUsd, type Task } from '../lib/data.ts';
-import { headline, costByModel } from '../lib/stats.ts';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { loadAll, MODELS, MODEL_LABEL, MODEL_ID, TASKS, seedOf, promptOf, fmtUsd, isCampaign, repoRoot, type Task, type Trial } from '../lib/data.ts';
+import { costByModel } from '../lib/stats.ts';
 
 const { trials, runs, uncounted } = loadAll();
-const h = headline(trials);
 const cost = costByModel(trials);
+const fmt = (n: number) => n.toLocaleString('en-US');
+
+// The 2,608 counted trials split by where they ran; the pilot sits outside them.
+const campaign = trials.filter(isCampaign);
+const campaignRuns = new Set(campaign.map((t) => t.run)).size;
+const inRoom = campaign.filter((t) => t.profile === 'room');
+const harness = campaign.filter((t) => t.profile === 'harness');
+const pilot = trials.filter((t) => !isCampaign(t));
+const harnessRun = harness[0]?.run ?? '';
+
+// The golden verdict lives in trials.jsonl, not the CSV, so read it here.
+const harnessGolden = (() => {
+  const path = join(repoRoot(), 'runs', harnessRun, 'trials.jsonl');
+  const lines: { counted: boolean; step: number; golden?: string }[] =
+    harnessRun && existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
+  const counted = lines.filter((l) => l.counted);
+  const first = counted.find((l) => l.golden === 'golden');
+  const others = counted.filter((l) => l !== first);
+  const mismatch = others.filter((l) => l.golden === 'mismatch').length;
+  return {
+    from: first ? (first.step === 1 ? 'the first trial' : `trial ${first.step}`) : 'one trial',
+    differed: mismatch === others.length ? `all ${fmt(others.length)} others` : `${fmt(mismatch)} of the ${fmt(others.length)} others`,
+  };
+})();
+
+// Read every output once: the Google Fonts count and the email count below both need it.
+const outputs = trials.map((t) => ({ t, src: t.output ?? '' }));
+const googleFonts = outputs.filter((o) => o.src.includes('fonts.googleapis.com')).length;
+
+// The account's address, as a model wrote it into a page's author tag, then every output that carries it.
+const authorEmail = outputs.map((o) => /<meta name="author" content="([^"\s]+@[^"\s]+)"/.exec(o.src)?.[1]).find(Boolean) ?? null;
+const withEmail = authorEmail ? outputs.filter((o) => o.src.includes(authorEmail)).map((o) => o.t) : [];
+const emailRuns = [...new Set(withEmail.map((t) => t.run))];
+const emailRun = emailRuns.length === 1 ? runs.find((r) => r.name === emailRuns[0]) : undefined;
+// Consecutive steps that carry it, and the model that put it there each time.
+const stretches: { from: Trial; n: number }[] = [];
+for (const t of emailRun?.mode === 'chain' ? emailRun.trials : []) {
+  const has = withEmail.includes(t);
+  const cur = stretches[stretches.length - 1];
+  if (has && cur && cur.from.step + cur.n === t.step) cur.n++;
+  else if (has) stretches.push({ from: t, n: 1 });
+}
+const joinAnd = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+const adders = [...new Set(stretches.map((s) => s.from.model))];
+const emailWhere =
+  stretches.length === 0
+    ? ''
+    : adders.length === 1
+      ? `${MODEL_LABEL[adders[0]]} made it the page’s author at step${stretches.length > 1 ? 's' : ''} ${joinAnd(stretches.map((s) => String(s.from.step)))}, and it stayed for ${joinAnd(stretches.map((s) => String(s.n)))} steps`
+      : `it was made the page’s author at ${joinAnd(stretches.map((s) => `step ${s.from.step} by ${MODEL_LABEL[s.from.model]}`))}, and stayed for ${joinAnd(stretches.map((s) => String(s.n)))} steps`;
+
+const flaggedClock = trials.filter((t) => t.nondeterministic === true).length;
 const cli = [...new Set(trials.filter((t) => t.mode !== 'pilot').map((t) => t.cli_version))].join(', ');
 const started = trials.filter((t) => t.mode !== 'pilot').map((t) => t.started_utc).sort();
 const first = started[0]?.slice(0, 10);
@@ -37,6 +90,14 @@ const argv = [
   '-p "<prompt>"',
 ];
 
+// bin/lib.sh build_argv, profile harness: the pilot's own argv plus what it takes to record it.
+const harnessArgv = [
+  `--model ${harness[0]?.model_asked ?? '<alias>'} --effort low`,
+  '--session-id <uuid>',
+  '--output-format stream-json --verbose',
+  '-p "<prompt>"',
+];
+
 const halt = uncounted[0];
 ---
 
@@ -54,25 +115,36 @@ const halt = uncounted[0];
   <Chapter n="A" id="room" title="The room" dek="A stripped session: no instruction files, no memory, no skills, no MCP servers, four tools, and no reach outside its own directory.">
     <div class="prose">
       <p>
-        Every trial is one <code>claude -p</code> process, launched in a fresh, empty directory under the
-        system temp directory that holds only the seed file. The directory is not a git repository, on
-        purpose: the pilot's trials shared one, and read each other's commit messages. The launch is
-        exactly this, with the CLI at version <span class="mono">{cli}</span>:
+        Every counted trial is one <code>claude -p</code> process, launched in a fresh directory under the
+        system temp directory that holds only its input: the seed file, the previous step’s output in a
+        chain, or nothing for a question. The directory is not a git repository, on purpose: the pilot’s
+        trials shared one, and read each other’s commit messages. The room’s launch is exactly this, with
+        the CLI at version <span class="mono">{cli}</span>:
       </p>
       <pre><code>{argv.join('\n')}</code></pre>
       <ul>
-        <li><code>--safe-mode</code> drops user instruction files, hooks, skills, memory and MCP servers. The system prompt falls from about 28 KB to 14 KB.</li>
-        <li><code>--tools Read,Write,Edit,Bash</code> pins the surface. Glob and Grep are not offered, matching the CLI's default surface at this version.</li>
+        <li><code>--safe-mode</code> drops user instruction files, hooks, skills, memory and MCP servers. Haiku’s system prompt falls from about 28 KB to 15 KB, and to 14 KB with the rest of this launch. Sonnet gets the same 14 KB in the room; Fable and Opus get a shorter prompt from the CLI, about 6 KB and 4 KB.</li>
+        <li><code>--tools Read,Write,Edit,Bash</code> pins the surface. Glob and Grep are not offered, matching the CLI’s default surface at this version.</li>
         <li><code>--restricted</code> confines the file tools to the working directory and ignores project settings a model might write. Reads and writes outside it, <code>env</code>, <code>curl</code>, <code>open</code> and starting a server are all denied. Read-only shell commands inside the directory still run.</li>
-        <li>The attribution setting stops the CLI from asking the model to sign commits with a trailer, which would otherwise be the only instruction in the room.</li>
+        <li>The attribution setting stops the CLI from asking the model to sign commits with a trailer, which would otherwise be the only instruction in the room beyond the harness’s standing guidance.</li>
         <li><code>--effort low</code> on every trial, for every model. Effort is recorded nowhere in the session record on this version, so the argument is the only proof of it.</li>
-        <li>One session id per trial, never reused. The session record is hashed against a golden record for the run; a trial whose system prompt or tool list differs is halted and retried, and the halted attempt is kept but not counted.</li>
+        <li>One session id per trial, never reused. The session record is hashed against a golden record for its model: the system prompt, the tools and whatever is attached before the first reply. A room trial that differs is halted and retried, and the halted attempt is recorded but not counted.</li>
       </ul>
       <p>
         This is not a stock install. It is more bare than one. What the model is still told: an environment
         block (working directory, platform, shell, OS version, the fact that it is not a git repository), the
-        date, its own model name and id with a knowledge cutoff, the account's email address, a token budget
-        line, and the harness's standing guidance about how to behave as a coding agent.
+        date, its own model name and id with a knowledge cutoff, the account’s email address, a token budget
+        line, and the harness’s standing guidance about how to behave as a coding agent.
+      </p>
+      <p>
+        One run is the exception. The {fmt(harness.length)} trials of the <a href={href(`/runs/${harnessRun}/`)}>harness
+        replica</a> launch the way the pilot did, with the full user configuration, plus a session id and
+        stream-json output so they can be recorded:
+      </p>
+      <pre><code>{harnessArgv.join('\n')}</code></pre>
+      <p>
+        Their records are hashed against a golden too, but a mismatch is recorded, not halted. The golden came
+        from {harnessGolden.from}, and {harnessGolden.differed} differed from it.
       </p>
     </div>
   </Chapter>
@@ -81,7 +153,7 @@ const halt = uncounted[0];
     <div class="prose">
       <p>
         A <strong>sample</strong> run starts every trial from the seed. A <strong>chain</strong> run hands each
-        trial the previous trial's output, sixty-four times. A <strong>relay</strong> is a chain where the four
+        trial the previous trial’s output, sixty-four times. A <strong>relay</strong> is a chain where the four
         models take turns in the order Fable, Opus, Sonnet, Haiku. The prompt is the same at every step.
       </p>
     </div>
@@ -96,21 +168,24 @@ const halt = uncounted[0];
           {s.seed ? (
             <pre><code>{s.seed}</code></pre>
           ) : (
-            <p class="small muted">No file. The answer is the model's reply.</p>
+            <p class="small muted">No file. The answer is the model’s reply.</p>
           )}
         </div>
       ))}
     </div>
     <div class="prose">
       <p class="small muted">
-        The circle's title and id are random hex so the file name carries no hint. The replica keeps the pilot's
+        The circle’s title and SVG id are random hex, so they carry no hint. The file names do: every seed but
+        the replica’s is <code>0.html</code>, <code>0.svg</code> or <code>0.txt</code>, and the empty HTML
+        page’s title is <code>0</code>. Fable’s zeros on
+        the empty SVG came from that name, by its own account. The replica keeps the pilot’s
         file name, <code>f7b3.html</code>, byte for byte. The prompts differ in capitalization and punctuation
         between tasks, which is a confound if you compare tasks against each other; compare models within a task.
       </p>
     </div>
   </Chapter>
 
-  <Chapter n="C" id="models" title="Models" dek="Four, pinned by full id. The alias haiku in the pilot resolved to the same Haiku.">
+  <Chapter n="C" id="models" title="Models" dek="Four, pinned by full id. The alias haiku, used by the pilot and the harness replica, resolved to the same Haiku.">
     <table class="wide">
       <thead>
         <tr>
@@ -146,12 +221,12 @@ const halt = uncounted[0];
       <p>
         Headless Chrome 154, an 800 by 800 viewport, <code>prefers-color-scheme</code> pinned to light, two
         seconds of virtual time, no network, then WebP at quality 80. Static pages render byte-identically on the
-        same Chrome build and fonts. Animated pages differ by a fraction of a percent of pixels between runs. Pages
-        that use <code>Math.random</code> or the clock differ every time, and are flagged as nondeterministic on
-        their trial pages, where you can run the source live in a sandboxed frame instead.
+        same Chrome build and fonts. Pages that animate, or call <code>Math.random</code> or the clock, can differ
+        from one render to the next. {fmt(flaggedClock)} outputs call <code>Math.random</code> or the clock, and
+        their trial pages say so. Any artifact can also be run live on its trial page, in a sandboxed frame.
       </p>
       <p>
-        Live pages can fetch what the offline render could not: {trials.filter((t) => (t.output ?? '').includes('fonts.googleapis.com')).length}
+        Live pages can fetch what the offline render could not: {fmt(googleFonts)}
         outputs reference Google Fonts. The render shows the fallback; the live frame shows the intended face.
       </p>
     </div>
@@ -160,27 +235,35 @@ const halt = uncounted[0];
   <Chapter n="E" id="counting" title="Counting" dek="Every attempt gets a row. Failures are retried and not counted. A chain never advances on a failure.">
     <div class="prose">
       <ul>
-        <li>{h.trialsCampaign.toLocaleString('en-US')} counted trials in {h.runs} runs, plus the 32-trial pilot kept separately as its own condition.</li>
-        <li>{uncounted.length} attempt{uncounted.length === 1 ? '' : 's'} halted and retried{halt ? `: ${halt.run}, step ${halt.step}` : ''}. The CLI served that session a system prompt with different section headings, so its record did not hash against the run's golden. Cause unresolved.</li>
-        <li>Feature flags are regular expressions over the output file: a glow is a shadow property, a blur filter or the word itself; the gradient flag needs both hex values present; nondeterministic means <code>Math.random</code>, <code>Date.now</code>, <code>new Date</code>, <code>performance.now</code> or <code>getRandomValues</code>.</li>
+        <li>{fmt(campaign.length)} counted trials in {fmt(campaignRuns)} runs ({fmt(inRoom.length)} in the room, {fmt(harness.length)} in the harness replica), plus the {fmt(pilot.length)}-trial pilot, kept separately as its own condition.</li>
+        <li>{uncounted.length} attempt{uncounted.length === 1 ? '' : 's'} halted and retried{halt ? `: ${halt.run}, step ${halt.step}` : ''}. The CLI served that session a system prompt with different section headings, so its record did not hash against its model’s golden. Cause unresolved.</li>
+        <li>Feature flags are regular expressions over the output file: shadow or glow is a shadow property, a blur or shadow filter, or the word glow; the gradient flag needs both hex values present; nondeterministic means the output calls <code>Math.random</code>, <code>Date.now</code>, <code>new Date</code>, <code>performance.now</code> or <code>getRandomValues</code>, whether or not the render depends on it.</li>
         <li>Spelling is counted in prose only, with code blocks and tool inputs stripped, and separately in code.</li>
-        <li>"Unchanged" means the output hashes the same as the input. A model that rewrote the file identically counts as unchanged.</li>
-        <li>Renders are 800 by 800; thumbnails on this site are 200 by 200 and cropped to nothing.</li>
+        <li>“Unchanged” means the output hashes the same as the input. A model that rewrote the file identically counts as unchanged.</li>
+        <li>Renders are 800 by 800; thumbnails on this site are 200 by 200, scaled down and not cropped.</li>
       </ul>
       <p>
         The full column glossary is on the <a href={href('/data/')}>data page</a>. The tally that produced it is
-        <code>bin/tally.mjs</code> in the repository, and it asserts the pilot's original hand counts on every run.
+        <code>bin/tally.mjs</code> in the repository, and it asserts the pilot’s original hand counts on every run.
       </p>
     </div>
   </Chapter>
 
-  <Chapter n="F" id="public" title="What is and is not published" dek="Everything a trial produced, and nothing the room was not supposed to have.">
+  <Chapter n="F" id="public" title="What is and is not published" dek="Every output and every room transcript, and nothing the room was not supposed to have.">
     <div class="prose">
       <ul>
-        <li>Published: every output file, every counted and halted attempt's stream-json transcript from the room, the tally, the renders, the runner and the task definitions.</li>
-        <li>The account's email address reaches the model in every session and appears in a few outputs where a model put it in an author tag. It is public. The account's organization id is not in any published file.</li>
-        <li>Not published: transcripts from the harness replica, because the full user configuration is in them, and the pilot's original desktop captures. The pilot's outputs are re-rendered like everything else.</li>
-        <li>Not tracked: anything the runner built from the user's own instruction files to check that the room held.</li>
+        <li>Published: every output file, every counted attempt’s stream-json transcript from the room, the tally, the renders, the runner and the task definitions.</li>
+        <li>
+          The account’s email address reaches the model in every session.
+          {emailRun ? (
+            <>It appears in {fmt(withEmail.length)} outputs, all in <a href={href(`/runs/${emailRun.name}/`)}>one {emailRun.isRelay ? 'relay chain' : 'run'}</a>{emailWhere ? `: ${emailWhere}.` : '.'}</>
+          ) : withEmail.length > 0 ? (
+            <>It appears in {fmt(withEmail.length)} outputs across {fmt(emailRuns.length)} runs.</>
+          ) : null}
+          It is public. The account’s organization id is not in any published file.
+        </li>
+        <li>Not published: transcripts from the harness replica, because the full user configuration is in them; the transcript and output of a halted attempt, which the runner sets aside untracked; and the pilot’s original desktop captures. The pilot’s outputs are re-rendered like everything else.</li>
+        <li>Not tracked: anything the runner built from the user’s own instruction files to check that the room held.</li>
       </ul>
       <p>
         Repository: <a href="https://github.com/centricle/priors" rel="noopener">github.com/centricle/priors</a>.

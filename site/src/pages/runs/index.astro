@@ -6,8 +6,9 @@ import { sum } from '../../lib/stats.ts';
 
 const { runs, trials } = loadAll();
 const campaignRuns = runs.filter((r) => r.mode !== 'pilot').length;
-const campaignTrials = trials.filter(isCampaign).length;
-const cost = sum(trials.map((t) => t.cost_usd));
+const campaign = trials.filter(isCampaign);
+const costCounted = sum(campaign.map((t) => t.cost_usd));
+const costAll = sum(trials.map((t) => t.cost_usd));
 const fmt = (n: number) => n.toLocaleString('en-US');
 ---
 
@@ -22,11 +23,11 @@ const fmt = (n: number) => n.toLocaleString('en-US');
       <p class="dek">
         A run is one task, one mode, one model and n trials. In a sample run every trial starts from
         the same seed. In a chain, each step edits what the step before it left behind. A relay is a
-        chain that passes the file between all four models in turn. Everything ran at effort low in
-        the stripped room: four tools, no user config.
+        chain that passes the file between all four models in turn. Everything ran at effort low. All
+        but the harness replica and the pilot ran in the stripped room: four tools, no user config.
       </p>
       <p class="totals mono">
-        {fmt(campaignRuns)} runs and the pilot · {fmt(trials.length)} trials ({fmt(campaignTrials)} counted, {fmt(trials.length - campaignTrials)} pilot) · {fmtUsd(cost)} API-equivalent
+        {fmt(campaignRuns)} runs and the pilot · {fmt(trials.length)} trials ({fmt(campaign.length)} counted, {fmt(trials.length - campaign.length)} pilot) · {fmtUsd(costCounted)} API-equivalent counted, {fmtUsd(costAll)} with the pilot
       </p>
     </div>
   </section>
