@@ -76,6 +76,19 @@ const favicon =
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#ffffff" />
+    <!-- Google Analytics, centricle.com only. The hostname guard keeps the upstream host out of the count. -->
+    <script is:inline>
+      if (location.hostname === 'centricle.com') {
+        var gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-LN2KZZ0NLT';
+        document.head.appendChild(gaScript);
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function () { dataLayer.push(arguments); };
+        gtag('js', new Date());
+        gtag('config', 'G-LN2KZZ0NLT');
+      }
+    </script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
