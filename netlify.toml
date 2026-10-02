@@ -5,7 +5,9 @@
 [build]
   base = "site"
   command = "npm run build"
-  publish = "site/dist"
+  # Relative to base, unlike the UI's field: "site/dist" here resolves to
+  # site/site/dist (checked with @netlify/config's resolveConfig).
+  publish = "dist"
 
 [build.environment]
   NODE_VERSION = "22"
