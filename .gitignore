@@ -3,3 +3,6 @@
 /tmp/
 /node_modules/
 /archive/
+/site/dist/
+/site/node_modules/
+.netlify/
