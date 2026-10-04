@@ -360,6 +360,20 @@ conditions() {
 
 golden_key() { printf '%s-%s-%s-%s' "$1" "$2" "$EFFORT" "$(printf '%s' "$PRIORS_CLAUDE_SHA" | cut -c1-12)"; }
 
+# Goldens are per manifest: a campaign is held to the conditions its own
+# first trial saw, not to an earlier campaign's. The pinned binary is not the
+# whole of the conditions. The CLI is served system prompt sections, and
+# between the first campaign and the second both Fable's and Opus's changed
+# under the same binary, which halted every one of their runs at trial 1.
+# campaign.tsv keeps the top level, where its goldens have always been.
+golden_dir() {
+  local name
+  name=$(basename "$CAMPAIGN" .tsv)
+  if [ "$name" = campaign ]; then printf '%s/golden' "$BRAIN"; else printf '%s/golden/%s' "$BRAIN" "$name"; fi
+}
+# The same, relative to brain, for notes and messages.
+golden_rel() { local d; d=$(golden_dir); printf '%s' "${d#"$BRAIN"/}"; }
+
 # The checks a human would make on a room-profile golden (decision 20).
 # $1: conditions JSON (unmasked); $2: the init event's facts from stream_facts.
 # Prints one line per check, PASS or FAIL. Returns 1 if any failed.
@@ -392,10 +406,11 @@ room_assertions() {
 #   $6 facts JSON  $7 where (run/step, for the record)
 golden_verdict() {
   local profile=$1 model=$2 rec=$3 room=$4 sid=$5 facts=$6 where=$7
-  local key gdir gfile cond sha gsha checks hk hfile masked hmasked
+  local key gdir grel gfile cond sha gsha checks hk hfile masked hmasked first
   GOLDEN_NOTE=
   key=$(golden_key "$profile" "$model")
-  gdir=$BRAIN/golden
+  gdir=$(golden_dir)
+  grel=$(golden_rel)
   gfile=$gdir/$key.json
   mkdir -p "$gdir"
   cond=$(conditions "$rec" "$room" "$sid")
@@ -437,10 +452,25 @@ golden_verdict() {
       else
         checks="$checks"$'\n'"DIFF  differs from the Haiku golden with model identity masked (see $key.vs-haiku.diff)"
         diff <(printf '%s' "$hmasked" | jq -S .) <(printf '%s' "$masked" | jq -S .) > "$gdir/$key.vs-haiku.diff"
-        GOLDEN_NOTE="differs from the Haiku golden (masked); recorded in golden/$key.vs-haiku.diff"
+        GOLDEN_NOTE="differs from the Haiku golden (masked); recorded in $grel/$key.vs-haiku.diff"
       fi
     else
       checks="$checks"$'\n'"SKIP  no Haiku golden to compare with"
+    fi
+  fi
+
+  # Cross-campaign: under a later manifest, the same key's golden from the
+  # first campaign. A difference is what the CLI was served on another day,
+  # so it is recorded, not halted on, and comparisons across the two
+  # campaigns have to carry it.
+  first=$BRAIN/golden/$key.json
+  if [ "$gdir" != "$BRAIN/golden" ] && [ -f "$first" ]; then
+    if [ "$(jq -r .sha256 "$first")" = "$CONDITIONS_SHA" ]; then
+      checks="$checks"$'\n'"PASS  identical to the first campaign's golden"
+    else
+      checks="$checks"$'\n'"DIFF  differs from the first campaign's golden (see $key.vs-campaign.diff)"
+      diff <(jq -S .conditions "$first") <(printf '%s' "$cond" | jq -S .) > "$gdir/$key.vs-campaign.diff"
+      GOLDEN_NOTE="${GOLDEN_NOTE:+$GOLDEN_NOTE; }differs from the first campaign's golden; recorded in $grel/$key.vs-campaign.diff"
     fi
   fi
 

@@ -4,7 +4,8 @@
 #
 # Stage 1, in the foreground: a confirmation probe of the room on Haiku
 # (probe.sh row R), asserted, which becomes the Haiku golden record. Skipped
-# when that golden already exists for this CLI. Stage 2: one worker per task
+# when that golden already exists for this CLI and this manifest (goldens are
+# per manifest: see golden_dir in lib.sh). Stage 2: one worker per task
 # group, --jobs at a time, each running its group's runs in order with
 # run.sh. Every worker brakes on the quota before every trial: the account's
 # seven-day window stops the campaign, a model's own window (Fable has one)
@@ -154,7 +155,7 @@ log "launch: $(basename "$CAMPAIGN"), CLI $claude_bin sha256 $PRIORS_CLAUDE_SHA,
 
 # ------------------------------------------------------ stage 1: confirmation
 
-haiku_golden=$BRAIN/golden/$(golden_key room "$HAIKU").json
+haiku_golden=$(golden_dir)/$(golden_key room "$HAIKU").json
 if [ "$confirm" = auto ]; then
   if [ -f "$haiku_golden" ]; then confirm=no; log "confirmation already passed for this CLI ($haiku_golden); --confirm reruns it"
   else confirm=yes; fi

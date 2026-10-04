@@ -156,7 +156,7 @@ trial() {
       rejected|no_record) T_HALT=$note ;;
       mismatch)
         if [ "$profile" = room ]; then
-          T_HALT="$note (golden/$(golden_key "$profile" "$model").mismatch.*)"
+          T_HALT="$note ($(golden_rel)/$(golden_key "$profile" "$model").mismatch.*)"
         elif [ ! -f "$STATE/work/$run.harness-mismatch" ]; then
           touch "$STATE/work/$run.harness-mismatch"
           notify "$run: harness conditions vary between trials; recorded per row, not halted"

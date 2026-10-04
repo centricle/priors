@@ -161,8 +161,26 @@ camp --campaign other.tsv
 check "manifest: its run ran" eq "$(rows number-sample-$H-low '[.[] | select(.counted)] | length')" 2
 check "manifest: campaign.tsv's run did not" test ! -e "$T/runs/$r"
 check "manifest: the total counts its runs only" grep -q 'finished the queue. 2 trials counted' "$T/.state/campaign.log"
+K=$(shasum -a 256 "$STUB" | cut -c1-12)
+check "manifest: its golden is its own" test -f "$T/brain/golden/other/room-$H-low-$K.json"
+check "manifest: no golden at the top level" test ! -e "$T/brain/golden/room-$H-low-$K.json"
 camp --campaign missing.tsv
 check "manifest: a missing file stops the launch" grep -q 'no manifest at' "$T/out.txt"
+
+# A later manifest is held to its own first trial, not to the first campaign's.
+setup manifest2 "digit-sample-$H-low	digit	sample	$H	1	room"
+camp
+before=$(shasum -a 256 "$T/brain/golden/room-$H-low-$K.json" | cut -d' ' -f1)
+{ printf 'run\ttask\tmode\tmodels\tn\tprofile\n'; printf 'number-sample-%s-low\tnumber\tsample\t%s\t2\troom\n' "$H" "$H"; } > "$T/other.tsv"
+STUB_MODE=sysprompt camp --campaign other.tsv
+check "manifest: a changed system prompt is a new golden, not a halt" eq "$(rows number-sample-$H-low '[.[] | "\(.golden):\(.counted)"] | join(",")')" "golden:true,match:true"
+check "manifest: the difference from the first campaign is recorded" grep -q "^DIFF  differs from the first campaign's golden" "$T/brain/golden/other/room-$H-low-$K.checks.txt"
+check "manifest: with the diff itself" test -s "$T/brain/golden/other/room-$H-low-$K.vs-campaign.diff"
+check "manifest: and noted on the trial" eq "$(rows number-sample-$H-low '.[0].golden_note | test("first campaign")')" true
+check "manifest: the first campaign's golden is untouched" eq "$(shasum -a 256 "$T/brain/golden/room-$H-low-$K.json" | cut -d' ' -f1)" "$before"
+{ printf 'run\ttask\tmode\tmodels\tn\tprofile\n'; printf 'word-sample-%s-low\tword\tsample\t%s\t1\troom\n' "$H" "$H"; } > "$T/third.tsv"
+camp --campaign third.tsv
+check "manifest: unchanged conditions are recorded as identical" grep -q "^PASS  identical to the first campaign's golden" "$T/brain/golden/third/room-$H-low-$K.checks.txt"
 
 # -------------------------------------------------------------- dry run
 
