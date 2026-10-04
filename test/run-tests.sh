@@ -153,7 +153,21 @@ setup golden2 "digit-sample-$H-low	digit	sample	$H	2	room"
 STUB_MODE=first-1:sysprompt camp
 check "golden: a later mismatch also halts" eq "$(rows $r '[.[] | "\(.golden):\(.counted)"] | join(",")')" "golden:true,mismatch:false"
 
+# ------------------------------------------------------- a second manifest
+
+setup manifest "digit-sample-$H-low	digit	sample	$H	2	room"
+{ printf 'run\ttask\tmode\tmodels\tn\tprofile\n'; printf 'number-sample-%s-low\tnumber\tsample\t%s\t2\troom\n' "$H" "$H"; } > "$T/other.tsv"
+camp --campaign other.tsv
+check "manifest: its run ran" eq "$(rows number-sample-$H-low '[.[] | select(.counted)] | length')" 2
+check "manifest: campaign.tsv's run did not" test ! -e "$T/runs/$r"
+check "manifest: the total counts its runs only" grep -q 'finished the queue. 2 trials counted' "$T/.state/campaign.log"
+camp --campaign missing.tsv
+check "manifest: a missing file stops the launch" grep -q 'no manifest at' "$T/out.txt"
+
 # -------------------------------------------------------------- dry run
+
+(cd "$SRC" && bin/campaign.sh --dry-run --campaign campaign-2.tsv) > "$BASE/dry-run-2.txt" 2>&1
+check "dry run: the second manifest lists its own runs" eq "$(grep -E -c ': (sample|chain), ' "$BASE/dry-run-2.txt")" "$(awk 'NR > 1' "$SRC/campaign-2.tsv" | wc -l | tr -d ' ')"
 
 (cd "$SRC" && bin/campaign.sh --dry-run) > "$BASE/dry-run.txt" 2>&1
 check "dry run: every run listed" eq "$(grep -E -c ': (sample|chain), ' "$BASE/dry-run.txt")" "$(awk 'NR > 1' "$SRC/campaign.tsv" | wc -l | tr -d ' ')"

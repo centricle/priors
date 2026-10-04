@@ -92,8 +92,15 @@ unlock() { rm -rf "$STATE/locks/$1.lock"; }
 
 # ------------------------------------------------------------ the campaign
 
-# campaign.tsv fields: run task mode models n profile. Prints the row for a run.
-campaign_row() { awk -F'\t' -v r="$1" '$1 == r' "$REPO/campaign.tsv"; }
+# The manifest: campaign.tsv unless campaign.sh was given --campaign. That
+# file stays the first campaign's alone, because the site checks every run it
+# lists against data/trials.csv and fails the build on one with no rows. A
+# later campaign gets a file of its own, and its runs reach the site only
+# when the tally and the site are taught its tasks.
+CAMPAIGN=${PRIORS_CAMPAIGN:-$REPO/campaign.tsv}
+
+# Manifest fields: run task mode models n profile. Prints the row for a run.
+campaign_row() { awk -F'\t' -v r="$1" '$1 == r' "$CAMPAIGN"; }
 
 task_prompt() { cat "$REPO/tasks/$1/prompt.txt"; }
 task_room() { printf '%s/%s' "$ROOM_ROOT" "$(tr -d '[:space:]' < "$REPO/tasks/$1/room")"; }

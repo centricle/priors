@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# campaign.sh: run the whole of campaign.tsv unattended.
+# campaign.sh: run the whole of a manifest unattended. campaign.tsv by
+# default; --campaign names another (see CAMPAIGN in lib.sh).
 #
 # Stage 1, in the foreground: a confirmation probe of the room on Haiku
 # (probe.sh row R), asserted, which becomes the Haiku golden record. Skipped
@@ -23,9 +24,10 @@ PINNED=$HOME/.local/share/priors/claude-2.1.283/node_modules/.bin/claude
 
 usage() {
   cat <<'EOF'
-usage: campaign.sh [--jobs N] [--ceiling PCT] [--until WHEN] [--claude PATH]
-                   [--confirm | --skip-confirm] [--dry-run]
+usage: campaign.sh [--campaign FILE] [--jobs N] [--ceiling PCT] [--until WHEN]
+                   [--claude PATH] [--confirm | --skip-confirm] [--dry-run]
 
+  --campaign FILE the manifest to run (default campaign.tsv)
   --jobs N        task groups running at once (default 4)
   --ceiling PCT   stop when the seven-day quota reaches PCT (default 95)
   --until WHEN    stop starting trials at WHEN: never, HH:MM (today),
@@ -40,14 +42,15 @@ usage: campaign.sh [--jobs N] [--ceiling PCT] [--until WHEN] [--claude PATH]
 EOF
 }
 
-jobs_n=4 ceiling=95 until_arg= claude_arg=$PINNED confirm=auto dry_run=0
+jobs_n=4 ceiling=95 until_arg= claude_arg=$PINNED confirm=auto dry_run=0 campaign_arg=
 while [ $# -gt 0 ]; do
   case $1 in
-    --jobs|--ceiling|--until|--claude)
+    --jobs|--ceiling|--until|--claude|--campaign)
       [ $# -ge 2 ] || die "$1 needs a value"
       case $1 in
         --jobs) jobs_n=$2 ;; --ceiling) ceiling=$2 ;;
         --until) until_arg=$2 ;; --claude) claude_arg=$2 ;;
+        --campaign) campaign_arg=$2 ;;
       esac
       shift 2 ;;
     --confirm) confirm=yes; shift ;;
@@ -67,7 +70,12 @@ fi
 for t in jq perl shasum uuidgen git lsof; do
   command -v "$t" >/dev/null 2>&1 || die "missing required tool: $t"
 done
-[ -f "$REPO/campaign.tsv" ] || die "no campaign.tsv in $REPO"
+# Absolute, and exported: run.sh reads its row from the same manifest.
+if [ -n "$campaign_arg" ]; then
+  CAMPAIGN=$(perl -MCwd=abs_path -e 'print abs_path(shift) // ""' "$campaign_arg")
+fi
+[ -n "$CAMPAIGN" ] && [ -f "$CAMPAIGN" ] || die "no manifest at ${CAMPAIGN:-$campaign_arg}"
+export PRIORS_CAMPAIGN=$CAMPAIGN
 
 claude_bin=$(perl -MCwd=abs_path -e 'print abs_path(shift) // ""' "$claude_arg")
 [ -n "$claude_bin" ] && [ -x "$claude_bin" ] || die "not executable: $claude_arg"
@@ -75,7 +83,7 @@ export PRIORS_CLAUDE=$claude_bin
 export PRIORS_CLAUDE_SHA=$(sha_file "$claude_bin")
 export PRIORS_CEILING=$ceiling
 
-queue() { awk -F'\t' 'NR > 1 && $1 !~ /^#/ && NF >= 6' "$REPO/campaign.tsv"; }
+queue() { awk -F'\t' 'NR > 1 && $1 !~ /^#/ && NF >= 6' "$CAMPAIGN"; }
 groups() { queue | awk -F'\t' '!seen[$2]++ {print $2}'; }
 runs_of() { queue | awk -F'\t' -v g="$1" '$2 == g {print $1}'; }
 
@@ -83,7 +91,7 @@ runs_of() { queue | awk -F'\t' -v g="$1" '$2 == g {print $1}'; }
 
 if [ "$dry_run" = 1 ]; then
   total=0
-  printf '# CLI %s\n# sha256 %s\n' "$claude_bin" "$PRIORS_CLAUDE_SHA"
+  printf '# CLI %s\n# sha256 %s\n# manifest %s\n' "$claude_bin" "$PRIORS_CLAUDE_SHA" "$CAMPAIGN"
   for g in $(groups); do
     printf '\n## group %s (room %s, prompt %s)\n' "$g" "$(task_room "$g")" "$(q "$(task_prompt "$g")")"
     queue | awk -F'\t' -v g="$g" '$2 == g' | while IFS=$'\t' read -r run task mode models n profile; do
@@ -142,7 +150,7 @@ if [ -f "$STATE/STOP" ]; then
 fi
 rm -f "$STATE"/pgids/* "$STATE"/capped/*
 build_gate
-log "launch: CLI $claude_bin sha256 $PRIORS_CLAUDE_SHA, jobs $jobs_n, ceiling $ceiling%"
+log "launch: $(basename "$CAMPAIGN"), CLI $claude_bin sha256 $PRIORS_CLAUDE_SHA, jobs $jobs_n, ceiling $ceiling%"
 
 # ------------------------------------------------------ stage 1: confirmation
 
@@ -266,9 +274,9 @@ while :; do
   sleep 5
 done
 
-# The imported pilot (mode "pilot") is not the campaign's, so it is not counted.
-counted=$(cat "$REPO"/runs/*/trials.jsonl 2>/dev/null |
-  jq -s '[.[] | select(.counted == true and .mode != "pilot")] | length')
+# Only this manifest's runs: not the imported pilot, not another campaign's.
+counted=$(queue | cut -f1 | while IFS= read -r r; do cat "$REPO/runs/$r/trials.jsonl" 2>/dev/null; done |
+  jq -s '[.[] | select(.counted == true)] | length')
 halted=$(ls "$STATE/halted" 2>/dev/null | tr '\n' ' ')
 capped=$(ls "$STATE/capped" 2>/dev/null | tr '\n' ' ')
 if stop_requested; then

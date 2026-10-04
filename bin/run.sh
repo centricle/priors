@@ -4,7 +4,8 @@
 # runs/<run>/trials.jsonl is the source of truth: one row per attempt. On
 # start, the next step is the one after the last counted step, so a rerun
 # continues where the last one stopped. Normally started by campaign.sh,
-# which sets PRIORS_CLAUDE and PRIORS_CLAUDE_SHA.
+# which sets PRIORS_CLAUDE and PRIORS_CLAUDE_SHA, and PRIORS_CAMPAIGN when
+# the run is in a manifest other than campaign.tsv.
 #
 # Exit: 0 done, 3 halted (needs a human; .state/halted/<run> says why),
 # 4 stopped (the campaign is stopping; rerun to continue), 5 capped (a model
@@ -17,7 +18,7 @@ set -uo pipefail
 [ $# -eq 1 ] || die "usage: run.sh <run>"
 run=$1
 row=$(campaign_row "$run")
-[ -n "$row" ] || die "no run named $run in campaign.tsv"
+[ -n "$row" ] || die "no run named $run in $(basename "$CAMPAIGN")"
 IFS=$'\t' read -r _ task mode models n profile <<EOF
 $row
 EOF
