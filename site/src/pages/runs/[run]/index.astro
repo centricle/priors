@@ -295,9 +295,7 @@ const wideLabels = dist ? dist.values.some((v) => v.parsed && v.value.length > 9
                         <td class="step mono">
                           <a href={href(`/runs/${run.name}/${pad3(t.step)}/`)}>{pad3(t.step)}</a>
                         </td>
-                        <td class="mono ans" title={raw.length > 80 ? raw : undefined}>
-                          <Swatches value={t.answer_form === 'none' ? null : t.answer_value} />{raw ? shorten(raw, 80) : NIL}
-                        </td>
+                        <td class="mono ans" title={raw.length > 80 ? raw : undefined}><Swatches value={t.answer_form === 'none' ? null : t.answer_value} />{raw ? shorten(raw, 80) : NIL}</td>
                         <td class="mono">{t.answer_form ?? NIL}</td>
                         <td class="mono">{yn(t.answer_ok)}</td>
                         <td class="num">{t.cost_usd === null ? NIL : fmtUsd(t.cost_usd)}</td>

@@ -862,6 +862,11 @@ const controlDrew = control.trials.filter((t) => t.same_picture === false).lengt
     display: block;
     margin-bottom: calc(var(--row) * 0.75);
   }
+  /* White on the gradient is under 4.5:1, so the label is large text too (bold, 14pt and up). */
+  :global(.chapter.prior .addendum .label) {
+    font-size: 19px;
+    font-weight: 700;
+  }
 
   .hexes {
     border-top: 1px solid var(--hair);

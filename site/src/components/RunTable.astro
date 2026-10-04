@@ -146,9 +146,7 @@ const rowData = (kind: string, r: Run) => {
               )}
               {g.kind === 'text' && x.d && x.top && (
                 <>
-                  <td colspan="4" class="ans" title={x.top.value}>
-                    <Swatches value={x.top.parsed ? x.top.value : null} />{shorten(x.top.value.replace(/\s+/g, ' '), 28)}
-                  </td>
+                  <td colspan="4" class="ans" title={x.top.value}><Swatches value={x.top.parsed ? x.top.value : null} />{shorten(x.top.value.replace(/\s+/g, ' '), 28)}</td>
                   <td class="num">{pct(x.top.share)}</td>
                   <td class={cls(x.d.bareShare)}>{pct(x.d.bareShare)}</td>
                   <td class={cls(x.d.okShare)}>{pct(x.d.okShare)}</td>
