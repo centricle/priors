@@ -1,0 +1,58 @@
+---
+/**
+ * The colors a value names, as small squares beside it.
+ *
+ * A hex answer is a string of digits until it is seen. Every #rrggbb token in
+ * `value` gets a square, in the order given. With `names`, a bare CSS keyword
+ * counts too: colorize records the circle's fill as the file writes it, and
+ * that is sometimes `tomato`. A color named in chat ("teal") gets no square,
+ * because the model said a word and the site would be choosing the shade.
+ *
+ * Every square has a hairline border, or near-white answers would vanish into
+ * the page. Decoration only: the value is always printed next to it.
+ */
+interface Props {
+  value: string | null | undefined;
+  names?: boolean;
+  size?: 'sm' | 'lg';
+}
+
+const { value, names = false, size = 'sm' } = Astro.props;
+const HEX = /^#[0-9a-f]{6}$/i;
+const NAME = /^[a-z]+$/i;
+const colors = (value ?? '').split(/\s+/).filter((v) => HEX.test(v) || (names && NAME.test(v)));
+---
+
+{
+  colors.length > 0 && (
+    <span class:list={['sw', `is-${size}`]} aria-hidden="true">
+      {colors.map((c) => (
+        <span class="chip" style={`background:${c}`} />
+      ))}
+    </span>
+  )
+}
+
+<style>
+  .sw {
+    display: inline-flex;
+    gap: 2px;
+    vertical-align: -0.12em;
+    margin-right: 0.5em;
+  }
+  .chip {
+    display: block;
+    width: 0.9em;
+    height: 0.9em;
+    border: 1px solid var(--hair);
+  }
+  .is-lg {
+    display: flex;
+    gap: calc(var(--row) * 0.5);
+    margin: 0 0 calc(var(--row) * 2);
+  }
+  .is-lg .chip {
+    width: calc(var(--row) * 9);
+    height: calc(var(--row) * 9);
+  }
+</style>

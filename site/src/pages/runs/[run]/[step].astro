@@ -2,23 +2,24 @@
 /**
  * One trial: what the model was given, what it left behind, what it said.
  *
- * About 2,640 of these are built. Each reads its own output file from disk,
- * and a chain step reads the one before it for the diff.
+ * One per counted trial of every campaign, about 6,400 in all. Each reads its
+ * own output file from disk, and a chain step reads the one before it for the
+ * diff.
  */
 import Base from '../../../layouts/Base.astro';
 import TrialMeta from '../../../components/TrialMeta.astro';
 import SourceView from '../../../components/SourceView.astro';
-import { isArtifact, loadAll, outputOf, pad3, plural, prevOutput } from '../../../lib/data.ts';
+import Swatches from '../../../components/Swatches.astro';
+import { allRuns, isArtifact, outputOf, pad3, plural, prevOutput, runNamed } from '../../../lib/data.ts';
 import { describeChange } from '../../../lib/stats.ts';
 import { href } from '../../../lib/href.mjs';
 import '../_runs.css';
 
 export function getStaticPaths() {
-  return loadAll().trials.map((t) => ({ params: { run: t.run, step: pad3(t.step) } }));
+  return allRuns().flatMap((r) => r.trials.map((t) => ({ params: { run: t.run, step: pad3(t.step) } })));
 }
 
-const { runByName } = loadAll();
-const run = runByName.get(Astro.params.run!)!;
+const run = runNamed(Astro.params.run!)!;
 const stepNo = Number(Astro.params.step);
 const at = run.trials.findIndex((t) => t.step === stepNo);
 const t = run.trials[at];
@@ -112,6 +113,7 @@ const stepUrl = (s: number) => href(`/runs/${run.name}/${pad3(s)}/`);
       text && (
         <div class="stage said">
           <p class="label">the answer</p>
+          <Swatches value={answer} size="lg" />
           <p class:list={['answer', answer.length > 14 && 'long', !answer && 'none']}>{answer || 'no value found'}</p>
         </div>
       )

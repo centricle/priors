@@ -184,6 +184,8 @@ export interface Run {
   profile: Profile;
   models: Model[];
   isRelay: boolean;
+  /** The earlier campaign's run this one repeats (the same name without its -N), else null. */
+  rerunOf: string | null;
   n: number;
   trials: Trial[];
   label: string;
@@ -382,7 +384,15 @@ function labelOf(r: Omit<Run, 'label'>): string {
   const who = r.isRelay ? 'relay' : r.models.map((m) => MODEL_LABEL[m]).join(' + ');
   const parts: string[] = [r.task, r.mode, who];
   if (r.profile !== 'room') parts.push(r.profile);
+  if (r.rerunOf) parts.push('rerun');
   return parts.join(' · ');
+}
+
+// A later campaign repeats an earlier run under that run's name plus -N.
+function rerunOf(name: string, campaign: Campaign): string | null {
+  const earlier = /^(.*)-\d+$/.exec(name)?.[1];
+  if (!earlier) return null;
+  return CAMPAIGNS.some((c) => c.id < campaign && loadAll(c.id).runByName.has(earlier)) ? earlier : null;
 }
 
 const cache = new Map<Campaign, Loaded>();
@@ -481,7 +491,8 @@ export function loadAll(campaign: Campaign = 1): Loaded {
     }
     rows.sort((a, b) => a.step - b.step);
     const head = rows[0];
-    const parts = { name, campaign, task: head.task, mode: head.mode, profile: head.profile, isRelay: head.isRelay, n: rows.length, trials: rows,
+    const parts = { name, campaign, task: head.task, mode: head.mode, profile: head.profile, isRelay: head.isRelay,
+      rerunOf: rerunOf(name, campaign), n: rows.length, trials: rows,
       models: MODELS.filter((m) => rows.some((t) => t.model === m)) };
     runs.push({ ...parts, label: labelOf(parts) });
   }
@@ -506,5 +517,7 @@ export function runNamed(name: string): Run | undefined {
 // ------------------------------------------------------------- predicates
 
 export const isArtifact = (t: Trial): boolean => ARTIFACT_TASKS.includes(t.task);
+/** A task that asks for a color in chat (the second campaign's, colorize aside). */
+export const isColorTask = (task: Task): boolean => (COLOR_TASKS as readonly string[]).includes(task);
 /** The pilot ran before the campaign and is not part of its 2,608 trials. */
 export const isCampaign = (t: Trial): boolean => t.mode !== 'pilot';

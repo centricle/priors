@@ -10,31 +10,42 @@
  *
  * Within a task: samples in model order, then chains, then the relay chain,
  * then the pilot. A run's first cell links to its page.
+ *
+ * The table takes one campaign's runs. Reruns of an earlier campaign's runs
+ * (the second campaign's control) form their own groups after the rest, so
+ * they are not read as part of the campaign's own tasks.
  */
-import { MODELS, MODEL_LABEL, fmtPct, fmtUsd, promptOf } from '../lib/data.ts';
+import { MODELS, MODEL_LABEL, fmtPct, fmtUsd, isColorTask, promptOf } from '../lib/data.ts';
 import type { Run, Task } from '../lib/data.ts';
 import { href } from '../lib/href.mjs';
 import { RECOLORED_WHY, answerDistribution, colorLabel, runSummary } from '../lib/stats.ts';
+import Swatches from './Swatches.astro';
 
 interface Props {
   runs: Run[];
 }
 const { runs } = Astro.props;
 
-const TASK_ORDER: Task[] = ['circle', 'html', 'svg', 'sentence', 'number', 'digit', 'word', 'replica'];
-const kindOf = (t: Task) => (t === 'sentence' ? 'sentence' : ['number', 'digit', 'word'].includes(t) ? 'text' : 'artifact');
+const TASK_ORDER: Task[] = [
+  'circle', 'html', 'svg', 'sentence', 'number', 'digit', 'word', 'replica',
+  'color', 'hex', 'rgb', 'hex2', 'button', 'background', 'gradient', 'favorite', 'best', 'colorize',
+];
+const kindOf = (t: Task) =>
+  t === 'sentence' ? 'sentence' : ['number', 'digit', 'word'].includes(t) || isColorTask(t) ? 'text' : 'artifact';
 
 const modeRank = (r: Run) => (r.mode === 'sample' ? 0 : r.mode === 'chain' ? (r.isRelay ? 2 : 1) : 3);
 const modelRank = (r: Run) => (r.isRelay ? MODELS.length : MODELS.indexOf(r.models[0]));
 const order = (a: Run, b: Run) =>
   modeRank(a) - modeRank(b) || Number(a.profile === 'harness') - Number(b.profile === 'harness') || modelRank(a) - modelRank(b);
 
-const groups = TASK_ORDER.map((task) => ({
-  task,
-  kind: kindOf(task),
-  prompt: promptOf(task),
-  runs: runs.filter((r) => r.task === task).sort(order),
-})).filter((g) => g.runs.length > 0);
+const groupsOf = (rs: Run[]) =>
+  TASK_ORDER.map((task) => ({
+    task,
+    kind: kindOf(task),
+    prompt: promptOf(task),
+    runs: rs.filter((r) => r.task === task).sort(order),
+  })).filter((g) => g.runs.length > 0);
+const groups = [...groupsOf(runs.filter((r) => !r.rerunOf)), ...groupsOf(runs.filter((r) => r.rerunOf))];
 
 // Artifact groups are the widest: run, model, n and eight measures. The others span the same width.
 const COLS = 11;
@@ -113,6 +124,11 @@ const rowData = (kind: string, r: Run) => {
               <td>
                 <a href={href(`/runs/${r.name}/`)} aria-label={r.label}>{linkText(r)}</a>
                 {r.mode === 'pilot' && <div class="note">pilot (scripted loop, contaminated)</div>}
+                {r.rerunOf && (
+                  <div class="note">
+                    control: <a href={href(`/runs/${r.rerunOf}/`)}>the first campaign’s run</a>, run again
+                  </div>
+                )}
               </td>
               <td title={relayTitle(r)}>{who(r)}</td>
               <td class="num">{r.n}</td>
@@ -130,7 +146,9 @@ const rowData = (kind: string, r: Run) => {
               )}
               {g.kind === 'text' && x.d && x.top && (
                 <>
-                  <td colspan="4" class="ans" title={x.top.value}>{shorten(x.top.value.replace(/\s+/g, ' '), 28)}</td>
+                  <td colspan="4" class="ans" title={x.top.value}>
+                    <Swatches value={x.top.parsed ? x.top.value : null} />{shorten(x.top.value.replace(/\s+/g, ' '), 28)}
+                  </td>
                   <td class="num">{pct(x.top.share)}</td>
                   <td class={cls(x.d.bareShare)}>{pct(x.d.bareShare)}</td>
                   <td class={cls(x.d.okShare)}>{pct(x.d.okShare)}</td>

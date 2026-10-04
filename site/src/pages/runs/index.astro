@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import RunTable from '../../components/RunTable.astro';
 import { fmtUsd, isCampaign, loadAll } from '../../lib/data.ts';
+import { href } from '../../lib/href.mjs';
 import { sum } from '../../lib/stats.ts';
 
 const { runs, trials } = loadAll();
@@ -10,6 +11,11 @@ const campaign = trials.filter(isCampaign);
 const costCounted = sum(campaign.map((t) => t.cost_usd));
 const costAll = sum(trials.map((t) => t.cost_usd));
 const fmt = (n: number) => n.toLocaleString('en-US');
+
+// The second campaign: its own runs, its own totals. Nothing is pooled.
+const second = loadAll(2);
+const secondCost = sum(second.trials.map((t) => t.cost_usd));
+const reruns = second.runs.filter((r) => r.rerunOf).length;
 ---
 
 <Base
@@ -36,6 +42,24 @@ const fmt = (n: number) => n.toLocaleString('en-US');
       <RunTable runs={runs} />
     </div>
   </section>
+  <section class="grid intro second" id="color">
+    <div class="head stack-lg">
+      <h2>The second campaign: color</h2>
+      <p class="dek">
+        The first campaign watched what the models reached for. This one <a href={href('/color/')}>asks them outright</a>:
+        a hex color, a color for a button, a favorite. Same room, same effort, one fresh session per trial. The last
+        {reruns} runs are a control: two of the first campaign’s runs again, a week later, for Opus alone.
+      </p>
+      <p class="totals mono">
+        {fmt(second.runs.length)} runs · {fmt(second.trials.length)} trials · {fmtUsd(secondCost)} API-equivalent
+      </p>
+    </div>
+  </section>
+  <section class="grid table-wrap">
+    <div class="full">
+      <RunTable runs={second.runs} />
+    </div>
+  </section>
 </Base>
 
 <style>
@@ -46,6 +70,12 @@ const fmt = (n: number) => n.toLocaleString('en-US');
     .intro {
       padding-block: calc(var(--row) * 12) calc(var(--row) * 8);
     }
+  }
+  .intro.second {
+    padding-top: calc(var(--row) * 10);
+  }
+  .intro h2 {
+    font-size: var(--t-xl);
   }
   .totals {
     margin: 0;

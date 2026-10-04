@@ -12,8 +12,11 @@ import Bars from '../../../components/Bars.astro';
 import SpecimenGrid from '../../../components/SpecimenGrid.astro';
 import Filmstrip from '../../../components/Filmstrip.astro';
 import SentenceScrub from '../../../components/SentenceScrub.astro';
+import Swatches from '../../../components/Swatches.astro';
 import { COLUMNS } from '../../../lib/columns.ts';
-import { ARTIFACT_TASKS, MODEL_LABEL, fmtInt, fmtPct, fmtSec, fmtUsd, loadAll, pad3, plural, promptOf, seedOf } from '../../../lib/data.ts';
+import {
+  ARTIFACT_TASKS, MODEL_LABEL, allRuns, fmtInt, fmtPct, fmtSec, fmtUsd, loadAll, pad3, plural, promptOf, runNamed, seedOf,
+} from '../../../lib/data.ts';
 import { href } from '../../../lib/href.mjs';
 import {
   CHAIN_MARKS, FEATURES, RECOLORED_WHY, answerDistribution, chainCurve, colorLabel, featureShares, featureLabel, marginOfError, sum,
@@ -21,11 +24,12 @@ import {
 import '../_runs.css';
 
 export function getStaticPaths() {
-  return loadAll().runs.map((r) => ({ params: { run: r.name } }));
+  return allRuns().map((r) => ({ params: { run: r.name } }));
 }
 
-const { runs, runByName } = loadAll();
-const run = runByName.get(Astro.params.run!)!;
+// Previous and next stay inside the run's own campaign.
+const run = runNamed(Astro.params.run!)!;
+const { runs } = loadAll(run.campaign);
 const idx = runs.indexOf(run);
 const prev = idx > 0 ? runs[idx - 1] : null;
 const next = idx < runs.length - 1 ? runs[idx + 1] : null;
@@ -50,8 +54,9 @@ const yn = (b: boolean | null) => (b === null ? NIL : b ? 'yes' : 'no');
 const features = artifact && !chain ? featureShares(run.trials) : null;
 // Artifact chains: the file's size along the way.
 const curve = artifact && chain ? chainCurve(run) : null;
-// Chat answers.
-const dist = !artifact && !sentence ? answerDistribution(run.trials) : null;
+// Chat answers. Colorize is a file task that also has one: the circle's fill.
+const colorize = run.task === 'colorize';
+const dist = (!artifact && !sentence) || colorize ? answerDistribution(run.trials) : null;
 // The declines are one "no answer" row in the chart, not an answer.
 const distinct = dist ? dist.values.filter((v) => v.parsed).length : 0;
 const declined = dist ? dist.values.find((v) => !v.parsed)?.count ?? 0 : 0;
@@ -61,8 +66,11 @@ const bars = dist
       label: shorten(oneLine(v.value), 40) || '(empty)',
       value: v.count,
       hi: i === 0,
+      swatch: v.parsed ? v.value : undefined,
     }))
   : [];
+// Two or three hex values do not fit the bar chart's default label column.
+const wideLabels = dist ? dist.values.some((v) => v.parsed && v.value.length > 9) : false;
 ---
 
 <Base
@@ -91,6 +99,12 @@ const bars = dist
       {pilot && (
         <p class="small muted">
           Pilot: a scripted loop, contaminated, so kept for comparison and left out of the counted trials.
+        </p>
+      )}
+      {run.rerunOf && (
+        <p class="small muted">
+          Control: <a href={href(`/runs/${run.rerunOf}/`)}>the first campaign’s run</a>, run again a week later.
+          Same model, same prompt, same seed, same CLI binary. The system prompt the CLI served had changed.
         </p>
       )}
     </div>
@@ -226,7 +240,23 @@ const bars = dist
   }
 
   {
-    dist && (
+    dist && colorize && (
+      <section class="grid block">
+        <div class="full stack">
+          <h2 class="sec-head">The circle’s fill</h2>
+          <p class="facts">
+            {distinct} distinct {distinct === 1 ? 'fill' : 'fills'} in {dist.n} trials, as the file writes them
+          </p>
+          <div class="bars-wrap">
+            <Bars items={bars} format="count" names={true} title={dist.values.length > TOP ? `Top ${TOP} fills` : 'Fills'} />
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  {
+    dist && !colorize && (
       <>
         <section class="grid block">
           <div class="full stack">
@@ -235,7 +265,7 @@ const bars = dist
               {distinct} distinct {distinct === 1 ? 'answer' : 'answers'} in {dist.n} trials{declined > 0 && ` · no answer in ${declined}`} · bare reply in {fmtPct(dist.bareShare)} · rule met in {fmtPct(dist.okShare)}
             </p>
             <div class="bars-wrap">
-              <Bars items={bars} format="count" title={dist.values.length > TOP ? `Top ${TOP} answers` : 'Answers'} />
+              <Bars items={bars} format="count" labelWidth={wideLabels ? '17em' : undefined} title={dist.values.length > TOP ? `Top ${TOP} answers` : 'Answers'} />
             </div>
             {dist.values.length > TOP && (
               <p class="small muted">{dist.values.length - TOP} more answers appear once or a few times each; the table below has all of them.</p>
@@ -265,7 +295,9 @@ const bars = dist
                         <td class="step mono">
                           <a href={href(`/runs/${run.name}/${pad3(t.step)}/`)}>{pad3(t.step)}</a>
                         </td>
-                        <td class="mono ans" title={raw.length > 80 ? raw : undefined}>{raw ? shorten(raw, 80) : NIL}</td>
+                        <td class="mono ans" title={raw.length > 80 ? raw : undefined}>
+                          <Swatches value={t.answer_form === 'none' ? null : t.answer_value} />{raw ? shorten(raw, 80) : NIL}
+                        </td>
                         <td class="mono">{t.answer_form ?? NIL}</td>
                         <td class="mono">{yn(t.answer_ok)}</td>
                         <td class="num">{t.cost_usd === null ? NIL : fmtUsd(t.cost_usd)}</td>
