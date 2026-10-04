@@ -318,6 +318,22 @@ claim(trials.every((t) => t.effort === 'low'), 'every row ran at low effort');
 const cost = costByModel(trials);
 const totalWall = campaign.reduce((a, t) => a + (t.wall_s ?? 0), 0);
 const halted = loadAll().uncounted.length;
+
+// The second campaign corrected chapters 2 and 3. Each keeps its text as
+// published and carries a dated note, and the numbers in the notes are the
+// second campaign's own.
+const second = loadAll(2);
+const addedOn = new Date(Math.max(...second.trials.map((t) => Date.parse(t.started_utc))))
+  .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const sonnetGradients = second.runByName.get(`gradient-sample-${MODEL_ID.sonnet}-low`)!.trials;
+const sonnetPair = sonnetGradients.filter((t) => t.answer_value === '#667eea #764ba2').length;
+claim(
+  second.trials.filter((t) => t.task === 'hex').every((t) => !/667eea|764ba2/i.test(t.result)),
+  'nobody names either value when asked for a hex color',
+);
+const control = second.runs.find((r) => r.rerunOf === sample('svg', 'opus').name)!;
+const controlChanged = control.trials.filter((t) => t.unchanged === false).length;
+const controlDrew = control.trials.filter((t) => t.same_picture === false).length;
 ---
 
 <Base path="/">
@@ -384,6 +400,13 @@ const halted = loadAll().uncounted.length;
         other three models never used either, in a sample or a chain. The pair never reached the relays: in
         {relaySteps.length} relay steps, Haiku’s own {relayHaiku} included, neither value appears.
       </p>
+      <p class="addendum">
+        <span class="label">Added {addedOn}</span>
+        A second campaign asked for colors outright. Told to write a CSS gradient, Sonnet answers with this exact
+        pair in {sonnetPair} of {sonnetGradients.length} replies, and asked for a hex color, nobody names either
+        value. So the pair is what “a gradient” means to both models, and Haiku is the one that reaches for a
+        gradient. <a href={href('/color/')}>Color</a> has the rest.
+      </p>
     </div>
     <KeyRow
       class="wide"
@@ -433,6 +456,13 @@ const halted = loadAll().uncounted.length;
         drew something, each a numeral 0 it guessed, by its own account, from the file name. The rest got structural
         edits and still render blank. Haiku left {fmtPct(svg.haiku.shares.unchanged.share)} alone. The other
         {haikuSvgChanged.length} all draw a circle: {haikuSvgGradients} add a gradient, {haikuSvgPair} of them the pair.
+      </p>
+      <p class="addendum">
+        <span class="label">Added {addedOn}</span>
+        A week later the second campaign ran the empty SVG again for Opus. In between, the CLI had begun serving
+        Opus a system prompt section that only Fable had here, one that tells the model not to stop while work is
+        still owed. Opus changed {controlChanged} of {control.n} and drew a numeral 0 in {controlDrew}. Asker and
+        actor are partly the room. <a href={href('/color/#room')}>The room changed</a> has the rest.
       </p>
     </div>
     <div class="wide quotes">
@@ -821,6 +851,16 @@ const halted = loadAll().uncounted.length;
   }
   :global(.chapter.prior a:hover) {
     color: var(--mark-ink);
+  }
+
+  /* A dated correction under a chapter that otherwise stays as published. */
+  .addendum {
+    border-top: 1px solid var(--hair);
+    padding-top: calc(var(--row) * 2);
+  }
+  .addendum .label {
+    display: block;
+    margin-bottom: calc(var(--row) * 0.75);
   }
 
   .hexes {
