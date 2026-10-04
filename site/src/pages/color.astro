@@ -249,8 +249,8 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
         Fable mentions the pair in {plural(pairAnywhere('fable'), 'reply', 'replies')}.
       </p>
       <p>
-        Asked for a hex color instead, none of the four names <code>#667eea</code>: {hexNamesIt} of {num(hexN)}. So the first
-        campaign had the right pair and the wrong owner. It saw the gradient from Haiku alone because Haiku is the
+        Asked for a hex color instead, the four models name <code>#667eea</code> in {hexNamesIt} of {num(hexN)} replies.
+        So the first campaign had the right pair and the wrong owner. It saw the gradient from Haiku alone because Haiku is the
         model that adds a gradient when told to improve something. Sonnet knows the same one and does not reach for it.
       </p>
     </div>
@@ -263,7 +263,7 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
             <ul class="strips" role="list">
               {strips(m).map((g) => (
                 <li>
-                  <span class="strip" style={g.css ? `background:${g.css}` : undefined} aria-hidden="true" />
+                  <span class="strip" style={g.css ? `background-image:${g.css}` : undefined} aria-hidden="true" />
                   <span class="mono stops">{g.stops.join(' ')}</span>
                   <span class="mono n">{g.count}</span>
                 </li>
@@ -275,6 +275,7 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
       </div>
       <p class="small muted">
         The first gradient in each reply, by its color stops, three most common per model, of {gradN} replies each.
+        In the charts below, every bar is drawn against all of a model’s trials, so the models compare.
       </p>
     </div>
   </Chapter>
@@ -299,7 +300,7 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
         {ORDER.map((m) => (
           <div class="stack">
             <h4>{MODEL_LABEL[m]}</h4>
-            <Bars items={bars('hex', m)} format="count" labelWidth="8.5em" />
+            <Bars items={bars('hex', m)} format="count" max={size('hex')} labelWidth="8.5em" />
             <p class="mono small muted"><a href={href(`/runs/${sample('hex', m).name}/`)}>every trial</a></p>
           </div>
         ))}
@@ -311,7 +312,7 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
         {ORDER.map((m) => (
           <div class="stack">
             <h4>{MODEL_LABEL[m]}</h4>
-            <Bars items={bars('rgb', m)} format="count" labelWidth="8.5em" />
+            <Bars items={bars('rgb', m)} format="count" max={size('rgb')} labelWidth="8.5em" />
             <p class="mono small muted"><a href={href(`/runs/${sample('rgb', m).name}/`)}>every trial</a></p>
           </div>
         ))}
@@ -341,7 +342,7 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
           {ORDER.map((m) => (
             <div class="stack">
               <h4>{MODEL_LABEL[m]}</h4>
-              <Bars items={bars(task, m, task === 'hex2' ? 3 : 4)} format="count" labelWidth={task === 'hex2' ? '12.5em' : '8.5em'} />
+              <Bars items={bars(task, m, task === 'hex2' ? 3 : 4)} format="count" max={size(task)} labelWidth={task === 'hex2' ? '12.5em' : '8.5em'} />
               <p class="mono small muted"><a href={href(`/runs/${sample(task, m).name}/`)}>every trial</a></p>
             </div>
           ))}
@@ -377,7 +378,7 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
         </div>
         <SpecimenGrid trials={of('colorize', m)} cols={8} />
         <div class="fills">
-          <Bars items={fillBars(m)} format="count" names={true} labelWidth="8.5em" title="the circle’s fill" />
+          <Bars items={fillBars(m)} format="count" names={true} max={colN} labelWidth="8.5em" title="the circle’s fill" />
         </div>
       </div>
     ))}
@@ -521,10 +522,16 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
   .keyline {
     padding-block: calc(var(--row) * 5);
   }
+  /* One column on a phone: two leave the bars no room, and a pair of hex values overflows. */
   .permodel {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: calc(var(--row) * 4) var(--gutter);
+  }
+  @media (min-width: 600px) {
+    .permodel {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
   @media (min-width: 900px) {
     .permodel {
@@ -550,6 +557,9 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
     display: block;
     height: calc(var(--row) * 4);
     border: 1px solid var(--hair);
+    /* Keep the gradient inside the border, or its far end wraps into the 1px edge. The inline
+       style sets background-image, not the shorthand, which would reset this. */
+    background-clip: padding-box;
     margin-bottom: calc(var(--row) * 0.5);
   }
   .stops {
@@ -570,6 +580,9 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
   }
   .fills {
     max-width: 30em;
+  }
+  .flex .mono a {
+    white-space: nowrap;
   }
   .more {
     display: flex;
