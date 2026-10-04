@@ -15,9 +15,16 @@ const counted = trials.filter(isCampaign).length;
 const pilot = total - counted;
 const fmt = (n: number) => n.toLocaleString('en-US');
 
-const bytes = statSync(join(repoRoot(), 'data', 'trials.csv')).size;
 // Decimal units, to match what Finder and a browser's download dialog report.
-const size = bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1e3)} KB`;
+const sizeOf = (file: string) => {
+  const bytes = statSync(join(repoRoot(), 'data', file)).size;
+  return bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1e3)} KB`;
+};
+const size = sizeOf('trials.csv');
+
+// The second campaign's tally: its own file, the same columns.
+const second = loadAll(2);
+const secondSize = sizeOf('campaign-2.csv');
 
 const GROUP_TITLE: Record<ColumnGroup, string> = {
   identity: 'Identity',
@@ -45,11 +52,15 @@ const groups = [...new Set(COLUMNS.map((c) => c.group))].map((g) => ({
     <div class="head stack-lg">
       <h1>Data</h1>
       <p class="dek">
-        One file holds every trial. Here it is, and what each column means.
+        One file per campaign holds every trial. Here they are, and what each column means.
       </p>
       <p>
         <a class="btn" href={href('/trials.csv')} download>trials.csv</a>
         <span class="mono small muted dl">{fmt(total)} rows · {COLUMNS.length} columns · {size}</span>
+      </p>
+      <p>
+        <a class="btn" href={href('/campaign-2.csv')} download>campaign-2.csv</a>
+        <span class="mono small muted dl">{fmt(second.trials.length)} rows · {COLUMNS.length} columns · {secondSize}</span>
       </p>
     </div>
   </section>
@@ -63,6 +74,11 @@ const groups = [...new Set(COLUMNS.map((c) => c.group))].map((g) => ({
         booleans written as <code>true</code> and <code>false</code>. An empty cell means the value does not
         apply to that row or was not recorded, such as a feature flag on a pick-a-number trial or
         the turn count of a pilot trial.
+      </p>
+      <p>
+        <code>campaign-2.csv</code> is the <a href={href('/color/')}>second campaign</a>: {fmt(second.trials.length)}
+        rows, the same columns, written by the same script. The two files are never merged, so a figure about
+        the first campaign stays a figure about the first campaign.
       </p>
       <p>
         The file is generated and never edited by hand. The tally script in the repo,
@@ -117,7 +133,10 @@ node bin/tally.mjs
 node bin/tally.mjs --summary
 
 # verify the pilot counts and the seed hashes
-node bin/tally.mjs --check</code></pre>
+node bin/tally.mjs --check
+
+# the second campaign: rebuild data/campaign-2.csv and print its tables
+node bin/tally.mjs --campaign campaign-2.tsv --summary</code></pre>
     </div>
   </section>
 </Base>

@@ -8,6 +8,13 @@ import { loadAll, MODELS, MODEL_LABEL, MODEL_ID, TASKS, seedOf, promptOf, fmtUsd
 import { costByModel } from '../lib/stats.ts';
 
 const { trials, runs, uncounted } = loadAll();
+
+// The second campaign, for chapter G. Everything else on this page is the first.
+const second = loadAll(2);
+const secondDay = new Date(second.trials[0].started_utc)
+  .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const secondTasks = second.runs.filter((r) => !r.rerunOf && r.models[0] === 'fable').map((r) => ({ task: r.task, prompt: promptOf(r.task), n: r.n }));
+const reruns = second.runs.filter((r) => r.rerunOf);
 const cost = costByModel(trials);
 const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -268,6 +275,64 @@ const halt = uncounted[0];
       <p>
         Repository: <a href="https://github.com/centricle/priors" rel="noopener">github.com/centricle/priors</a>.
       </p>
+    </div>
+  </Chapter>
+
+  <Chapter n="G" id="second" title="The second campaign" dek="Ten ways of asking for a color, a week later, in the same room. The system prompt had changed for two models of four.">
+    <div class="prose">
+      <p>
+        Everything above describes the first campaign. The <a href={href('/color/')}>second</a> ran
+        {fmt(second.trials.length)} trials in {fmt(second.runs.length)} runs on {secondDay}, with the same binary,
+        the same four tools and the same effort. Nine of its tasks have no file: the answer is the model’s reply.
+        The tenth, colorize, hands over the circle’s seed.
+      </p>
+    </div>
+    <div class="wide">
+      <table>
+        <thead>
+          <tr>
+            <th>task</th>
+            <th>prompt</th>
+            <th class="num">n per model</th>
+          </tr>
+        </thead>
+        <tbody>
+          {secondTasks.map((t) => (
+            <tr>
+              <td class="mono">{t.task}</td>
+              <td class="mono">{t.prompt}</td>
+              <td class="num">{t.n}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div class="prose">
+      <ul>
+        <li>
+          The runner checks each session’s conditions against a record of what the room should contain. At the
+          first launch {second.uncounted.length} attempts halted, one for each Fable and Opus run then in the
+          manifest: the CLI was serving those two models a different system prompt than in the first campaign.
+          Records are now kept per campaign, each with its differences from the first.
+        </li>
+        <li>
+          What changed for Fable and Opus: a token-budget reminder was gone, a section on memory and notes was
+          new, and so was a paragraph about the Edit tool. Opus also gained the “Finishing work” section, which
+          only Fable had before. Sonnet’s and Haiku’s conditions were unchanged.
+        </li>
+        <li>
+          The control reruns two of the first campaign’s runs for Opus, under the same names with -2 added:
+          {reruns.map((r, i) => <>{i > 0 && ', '}<a href={href(`/runs/${r.name}/`)}>{r.task}</a></>)}.
+        </li>
+        <li>
+          Color answers are normalized to <code>#rrggbb</code>, so an RGB answer and a hex answer compare. For
+          colorize, the tallied answer is the circle’s fill as the file writes it.
+        </li>
+        <li>
+          The second campaign has its own tally, <code>campaign-2.csv</code>, with the same columns. Nothing on
+          this site pools the two.
+        </li>
+      </ul>
     </div>
   </Chapter>
 </Base>

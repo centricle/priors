@@ -22,8 +22,8 @@ export interface Column {
 
 export const COLUMNS: Column[] = [
   // identity
-  { name: 'run', group: 'identity', meaning: 'Run name: task, mode, model and effort, e.g. circle-sample-claude-haiku-4-5-20251001-low. pilot-import holds the 32 pilot trials.' },
-  { name: 'task', group: 'identity', meaning: 'What the model was given: circle, html, svg, replica, sentence, number, digit or word.' },
+  { name: 'run', group: 'identity', meaning: 'Run name: task, mode, model and effort, e.g. circle-sample-claude-haiku-4-5-20251001-low. pilot-import holds the 32 pilot trials. A name ending in -2 is the second campaign’s rerun of the run without it.' },
+  { name: 'task', group: 'identity', meaning: 'What the model was given: circle, html, svg, replica, sentence, number, digit or word in the first campaign; hex, hex2, rgb, gradient, button, background, color, favorite, best or colorize in the second.' },
   { name: 'mode', group: 'identity', meaning: 'sample (independent trials from the same seed), chain (each step starts from the previous step’s output) or pilot (the original 32-trial pilot).' },
   { name: 'profile', group: 'identity', meaning: 'room (stripped Claude Code: four tools, no user config) or harness (the everyday Claude Code setup with the full user config).' },
   { name: 'step', group: 'identity', meaning: 'Trial number within the run, from 1. In a chain it is also the position in the chain.' },
@@ -73,9 +73,9 @@ export const COLUMNS: Column[] = [
 
   // text answers
   { name: 'answer_raw', group: 'answers', meaning: 'The model’s answer verbatim: its final message for number, digit and word; the trimmed sentence file for sentence.' },
-  { name: 'answer_value', group: 'answers', meaning: 'The answer normalized: a bare number, a lowercase word, or for sentence the sentence itself. Empty when nothing could be extracted.' },
+  { name: 'answer_value', group: 'answers', meaning: 'The answer normalized: a bare number, a lowercase word, or for sentence the sentence itself. In the second campaign, a color as #rrggbb (several separated by spaces) or a color name, and for colorize the circle’s fill. Empty when nothing could be extracted.' },
   { name: 'answer_form', group: 'answers', meaning: 'bare when the reply was just the value, framed when it was wrapped in prose, none when no value was found.' },
-  { name: 'answer_ok', group: 'answers', meaning: 'Whether the answer met the task’s rule: any number for number, a single digit for digit, a word for word, exactly one word added and none removed for sentence. False when no value was found.' },
+  { name: 'answer_ok', group: 'answers', meaning: 'Whether the answer met the task’s rule: any number for number, a single digit for digit, a word for word, exactly one word added and none removed for sentence, a color in the form asked for in the second campaign (two for hex2, a fill on the circle for colorize). False when no value was found.' },
   { name: 'words', group: 'answers', meaning: 'Word count of the sentence after the trial (sentence task only).' },
   { name: 'added', group: 'answers', meaning: 'Words added compared with the previous sentence, space-separated (sentence task only).' },
   { name: 'removed', group: 'answers', meaning: 'Words removed compared with the previous sentence, space-separated (sentence task only).' },

@@ -7,6 +7,7 @@
  *   ../renders/<run>/NNN.webp  ->  public/r/<run>/NNN.webp   copied as is (800x800)
  *                              ->  public/t/<run>/NNN.webp   200x200 thumbnail
  *   ../data/trials.csv         ->  public/trials.csv         the download on /data/
+ *   ../data/campaign-2.csv     ->  public/campaign-2.csv     the second campaign's
  *   (drawn here)               ->  public/og.png             1200x630 social card
  *
  * Idempotent: a file is skipped when its output exists and is at least as new
@@ -79,13 +80,16 @@ await pool(jobs, CONCURRENCY, async (job) => {
 
 // ---------------------------------------------------------------------- csv
 
-const csvSrc = join(repo, 'data', 'trials.csv');
-const csvOut = join(pub, 'trials.csv');
+// One file per campaign, each its own download on /data/.
 let csv = 'kept';
-if (!fresh(csvOut, csvSrc)) {
-  mkdirSync(pub, { recursive: true });
-  copyFileSync(csvSrc, csvOut);
-  csv = 'copied';
+for (const name of ['trials.csv', 'campaign-2.csv']) {
+  const csvSrc = join(repo, 'data', name);
+  const csvOut = join(pub, name);
+  if (!fresh(csvOut, csvSrc)) {
+    mkdirSync(pub, { recursive: true });
+    copyFileSync(csvSrc, csvOut);
+    csv = 'copied';
+  }
 }
 
 // ----------------------------------------------------------------- og image
