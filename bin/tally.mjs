@@ -1,4 +1,11 @@
-// tally.mjs [--summary] [--check]: every counted trial as one row of data/trials.csv.
+// tally.mjs [--campaign FILE] [--summary] [--check]: every counted trial of one
+// campaign as one row of a CSV.
+//
+// A tally covers the runs its manifest lists. campaign.tsv is the default and
+// writes data/trials.csv, the published dataset the site builds from; it also
+// takes runs/pilot-import, which no manifest lists. Any other manifest writes
+// data/<its name>.csv, so a later campaign never changes the first one's file:
+// the site refuses a task it does not know, and its counts are of 2,608 trials.
 //
 // runs/*/trials.jsonl is the source of truth; this file is generated from it
 // plus each trial's room (runs/<run>/NNN/) and transcript (NNN.jsonl), so it
@@ -16,10 +23,12 @@
 // radial gradient 23, "pulse" 21, #667eea gradient 18, unchanged 2, mentions a
 // server 14, all of 32). --check asserts exactly that and exits 1 otherwise.
 //
-//   --summary  print the comparison tables after writing the CSV
-//   --check    only verify the pilot acceptance counts, the seed hashes and the input renders
+//   --campaign FILE  the manifest whose runs to tally (default campaign.tsv)
+//   --summary        print the comparison tables after writing the CSV
+//   --check          only verify the seed hashes and the input renders, and for
+//                    campaign.tsv the pilot acceptance counts
 import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync, lstatSync, readlinkSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { FAMILIES, stripCode, count as spellCount, transcript } from './spelling.mjs';
@@ -28,7 +37,8 @@ import { countLines } from './lines.mjs';
 const REPO = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 const RUNS = join(REPO, 'runs');
 const RENDERS = join(REPO, 'renders');
-const OUT = join(REPO, 'data', 'trials.csv');
+const FIRST = join(REPO, 'campaign.tsv');
+const outOf = (manifest) => join(REPO, 'data', manifest === FIRST ? 'trials.csv' : `${basename(manifest, '.tsv')}.csv`);
 
 export const COLUMNS = [
   // identity
@@ -43,7 +53,7 @@ export const COLUMNS = [
   'file', 'bytes', 'lines', 'extra_files',
   'glow_or_shadow', 'glow', 'keyframes', 'radial_gradient', 'linear_gradient', 'pulse',
   'gradient_667eea', 'script', 'nondeterministic', 'svg_filter', 'hex_count', 'hex_colors',
-  // text answers (number, digit, word, sentence)
+  // answers: number, digit, word, sentence, and the second campaign's color tasks
   'answer_raw', 'answer_value', 'answer_form', 'answer_ok', 'words', 'added', 'removed',
   // the self-report (stdout)
   'result_chars', 'mentions_server',
@@ -138,6 +148,112 @@ export function parseWord(raw) {
   const v = unmark(pick).replace(/[.!,:;"“”]+$/g, '');
   return { value: v.toLowerCase(), form: 'framed', ok: /^[\p{L}'-]+$/u.test(v) };
 }
+
+// -------------------------------------------------------------- color answers
+
+// The second campaign's tasks, written against its replies like the parsers
+// above. A color is recorded as #rrggbb whatever notation it arrived in, so the
+// hex, rgb and gradient tasks compare with each other and with hex_colors.
+
+/** hex, button, background (want 1) and hex2 (want 2): the first hex colors named. */
+export function parseHex(raw, want = 1) {
+  const found = hexColors(raw);
+  if (!found.length) return DECLINE;
+  const words = unmark(raw).replace(/[.!]$/, '').split(/[\s,]+|\band\b/).filter(Boolean);
+  const bare = words.every((w) => /^#[0-9a-f]{3,8}$/i.test(w));
+  return { value: found.slice(0, want).join(' '), form: bare ? 'bare' : 'framed', ok: found.length >= want };
+}
+
+const hexByte = (n) => Number(n).toString(16).padStart(2, '0');
+
+/** rgb: the first r, g, b triple. */
+export function parseRgb(raw) {
+  const m = raw.match(/(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/);
+  if (!m) return DECLINE;
+  const rgb = m.slice(1, 4).map(Number);
+  const bare = /^(rgb)?\s*\(?\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)?$/i.test(unmark(raw).replace(/[.!]$/, ''));
+  return { value: `#${rgb.map(hexByte).join('')}`, form: bare ? 'bare' : 'framed', ok: rgb.every((v) => v <= 255) };
+}
+
+// The arguments of the first gradient function in a reply, split at its own commas.
+function gradientArgs(raw) {
+  const m = /\b(?:repeating-)?(?:linear|radial|conic)-gradient\(/i.exec(raw);
+  if (!m) return null;
+  const args = [];
+  let depth = 1, cur = '';
+  for (let i = m.index + m[0].length; i < raw.length; i++) {
+    const c = raw[i];
+    if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) return [...args, cur.trim()];
+    if (c === ',' && depth === 1) { args.push(cur.trim()); cur = ''; } else cur += c;
+  }
+  return null;
+}
+// A first argument that is a direction, an angle or a shape, not a color stop.
+const NOT_A_STOP = /^(?:to\s|from\s|at\s|in\s|circle|ellipse|closest|farthest|-?[\d.]+(?:deg|turn|rad|grad)\b)/i;
+
+/**
+ * gradient: the color stops of the first gradient written, in order. Haiku
+ * often follows it with variations; whether #667eea and #764ba2 appear anywhere
+ * in a reply is a question for answer_raw, and the summary asks it.
+ */
+export function parseGradient(raw) {
+  const args = gradientArgs(raw);
+  if (!args) return DECLINE;
+  const stops = args.filter((a, i) => !(i === 0 && NOT_A_STOP.test(a))).map((a) => {
+    const rgb = a.match(/^rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})/i);
+    return rgb ? `#${rgb.slice(1, 4).map(hexByte).join('')}` : (hexColors(a)[0] ?? a.split(/\s+/)[0].toLowerCase());
+  });
+  // Bare: nothing but one code block, or one line of CSS.
+  const prose = raw.replace(/```[\s\S]*?```/g, '').trim();
+  const bare = prose === '' || !raw.trim().includes('\n') && /^[\w-]*:?\s*[\w-]*gradient\(.*\);?$/i.test(raw.trim());
+  return { value: stops.join(' '), form: bare ? 'bare' : 'framed', ok: stops.length >= 2 };
+}
+
+// color, favorite, best: a color named in words. The value is the hue alone
+// ("deep blue" and "slate blue" are blue; teal is its own word), so that 100
+// replies make one distribution.
+const HUES = 'blue-green|red|orange|yellow|green|blue|purple|violet|indigo|pink|brown|black|white|gray|grey|teal|cyan|turquoise|magenta|maroon|navy|gold|coral|crimson|lavender|cerulean|azure|emerald|amber|aqua|cobalt|fuchsia|lilac|lime|mauve|mint|olive|peach|periwinkle|plum|rose|salmon|sapphire|scarlet|silver|ultramarine';
+const SHADES = 'deep|dark|light|bright|soft|pale|royal|sky|ocean|slate|steel|navy|midnight|forest|electric|cobalt|warm|cool|rich|vivid|muted|dusty|calm|nice|terminal';
+const COLOR = `(?:a |an )?(?:(?:${SHADES})[ -])*(${HUES})`;
+const COLOR_LEADS = new RegExp(`^(?:probably |definitely |honestly,? )?${COLOR}\\b`, 'i');
+const COLOR_ONLY = new RegExp(`^${COLOR}$`, 'i');
+const COLOR_PICKED = new RegExp(`\\b(?:I(?:'d| would|'ll| will)? (?:say|pick|choose|go with|have to say|lean toward)|had to (?:pick|choose)(?: one)?[:,]?|I(?:'ll say I)? like|partial to|drawn to|going with|(?:it|that)(?:'d| would) be|my (?:pick|choice|answer|vote) (?:is|would be))\\s+${COLOR}\\b`, 'i');
+const hue = (m) => (m[1].toLowerCase() === 'grey' ? 'gray' : m[1].toLowerCase());
+
+/**
+ * A reply commits to a color in one of two ways: it opens with it ("Teal.",
+ * "Blue, probably: ...", "Probably a deep blue-green, like teal"), or it says
+ * it picks one ("if I had to pick, I'd say deep blue", "I'll go with **teal**").
+ * A color mentioned any other way is not an answer: "blue is the most commonly
+ * preferred color across surveys" reports a fact, and a list of what each color
+ * is good for chooses none, bold or not.
+ */
+export function parseColorName(raw) {
+  const t = unmark(raw);
+  const lead = COLOR_LEADS.exec(t);
+  if (lead) return { value: hue(lead), form: COLOR_ONLY.test(t.replace(/[.!]$/, '')) ? 'bare' : 'framed', ok: true };
+  const picked = COLOR_PICKED.exec(t);
+  return picked ? { value: hue(picked), form: 'framed', ok: true } : DECLINE;
+}
+
+/** colorize: the circle's fill, a hex normalized and anything else as written. */
+export function circleFill(body) {
+  const f = body.match(/<circle\b[^>]*\sfill\s*=\s*["']([^"']+)["']/i)?.[1]
+    ?? body.match(/\bcircle\b[^{}]*\{[^}]*?\bfill\s*:\s*([^;}]+)/i)?.[1]
+    ?? body.match(/\bfill\s*:\s*([^;}]+)/i)?.[1]
+    ?? body.match(/\sfill\s*=\s*["']([^"']+)["']/i)?.[1];
+  if (!f) return '';
+  const v = f.trim().toLowerCase();
+  return hexColors(v)[0] ?? v;
+}
+
+const TEXT_PARSERS = {
+  number: (raw) => parseNumber(raw, false), digit: (raw) => parseNumber(raw, true), word: parseWord,
+  hex: (raw) => parseHex(raw, 1), button: (raw) => parseHex(raw, 1), background: (raw) => parseHex(raw, 1),
+  hex2: (raw) => parseHex(raw, 2), rgb: parseRgb, gradient: parseGradient,
+  color: parseColorName, favorite: parseColorName, best: parseColorName,
+};
 
 // Word-level LCS between two sentences, on normalized tokens.
 function wordDiff(a, b) {
@@ -253,11 +369,16 @@ function modelOf(r) {
   return ret.length ? ret.join('+') : r.model_asked;
 }
 
-export function tally() {
+/** The runs a manifest lists. */
+const manifestRuns = (file) => readFileSync(file, 'utf8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t')[0]);
+
+export function tally(manifest = FIRST) {
+  const mine = new Set(manifestRuns(manifest));
+  if (manifest === FIRST) mine.add('pilot-import');
   const rows = [];
   for (const run of readdirSync(RUNS).sort()) {
     const dir = join(RUNS, run), tj = join(dir, 'trials.jsonl');
-    if (run === 'pilot' || !existsSync(tj)) continue;
+    if (!mine.has(run) || !existsSync(tj)) continue;
     const trials = readFileSync(tj, 'utf8').split('\n').filter(Boolean).map(JSON.parse)
       .filter((r) => r.counted === true);
     for (const t of trials) rows.push(row(t, dir));
@@ -311,11 +432,12 @@ function row(t, dir) {
       const hex = hexColors(body);
       o.hex_count = hex.length;
       o.hex_colors = hex.join(' ');
+      if (t.task === 'colorize') { o.answer_value = circleFill(body); o.answer_ok = o.answer_value !== ''; }
       renderMeta.set(o, { sha: renderSha(relative(RUNS, dir), t.step), file: sha256(body), isSeed: body === seed.text });
     }
-  } else if (['number', 'digit', 'word'].includes(t.task)) {
+  } else if (TEXT_PARSERS[t.task]) {
     const raw = (t.result ?? '').trim();
-    const p = t.task === 'word' ? parseWord(raw) : parseNumber(raw, t.task === 'digit');
+    const p = TEXT_PARSERS[t.task](raw);
     Object.assign(o, { answer_raw: raw, answer_value: p.value, answer_form: p.form, answer_ok: p.ok });
   }
 
@@ -343,13 +465,15 @@ const toCsv = (rows) => [COLUMNS.join(','), ...rows.map((r) => COLUMNS.map((c) =
 
 const PILOT_EXPECTED = { glow_or_shadow: 30, keyframes: 25, radial_gradient: 23, pulse: 21, gradient_667eea: 18, unchanged: 2, mentions_server: 14 };
 
-function check(rows) {
+function check(rows, first) {
   const problems = [];
-  const pilot = rows.filter((r) => r.mode === 'pilot');
-  if (pilot.length !== 32) problems.push(`pilot rows: ${pilot.length}, expected 32`);
-  for (const [k, want] of Object.entries(PILOT_EXPECTED)) {
-    const got = pilot.filter((r) => r[k] === true).length;
-    if (got !== want) problems.push(`pilot ${k}: ${got}, expected ${want}`);
+  if (first) {
+    const pilot = rows.filter((r) => r.mode === 'pilot');
+    if (pilot.length !== 32) problems.push(`pilot rows: ${pilot.length}, expected 32`);
+    for (const [k, want] of Object.entries(PILOT_EXPECTED)) {
+      const got = pilot.filter((r) => r[k] === true).length;
+      if (got !== want) problems.push(`pilot ${k}: ${got}, expected ${want}`);
+    }
   }
   // Every sample, and every chain's first step, must have started from its task's seed.
   for (const r of rows) {
@@ -386,21 +510,26 @@ function summary(rows) {
   const artLine = (label, rs) => `${pad(label, 34)}${pad(rs.length, 5)}${art.map((k) => pad(pct(rs.filter((r) => r[k] === true).length, rs.length), 5)).join('')}${pad(median(rs.map((r) => r.lines)), 7)}${(median(rs.map((r) => r.cost_usd)) ?? 0).toFixed(3)}`;
   const label = (r) => (r.run.includes('relay') ? 'relay' : short(r.model));
 
-  H('Pilot acceptance (expected 30 25 23 21 18 - - 2 14)');
-  out.push(artHeader);
+  // A section a campaign has no rows for is left out, heading and all.
+  const has = (f) => rows.some(f);
+
   const pilot = rows.filter((r) => r.mode === 'pilot');
-  out.push(`${pad('pilot, counts of 32', 34)}${pad(pilot.length, 5)}${art.map((k) => pad(pilot.filter((r) => r[k] === true).length, 5)).join('')}`);
+  if (pilot.length) {
+    H('Pilot acceptance (expected 30 25 23 21 18 - - 2 14)');
+    out.push(artHeader);
+    out.push(`${pad('pilot, counts of 32', 34)}${pad(pilot.length, 5)}${art.map((k) => pad(pilot.filter((r) => r[k] === true).length, 5)).join('')}`);
+  }
 
   H('Artifact tasks: % of trials with each feature (samples; chains in full)');
   out.push(artHeader);
-  for (const task of ['circle', 'html', 'svg', 'replica']) {
+  for (const task of ['circle', 'html', 'svg', 'replica', 'colorize']) {
     for (const mode of ['sample', 'chain', 'pilot']) {
       const g = group(rows.filter((r) => r.task === task && r.mode === mode), (r) => `${r.profile === 'harness' ? 'harness ' : ''}${label(r)}`);
       for (const k of Object.keys(g).sort()) out.push(artLine(`${task} ${mode} ${k}`, g[k]));
     }
   }
 
-  H('Chain drift: lines of the output at steps 1 / 8 / 16 / 32 / 64, and feature % early (1-16) vs late (49-64)');
+  if (has((r) => r.mode === 'chain' && r.task !== 'sentence')) H('Chain drift: lines of the output at steps 1 / 8 / 16 / 32 / 64, and feature % early (1-16) vs late (49-64)');
   for (const task of ['circle', 'html']) {
     for (const [run, rs] of Object.entries(group(rows.filter((r) => r.task === task && r.mode === 'chain'), (r) => r.run))) {
       const at = (s) => rs.find((r) => r.step === s)?.lines ?? '-';
@@ -410,21 +539,39 @@ function summary(rows) {
     }
   }
 
-  H('Replica: the pilot vs the same prompt in the clean room and in the harness');
-  out.push(`${pad('', 34)}${pad('n', 5)}${art.map((k) => pad(abbr[k], 5)).join('')}lines  $med   bash(med) denials(med)`);
+  if (has((r) => r.task === 'replica')) {
+    H('Replica: the pilot vs the same prompt in the clean room and in the harness');
+    out.push(`${pad('', 34)}${pad('n', 5)}${art.map((k) => pad(abbr[k], 5)).join('')}lines  $med   bash(med) denials(med)`);
+  }
   for (const [k, rs] of Object.entries(group(rows.filter((r) => r.task === 'replica'), (r) => `${r.mode} ${r.profile}`))) {
     out.push(`${artLine(k, rs)}   ${pad(median(rs.map((r) => r.bash_calls)), 10)}${median(rs.map((r) => r.denials)) ?? '-'}`);
   }
 
   H('Text answers: top values (count), share bare, share valid');
-  for (const task of ['number', 'digit', 'word']) {
+  for (const task of Object.keys(TEXT_PARSERS)) {
     for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === task), (r) => short(r.model)))) {
       const vals = Object.entries(group(rs, (r) => r.answer_value)).sort((a, b) => b[1].length - a[1].length).slice(0, 6).map(([v, g]) => `${v || '∅'} ${g.length}`).join(', ');
       out.push(`${pad(`${task} ${m}`, 18)} n=${pad(rs.length, 4)} bare ${pct(rs.filter((r) => r.answer_form === 'bare').length, rs.length)}%  ok ${pct(rs.filter((r) => r.answer_ok).length, rs.length)}%  | ${vals}`);
     }
   }
 
-  H('Sentence chains: rule kept (exactly one word added, none removed), final length, first words added');
+  if (has((r) => r.task === 'gradient')) {
+    H('Gradient: replies with #667eea and #764ba2 anywhere, and replies whose first gradient is exactly that pair');
+    for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === 'gradient'), (r) => short(r.model)))) {
+      const anywhere = rs.filter((r) => /#667eea/i.test(r.answer_raw) && /#764ba2/i.test(r.answer_raw)).length;
+      out.push(`${pad(m, 10)} n=${pad(rs.length, 4)} anywhere ${pad(anywhere, 4)} first ${rs.filter((r) => r.answer_value === '#667eea #764ba2').length}`);
+    }
+  }
+
+  if (has((r) => r.task === 'colorize')) {
+    H('Colorize: the circle fill, top values (count), and trials whose file has a gradient');
+    for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === 'colorize'), (r) => short(r.model)))) {
+      const vals = Object.entries(group(rs, (r) => r.answer_value)).sort((a, b) => b[1].length - a[1].length).slice(0, 6).map(([v, g]) => `${v || '∅'} ${g.length}`).join(', ');
+      out.push(`${pad(m, 10)} n=${pad(rs.length, 4)} gradient ${pad(rs.filter((r) => r.linear_gradient || r.radial_gradient).length, 3)} | ${vals}`);
+    }
+  }
+
+  if (has((r) => r.task === 'sentence')) H('Sentence chains: rule kept (exactly one word added, none removed), final length, first words added');
   for (const [run, rs] of Object.entries(group(rows.filter((r) => r.task === 'sentence'), (r) => r.run))) {
     const last = rs.reduce((a, r) => (r.step > a.step ? r : a));
     out.push(`${pad(label(rs[0]), 8)} ok ${rs.filter((r) => r.answer_ok).length}/${rs.length}  words ${pad(last.words, 4)} first: ${rs.slice(0, 8).map((r) => r.added || '∅').join(' · ')}`);
@@ -456,15 +603,19 @@ function summary(rows) {
 // Only when run as a script: test/tally.test.mjs imports the parsers, and an
 // import must not rewrite data/trials.csv.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const rows = tally();
-  const problems = check(rows);
+  const at = process.argv.indexOf('--campaign');
+  const manifest = at > -1 ? resolve(process.argv[at + 1] ?? '') : FIRST;
+  if (!existsSync(manifest)) { console.error(`tally: no manifest at ${manifest}`); process.exit(2); }
+  const first = manifest === FIRST, out = outOf(manifest);
+  const rows = tally(manifest);
+  const problems = check(rows, first);
   if (process.argv.includes('--check')) {
-    console.log(problems.length ? problems.join('\n') : `ok: ${rows.length} rows, pilot acceptance counts reproduce`);
+    console.log(problems.length ? problems.join('\n') : `ok: ${rows.length} rows${first ? ', pilot acceptance counts reproduce' : ''}`);
     process.exit(problems.length ? 1 : 0);
   }
   if (problems.length) { console.error(`tally: refusing to write:\n  ${problems.join('\n  ')}`); process.exit(1); }
   mkdirSync(join(REPO, 'data'), { recursive: true });
-  writeFileSync(OUT, toCsv(rows));
-  console.log(`wrote ${relative(REPO, OUT)}: ${rows.length} rows, ${COLUMNS.length} columns`);
+  writeFileSync(out, toCsv(rows));
+  console.log(`wrote ${relative(REPO, out)}: ${rows.length} rows, ${COLUMNS.length} columns`);
   if (process.argv.includes('--summary')) console.log(summary(rows));
 }
