@@ -1,5 +1,10 @@
-// The data layer: data/trials.csv joined with each run's trials.jsonl, typed,
+// The data layer: a campaign's CSV joined with each run's trials.jsonl, typed,
 // and read once per process.
+//
+// A campaign is one manifest and the CSV its tally writes (CAMPAIGNS below),
+// and loadAll() loads one campaign at a time, the first by default. Nothing is
+// pooled across campaigns unless a page asks for both: the first campaign's
+// story counts its own 2,608 trials and stays that way when a later one lands.
 //
 // The CSV is the tally (one row per counted trial). What it does not carry is
 // joined in from runs/<run>/trials.jsonl by run and step: the model's final
@@ -46,15 +51,27 @@ export function modelOf(id: string): Model {
 
 // ------------------------------------------------------------------- types
 
-export const TASKS = ['circle', 'html', 'svg', 'replica', 'sentence', 'number', 'digit', 'word'] as const;
+// The second campaign's tasks ask for a color in chat, except colorize, which
+// hands over the circle's seed and is an artifact task like the first four.
+export const COLOR_TASKS = ['hex', 'hex2', 'rgb', 'gradient', 'button', 'background', 'color', 'favorite', 'best'] as const;
+export const TASKS = ['circle', 'html', 'svg', 'replica', 'sentence', 'number', 'digit', 'word', ...COLOR_TASKS, 'colorize'] as const;
 export type Task = (typeof TASKS)[number];
 export const MODES = ['sample', 'chain', 'pilot'] as const;
 export type Mode = (typeof MODES)[number];
 export type Profile = 'room' | 'harness';
 
 // Tasks whose output is a file the model rewrites, and so has features and a render.
-export const ARTIFACT_TASKS: readonly Task[] = ['circle', 'html', 'svg', 'replica'];
+export const ARTIFACT_TASKS: readonly Task[] = ['circle', 'html', 'svg', 'replica', 'colorize'];
 export const TEXT_TASKS: readonly Task[] = ['number', 'digit', 'word'];
+
+// Each campaign's manifest at the repo root and its tally under data/. The
+// second campaign also reruns the first's svg and html samples for Opus, under
+// run names ending in -2: the same task names, a different campaign.
+export const CAMPAIGNS = [
+  { id: 1, manifest: 'campaign.tsv', csv: 'trials.csv' },
+  { id: 2, manifest: 'campaign-2.tsv', csv: 'campaign-2.csv' },
+] as const;
+export type Campaign = (typeof CAMPAIGNS)[number]['id'];
 
 export interface Tokens {
   input: number;
@@ -68,6 +85,8 @@ export interface Tokens {
 // Empty cells are null: a feature flag on a text task, `turns` on a pilot row.
 export interface Trial {
   // identity
+  /** Which campaign's CSV the row came from. Not a CSV column. */
+  campaign: Campaign;
   run: string;
   task: Task;
   mode: Mode;
@@ -159,6 +178,7 @@ export interface Trial {
 
 export interface Run {
   name: string;
+  campaign: Campaign;
   task: Task;
   mode: Mode;
   profile: Profile;
@@ -365,23 +385,25 @@ function labelOf(r: Omit<Run, 'label'>): string {
   return parts.join(' · ');
 }
 
-let cache: Loaded | null = null;
+const cache = new Map<Campaign, Loaded>();
 
-/** Parse and join everything once per process; every later call is a lookup. */
-export function loadAll(): Loaded {
-  if (cache) return cache;
+/** Parse and join one campaign once per process; every later call is a lookup. */
+export function loadAll(campaign: Campaign = 1): Loaded {
+  const hit = cache.get(campaign);
+  if (hit) return hit;
   const root = repoRoot();
+  const { manifest, csv } = CAMPAIGNS.find((c) => c.id === campaign)!;
 
-  const table = parseCsv(readFileSync(join(root, 'data', 'trials.csv'), 'utf8')).filter((r) => !(r.length === 1 && r[0] === ''));
+  const table = parseCsv(readFileSync(join(root, 'data', csv), 'utf8')).filter((r) => !(r.length === 1 && r[0] === ''));
   const header = table[0];
   const expected = COLUMNS.map((c) => c.name);
   if (header.length !== expected.length || header.some((h, i) => h !== expected[i])) {
-    throw new Error('data: trials.csv header differs from src/lib/columns.ts; update the glossary and the Trial type');
+    throw new Error(`data: ${csv} header differs from src/lib/columns.ts; update the glossary and the Trial type`);
   }
 
   // Runs in campaign order, then whatever else the CSV holds (the pilot).
   const planned = new Map<string, number>();
-  for (const line of readFileSync(join(root, 'campaign.tsv'), 'utf8').split('\n').slice(1).filter(Boolean)) {
+  for (const line of readFileSync(join(root, manifest), 'utf8').split('\n').slice(1).filter(Boolean)) {
     const [name, , , , n] = line.split('\t');
     planned.set(name, Number(n));
   }
@@ -413,7 +435,7 @@ export function loadAll(): Loaded {
     const isArtifact = ARTIFACT_TASKS.includes(task);
     const hasRender = isArtifact && (renders.get(r.run)?.has(`${pad3(step)}.webp`) ?? false);
     const base: Omit<Trial, 'output'> = {
-      run: r.run, task, mode: oneOf(MODES, r.mode, 'mode'), profile: oneOf(['room', 'harness'] as const, r.profile, 'profile'),
+      campaign, run: r.run, task, mode: oneOf(MODES, r.mode, 'mode'), profile: oneOf(['room', 'harness'] as const, r.profile, 'profile'),
       step, model: modelOf(r.model), modelId: r.model, model_asked: r.model_asked, effort: r.effort,
       cli_version: r.cli_version, session_id: r.session_id, started_utc: r.started_utc,
       wall_s: num(r.wall_s), cost_usd: num(r.cost_usd), turns: num(r.turns), output_tokens: num(r.output_tokens),
@@ -453,19 +475,32 @@ export function loadAll(): Loaded {
   const runs: Run[] = [];
   for (const name of names) {
     const rows = byRun.get(name);
-    if (!rows) throw new Error(`data: campaign.tsv lists ${name} but trials.csv has no rows for it`);
+    if (!rows) throw new Error(`data: ${manifest} lists ${name} but ${csv} has no rows for it`);
     if (planned.has(name) && planned.get(name) !== rows.length) {
-      throw new Error(`data: ${name} has ${rows.length} rows, campaign.tsv says ${planned.get(name)}`);
+      throw new Error(`data: ${name} has ${rows.length} rows, ${manifest} says ${planned.get(name)}`);
     }
     rows.sort((a, b) => a.step - b.step);
     const head = rows[0];
-    const parts = { name, task: head.task, mode: head.mode, profile: head.profile, isRelay: head.isRelay, n: rows.length, trials: rows,
+    const parts = { name, campaign, task: head.task, mode: head.mode, profile: head.profile, isRelay: head.isRelay, n: rows.length, trials: rows,
       models: MODELS.filter((m) => rows.some((t) => t.model === m)) };
     runs.push({ ...parts, label: labelOf(parts) });
   }
 
-  cache = { trials, runs, runByName: new Map(runs.map((r) => [r.name, r])), uncounted };
-  return cache;
+  const loaded = { trials, runs, runByName: new Map(runs.map((r) => [r.name, r])), uncounted };
+  cache.set(campaign, loaded);
+  return loaded;
+}
+
+/** Every campaign's runs, in campaign order. Run names are unique across campaigns. */
+export const allRuns = (): Run[] => CAMPAIGNS.flatMap((c) => loadAll(c.id).runs);
+
+/** A run by name, whichever campaign it belongs to. */
+export function runNamed(name: string): Run | undefined {
+  for (const c of CAMPAIGNS) {
+    const run = loadAll(c.id).runByName.get(name);
+    if (run) return run;
+  }
+  return undefined;
 }
 
 // ------------------------------------------------------------- predicates
