@@ -35,3 +35,9 @@ favorite-sample-claude-fable-5-1-low	favorite	sample	claude-fable-5-1	100	room
 favorite-sample-claude-opus-5-5-low	favorite	sample	claude-opus-5-5	100	room
 favorite-sample-claude-sonnet-5-low	favorite	sample	claude-sonnet-5	100	room
 favorite-sample-claude-haiku-4-5-20251001-low	favorite	sample	claude-haiku-4-5-20251001	100	room
+best-sample-claude-fable-5-1-low	best	sample	claude-fable-5-1	100	room
+best-sample-claude-opus-5-5-low	best	sample	claude-opus-5-5	100	room
+best-sample-claude-sonnet-5-low	best	sample	claude-sonnet-5	100	room
+best-sample-claude-haiku-4-5-20251001-low	best	sample	claude-haiku-4-5-20251001	100	room
+svg-sample-claude-opus-5-5-low-2	svg	sample	claude-opus-5-5	32	room
+html-sample-claude-opus-5-5-low-2	html	sample	claude-opus-5-5	32	room
