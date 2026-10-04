@@ -310,24 +310,59 @@ function seedOf(task) {
 // 2026-09-30 with sharp).
 //
 // The seed's render is the render of any trial whose output file is still the
-// seed, byte for byte: the same bytes through the same renderer. Every artifact
-// task has such trials, and check() refuses a set where they disagree, which
-// would mean renders from different Chrome builds or a seed that is not static.
-// A fresh render of each seed with bin/shot.sh matched them on 2026-09-30.
+// seed, byte for byte: the same bytes through the same renderer. check()
+// refuses a set where they disagree, which would mean renders from different
+// Chrome builds or a seed that is not static. A fresh render of each seed with
+// bin/shot.sh matched them on 2026-09-30.
+//
+// Seed renders are keyed by the seed file's hash, not by task, because tasks
+// share seeds: circle, replica and colorize all start from the same bytes. A
+// manifest's own trials come first. Where none of them left a seed alone (every
+// colorize trial changes it, and so did every html trial of the Opus control),
+// the render is borrowed from any other run on disk that did. A tally looks
+// outside its manifest only for a seed it has no render of, so the first
+// campaign's rows never depend on a later one's renders.
 const renderMeta = new WeakMap(); // row -> { sha, file, isSeed }; off the row, since every row key is a column
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
+const seedFile = (task) => sha256(seedOf(task).text);
 
 function renderSha(run, step) {
   const p = join(RENDERS, run, `${nnn(step)}.webp`);
   return existsSync(p) ? sha256(readFileSync(p)) : null;
 }
 
-/** Per task, the distinct render hashes of trials whose output is the seed. */
+/** One run's counted trials whose output file is still its seed and has a render: [seed file hash, render hash]. */
+const seedTrialsCache = new Map();
+function seedTrials(run) {
+  if (seedTrialsCache.has(run)) return seedTrialsCache.get(run);
+  const out = [], tj = join(RUNS, run, 'trials.jsonl');
+  for (const t of existsSync(tj) ? readFileSync(tj, 'utf8').split('\n').filter(Boolean).map(JSON.parse) : []) {
+    const seed = seedOf(t.task);
+    if (t.counted !== true || !seed.file || t.task === 'sentence') continue;
+    const path = join(RUNS, run, nnn(t.step), seed.file);
+    if (!existsSync(path) || readFileSync(path, 'utf8') !== seed.text) continue;
+    const sha = renderSha(run, t.step);
+    if (sha) out.push([seedFile(t.task), sha]);
+  }
+  seedTrialsCache.set(run, out);
+  return out;
+}
+
+/** Per seed file hash, the distinct render hashes of trials whose output is that seed. */
 function seedRenders(rows) {
-  const by = {};
+  const by = {}, needed = new Set();
   for (const r of rows) {
     const m = renderMeta.get(r);
-    if (m?.isSeed && m.sha) (by[r.task] ||= new Set()).add(m.sha);
+    if (!m?.sha) continue;
+    needed.add(seedFile(r.task));
+    if (m.isSeed) (by[m.file] ||= new Set()).add(m.sha);
+  }
+  const missing = [...needed].filter((file) => !by[file]);
+  if (!missing.length) return by;
+  const mine = new Set(rows.map((r) => r.run));
+  for (const run of readdirSync(RUNS).sort()) {
+    if (mine.has(run)) continue;
+    for (const [file, sha] of seedTrials(run)) if (missing.includes(file)) (by[file] ||= new Set()).add(sha);
   }
   return by;
 }
@@ -346,7 +381,8 @@ function inputRenders(rows) {
     if (!renderMeta.get(r)?.sha) continue;
     let input = null;
     if (r.from_seed) {
-      if (seeds[r.task]?.size === 1) input = { sha: [...seeds[r.task]][0], file: sha256(seedOf(r.task).text) };
+      const file = seedFile(r.task);
+      if (seeds[file]?.size === 1) input = { sha: [...seeds[file]][0], file };
     } else {
       const prev = at.get(`${r.run}|${r.step - 1}`);
       const m = prev && prev.output_sha256 === r.input_sha256 ? renderMeta.get(prev) : null;
@@ -483,8 +519,9 @@ function check(rows, first) {
   // same_picture needs every rendered trial's input render (see "renders" above).
   const seeds = seedRenders(rows);
   for (const task of new Set(rows.filter((r) => renderMeta.get(r)?.sha).map((r) => r.task))) {
-    if (!seeds[task]) problems.push(`${task}: no trial left the seed as it was, so there is no render of the seed to compare with`);
-    else if (seeds[task].size > 1) problems.push(`${task}: outputs identical to the seed have ${seeds[task].size} different renders`);
+    const seed = seeds[seedFile(task)];
+    if (!seed) problems.push(`${task}: no trial in any run left the seed as it was, so there is no render of the seed to compare with`);
+    else if (seed.size > 1) problems.push(`${task}: outputs identical to the seed have ${seed.size} different renders`);
   }
   for (const [r, input] of inputRenders(rows)) {
     if (!input) problems.push(`${r.run} ${r.step}: no render of its input (the seed's, or the previous step's output)`);
