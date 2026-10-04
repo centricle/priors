@@ -1,0 +1,582 @@
+---
+/**
+ * The second campaign's story: color, asked for outright.
+ *
+ * Everything here is computed from the second campaign's rows (loadAll(2)).
+ * The first campaign's are read only for the two runs the control repeats. As
+ * on the first story, no count is typed into the prose, and a sentence that
+ * says "every", "nobody" or "only" is checked by claim(), so the build fails
+ * on the day the data stops saying it.
+ *
+ * The swatches and the gradient strips are the data. They are the only color
+ * on the page.
+ */
+import Base from '../layouts/Base.astro';
+import Chapter from '../components/Chapter.astro';
+import KeyRow from '../components/KeyRow.astro';
+import Quote from '../components/Quote.astro';
+import SpecimenGrid from '../components/SpecimenGrid.astro';
+import Bars from '../components/Bars.astro';
+import { href } from '../lib/href.mjs';
+import {
+  loadAll, MODELS, MODEL_LABEL, MODEL_ID, COLOR_TASKS, fmtInt, fmtUsd, plural, promptOf, seedOf,
+  type Model, type Run, type Task, type Trial,
+} from '../lib/data.ts';
+import { answerDistribution, median, sum } from '../lib/stats.ts';
+
+const num = fmtInt;
+function claim(ok: boolean, what: string): void {
+  if (!ok) throw new Error(`color: the copy says ${what}, and the data no longer does`);
+}
+
+const first = loadAll(1);
+const { trials, runs, runByName, uncounted } = loadAll(2);
+
+// What sent the campaign looking: the first campaign's Haiku circle samples.
+const haikuCircles = first.runByName.get(`circle-sample-${MODEL_ID.haiku}-low`)!.trials;
+claim(haikuCircles.every((t) => t.gradient_667eea === true), 'every Haiku circle sample in the first campaign has the gradient');
+
+// The same page order as the first story.
+const ORDER: Model[] = ['fable', 'opus', 'sonnet', 'haiku'];
+const NAME = (m: Model) => MODEL_LABEL[m].split(' ')[0];
+const run = (name: string): Run => {
+  const r = runByName.get(name);
+  if (!r) throw new Error(`no run ${name}`);
+  return r;
+};
+const sample = (task: Task, m: Model) => run(`${task}-sample-${MODEL_ID[m]}-low`);
+const of = (task: Task, m: Model) => sample(task, m).trials;
+const size = (task: Task) => of(task, 'fable').length;
+claim(COLOR_TASKS.every((task) => MODELS.every((m) => of(task, m).length === size(task))), 'every model ran each task the same number of times');
+
+const answered = (t: Trial) => t.answer_form !== 'none' && t.answer_value !== null;
+const count = (task: Task, m: Model, value: string) => of(task, m).filter((t) => answered(t) && t.answer_value === value).length;
+const declined = (task: Task, m: Model) => of(task, m).filter((t) => !answered(t)).length;
+const top = (task: Task, m: Model, k: number) => answerDistribution(of(task, m)).values.slice(0, k);
+const bars = (task: Task, m: Model, k = 4) =>
+  top(task, m, k).map((v, i) => ({ label: v.value, value: v.count, hi: i === 0, swatch: v.parsed ? v.value : undefined }));
+const first1 = (task: Task, m: Model) => top(task, m, 1)[0];
+
+// Hue and luminance, so "teal", "blue", "warm" and "dark" are checked and not eyeballed.
+const HEX = /^#[0-9a-f]{6}$/;
+const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+function hue(hex: string): number {
+  const [r, g, b] = rgb(hex);
+  const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+  if (d === 0) return 0;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+const lum = (hex: string) => {
+  const [r, g, b] = rgb(hex).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const isTeal = (v: string) => HEX.test(v) && hue(v) >= 160 && hue(v) <= 190;
+const isBlue = (v: string) => HEX.test(v) && hue(v) >= 195 && hue(v) <= 235;
+const isWarm = (v: string) => HEX.test(v) && (hue(v) <= 45 || hue(v) >= 345);
+const isRed = (v: string) => v === 'tomato' || (HEX.test(v) && (hue(v) <= 15 || hue(v) >= 345));
+const isOrange = (v: string) => HEX.test(v) && hue(v) > 15 && hue(v) <= 45;
+
+// ------------------------------------------------------------ 1. the gradient
+const PAIR = '#667eea #764ba2';
+const hasPair = (t: Trial) => /#667eea/i.test(t.result) && /#764ba2/i.test(t.result);
+const pairFirst = (m: Model) => count('gradient', m, PAIR);
+const pairAnywhere = (m: Model) => of('gradient', m).filter(hasPair).length;
+const gradN = size('gradient');
+const sonnetBare = of('gradient', 'sonnet').filter((t) => t.answer_form === 'bare').length;
+claim(sonnetBare === gradN, 'every Sonnet gradient reply is nothing but the code');
+const haikuNext = top('gradient', 'haiku', 2)[1];
+claim(first1('gradient', 'haiku').value === PAIR && haikuNext.parsed, 'the pair is Haiku’s most common opener');
+const opusThird = top('gradient', 'opus', 3).find((v) => v.parsed && v.value.startsWith(PAIR + ' '));
+const hexN = MODELS.length * size('hex');
+const hexNamesIt = MODELS.reduce((a, m) => a + of('hex', m).filter((t) => /667eea/i.test(t.result)).length, 0);
+claim(hexNamesIt === 0, 'nobody names #667eea when asked for a hex color');
+const strips = (m: Model) =>
+  top('gradient', m, 3).filter((v) => v.parsed).map((v) => {
+    const stops = v.value.split(' ');
+    return { stops, count: v.count, css: stops.every((s) => HEX.test(s)) ? `linear-gradient(90deg, ${stops.join(', ')})` : null };
+  });
+
+// ------------------------------------------------------------------- 2. teal
+const colorN = size('color');
+const TEALERS: Model[] = ['fable', 'opus', 'sonnet'];
+claim(TEALERS.every((m) => count('color', m, 'teal') === colorN), 'Fable, Opus and Sonnet answer teal every time');
+const haikuBlue = count('color', 'haiku', 'blue');
+const haikuTeal = count('color', 'haiku', 'teal');
+claim(haikuBlue + haikuTeal === colorN, 'Haiku says blue or teal and nothing else');
+const hexTop = (m: Model) => first1('hex', m);
+claim(isTeal(hexTop('fable').value) && isTeal(hexTop('opus').value), 'Fable’s and Opus’s most common hex answers are teal');
+claim(hexTop('fable').value === hexTop('opus').value, 'Fable and Opus give the same hex value most often');
+claim(isBlue(hexTop('sonnet').value) && isBlue(hexTop('haiku').value), 'Sonnet’s and Haiku’s most common hex answers are blue');
+const rgbTop = (m: Model) => first1('rgb', m);
+claim(rgbTop('sonnet').value === rgbTop('haiku').value, 'Sonnet and Haiku give the same RGB color most often');
+
+// ---------------------------------------------------------------- 3. context
+const buttonN = size('button');
+const BUTTON = first1('button', 'fable').value;
+claim(count('button', 'fable', BUTTON) === buttonN && count('button', 'opus', BUTTON) === buttonN, 'Fable and Opus give one button color every time');
+claim(first1('button', 'sonnet').value === BUTTON && first1('button', 'haiku').value !== BUTTON, 'Sonnet agrees on the button and Haiku does not');
+const bgN = size('background');
+const BG = first1('background', 'fable').value;
+claim(count('background', 'fable', BG) === bgN && count('background', 'opus', BG) === bgN, 'Fable and Opus give one background color every time');
+const dark = (m: Model) => of('background', m).filter((t) => answered(t) && HEX.test(t.answer_value!) && lum(t.answer_value!) < 0.2).length;
+claim(dark('fable') === 0 && dark('opus') === 0 && dark('haiku') === 0 && dark('sonnet') > bgN / 2, 'only Sonnet picks a dark background');
+const pairTop = (m: Model) => first1('hex2', m).value.split(' ');
+claim(MODELS.every((m) => isBlue(pairTop(m)[0]) && isWarm(pairTop(m)[1])), 'every model’s most common pair is a blue and a warm color');
+
+// --------------------------------------------------------------- 4. colorize
+const colN = size('colorize');
+const colorizeSeed = seedOf('colorize');
+claim(colorizeSeed === seedOf('circle'), 'colorize starts from the first campaign’s circle');
+claim(MODELS.every((m) => of('colorize', m).every((t) => t.same_picture === false)), 'every colorize trial changed the picture');
+claim(!/background/.test(colorizeSeed), 'the seed sets no background');
+const setsBackground = (m: Model) => of('colorize', m).filter((t) => /background(-color)?\s*:/.test(t.output ?? '')).length;
+const seedRows = colorizeSeed.split('\n');
+const oneLine = (m: Model) =>
+  of('colorize', m).filter((t) => {
+    const rows = (t.output ?? '').split('\n');
+    return rows.length === seedRows.length && rows.filter((l, i) => l !== seedRows[i]).length === 1;
+  }).length;
+const fillCount = (m: Model, test: (v: string) => boolean) => of('colorize', m).filter((t) => t.answer_value !== null && test(t.answer_value)).length;
+claim(fillCount('fable', isRed) === colN, 'Fable paints the circle red every time');
+claim(fillCount('opus', isOrange) + fillCount('opus', isRed) === colN, 'Opus paints the circle orange or red');
+const haikuPair = of('colorize', 'haiku').filter((t) => t.gradient_667eea === true);
+claim(TEALERS.every((m) => of('colorize', m).every((t) => t.gradient_667eea !== true)), 'only Haiku uses the pair in colorize');
+claim(haikuPair.every((t) => /background[^;]*gradient[^;]*#667eea/i.test(t.output ?? '')), 'Haiku puts the gradient behind the circle');
+claim(haikuPair.every((t) => !/<(linear|radial)Gradient/i.test(t.output ?? '')), 'Haiku never fills the circle with the gradient');
+const fillBars = (m: Model) =>
+  answerDistribution(of('colorize', m)).values.slice(0, 4).map((v, i) => ({ label: v.value, value: v.count, hi: i === 0, swatch: v.value }));
+// The most trials of one model that left byte-identical files.
+const sameFile = (m: Model) => {
+  const by = new Map<string, number>();
+  for (const t of of('colorize', m)) by.set(t.output_sha256, (by.get(t.output_sha256) ?? 0) + 1);
+  return Math.max(...by.values());
+};
+
+// --------------------------------------------------------------- 5. favorite
+const favN = size('favorite');
+const bestN = size('best');
+const ANSWERERS: Model[] = ['fable', 'opus'];
+const DECLINERS: Model[] = ['sonnet', 'haiku'];
+claim(ANSWERERS.every((m) => declined('favorite', m) === 0 && declined('best', m) === 0), 'Fable and Opus answer both questions every time');
+claim(ANSWERERS.every((m) => count('best', m, 'blue') === bestN), 'Fable and Opus say blue is the best color every time');
+claim(
+  ANSWERERS.every((m) => of('favorite', m).every((t) => ['blue', 'blue-green', 'teal'].includes(t.answer_value ?? ''))),
+  'Fable’s and Opus’s favorites are blue, blue-green or teal',
+);
+claim(DECLINERS.every((m) => declined('favorite', m) > favN * 0.9 && declined('best', m) > bestN * 0.9), 'Sonnet and Haiku decline both questions nearly every time');
+const asTool = (m: Model) => of('favorite', m).filter((t) => /project|software|coding|\bcode\b|engineering/i.test(t.result)).length;
+const modal = (ts: Trial[]): Trial => {
+  const by = new Map<string, Trial[]>();
+  for (const t of ts) by.set(t.result.trim(), [...(by.get(t.result.trim()) ?? []), t]);
+  return [...by.values()].sort((a, b) => b.length - a.length)[0][0];
+};
+const favBars = (task: Task, m: Model) => bars(task, m, 3);
+
+// ---------------------------------------------------------------- 6. the room
+const ctlSvg = run('svg-sample-claude-opus-5-5-low-2');
+const ctlHtml = run('html-sample-claude-opus-5-5-low-2');
+const wasSvg = first.runByName.get(ctlSvg.rerunOf!)!;
+const wasHtml = first.runByName.get(ctlHtml.rerunOf!)!;
+const untouched = (r: Run) => r.trials.filter((t) => t.unchanged === true).length;
+claim(untouched(wasSvg) === wasSvg.n, 'Opus left every empty SVG alone in the first campaign');
+const drew = ctlSvg.trials.filter((t) => t.same_picture === false).length;
+const svgChanged = ctlSvg.n - untouched(ctlSvg);
+const denials = sum(ctlSvg.trials.map((t) => t.denials));
+const denied = ctlSvg.trials.filter((t) => (t.denials ?? 0) > 0);
+claim(sum(wasSvg.trials.map((t) => t.denials)) === 0, 'the first campaign’s run had no denials');
+claim(ctlSvg.trials.filter((t) => t.same_picture === false).every((t) => (t.denials ?? 0) > 0), 'every trial that drew something was denied a tool');
+const oneOutput = (r: Run) => new Set(r.trials.map((t) => t.output_sha256)).size === 1;
+claim(oneOutput(ctlHtml) && oneOutput(wasHtml), 'Opus wrote one html document every time, in each campaign');
+claim(ctlHtml.trials[0].output !== wasHtml.trials[0].output, 'the two html documents differ');
+claim(ctlHtml.trials.every((t) => t.same_picture === true), 'the control’s html pages all render blank');
+const day = (r: Run) => new Date(r.trials[0].started_utc);
+const daysApart = Math.round((day(ctlSvg).getTime() - day(wasSvg).getTime()) / 86_400_000);
+claim(daysApart >= 6 && daysApart <= 7, 'the control ran a week after the first campaign');
+const haltedModels = [...new Set(uncounted.map((a) => a.model))].sort();
+claim(haltedModels.join() === 'fable,opus' && uncounted.every((a) => a.step === 1), 'only Fable and Opus runs halted, each at its first trial');
+
+// ------------------------------------------------------------------- totals
+const cost = sum(trials.map((t) => t.cost_usd));
+const costOf = (m: Model) => sum(trials.filter((t) => t.model === m).map((t) => t.cost_usd));
+const tasksAsked = new Set(runs.filter((r) => !r.rerunOf).map((r) => r.task)).size;
+const chat = trials.filter((t) => t.file === null);
+claim(median(chat.map((t) => t.turns)) === 1, 'a color answer is one turn');
+const chatWall = median(chat.map((t) => t.wall_s)) ?? 0;
+const quoteFav = modal(of('favorite', 'fable'));
+const quoteDecline = modal(of('favorite', 'sonnet'));
+const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
+---
+
+<Base
+  title="Color"
+  path="/color/"
+  description="Asked for a color outright, three Claude models say teal a hundred times in a hundred. The purple gradient turns out to be what a gradient means, not a favorite."
+>
+  <header class="grid intro">
+    <div class="head stack-lg">
+      <h1>Color</h1>
+      <p class="dek">
+        The <a href={href('/#gradient')}>first campaign</a> found one purple gradient in every one of Haiku’s
+        {haikuCircles.length} circle samples. A favorite color, or a habit? This one asks.
+      </p>
+    </div>
+  </header>
+
+  <section class="keyline grid rule-ink">
+    <KeyRow
+      class="full"
+      max="xl"
+      items={[
+        { value: num(trials.length), caption: 'trials, each a fresh session' },
+        { value: String(tasksAsked), caption: 'ways of asking for a color' },
+        { value: String(MODELS.length), caption: `models: ${MODELS.map((m) => MODEL_LABEL[m]).join(', ')}` },
+        { value: fmtUsd(cost), caption: 'API-equivalent cost of the campaign' },
+      ]}
+    />
+  </section>
+
+  <Chapter n={1} id="gradient" title="The gradient, again" dek="It is what “a gradient” means. Nobody picks it as a color." rule="none">
+    <div class="prose">
+      <p class="lede">
+        The prompt is <code>{promptOf('gradient')}</code> Sonnet answers <code>#667eea</code> to <code>#764ba2</code> in
+        <mark>{pairFirst('sonnet')} of {gradN}</mark> replies, and every one of the {gradN} is nothing but the code.
+      </p>
+      <p>
+        Haiku includes the pair in {pairAnywhere('haiku')} replies and opens with it in {pairFirst('haiku')}. Its next
+        most common opener, {haikuNext.count} times, is <code>{haikuNext.value.split(' ').join(' to ')}</code>.
+        Opus and Fable have gradients of their own{opusThird && <>, though Opus opens with the pair plus a third stop in {opusThird.count} replies</>}.
+        Fable mentions the pair in {plural(pairAnywhere('fable'), 'reply', 'replies')}.
+      </p>
+      <p>
+        Asked for a hex color instead, none of the four names <code>#667eea</code>: {hexNamesIt} of {num(hexN)}. So the first
+        campaign had the right pair and the wrong owner. It saw the gradient from Haiku alone because Haiku is the
+        model that adds a gradient when told to improve something. Sonnet knows the same one and does not reach for it.
+      </p>
+    </div>
+    <div class="wide stack">
+      <h3>How each model opens</h3>
+      <div class="permodel">
+        {ORDER.map((m) => (
+          <div class="stack">
+            <h4>{MODEL_LABEL[m]}</h4>
+            <ul class="strips" role="list">
+              {strips(m).map((g) => (
+                <li>
+                  <span class="strip" style={g.css ? `background:${g.css}` : undefined} aria-hidden="true" />
+                  <span class="mono stops">{g.stops.join(' ')}</span>
+                  <span class="mono n">{g.count}</span>
+                </li>
+              ))}
+            </ul>
+            <p class="mono small muted"><a href={href(`/runs/${sample('gradient', m).name}/`)}>every trial</a></p>
+          </div>
+        ))}
+      </div>
+      <p class="small muted">
+        The first gradient in each reply, by its color stops, three most common per model, of {gradN} replies each.
+      </p>
+    </div>
+  </Chapter>
+
+  <Chapter n={2} id="teal" title="Teal" dek="Asked for a color, three models say the same word every time.">
+    <div class="prose">
+      <p class="lede">
+        <code>{promptOf('color')}</code> Fable, Opus and Sonnet each answer teal, <mark>{colorN} of {colorN}</mark>.
+        Haiku says blue {haikuBlue} times and teal {haikuTeal}.
+      </p>
+      <p>
+        Asked for a hex value, each model has its own shade of the same corner of the wheel. Fable and Opus agree on
+        <code>{hexTop('fable').value}</code> ({hexTop('fable').count} and {hexTop('opus').count} of {size('hex')}).
+        Sonnet says teal in words and then gives a hex value that is plainly blue:
+        <code>{hexTop('sonnet').value}</code>, {hexTop('sonnet').count} times. Haiku spreads across several blues.
+        Asked for RGB, Sonnet and Haiku both land on <code>{rgbTop('sonnet').value}</code>.
+      </p>
+    </div>
+    <div class="wide stack">
+      <h3><code>{promptOf('hex')}</code></h3>
+      <div class="permodel">
+        {ORDER.map((m) => (
+          <div class="stack">
+            <h4>{MODEL_LABEL[m]}</h4>
+            <Bars items={bars('hex', m)} format="count" labelWidth="8.5em" />
+            <p class="mono small muted"><a href={href(`/runs/${sample('hex', m).name}/`)}>every trial</a></p>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div class="wide stack">
+      <h3><code>{promptOf('rgb')}</code></h3>
+      <div class="permodel">
+        {ORDER.map((m) => (
+          <div class="stack">
+            <h4>{MODEL_LABEL[m]}</h4>
+            <Bars items={bars('rgb', m)} format="count" labelWidth="8.5em" />
+            <p class="mono small muted"><a href={href(`/runs/${sample('rgb', m).name}/`)}>every trial</a></p>
+          </div>
+        ))}
+      </div>
+      <p class="small muted">RGB answers are shown as the hex value they convert to.</p>
+    </div>
+  </Chapter>
+
+  <Chapter n={3} id="context" title="It depends what it is for" dek="A button is one blue. A background depends on who you ask.">
+    <div class="prose">
+      <p class="lede">
+        Name a purpose and the answer changes. A button is <code>{BUTTON}</code>: Fable {count('button', 'fable', BUTTON)},
+        Opus {count('button', 'opus', BUTTON)}, Sonnet {count('button', 'sonnet', BUTTON)} of {buttonN}. Haiku prefers
+        <code>{first1('button', 'haiku').value}</code> ({first1('button', 'haiku').count}).
+      </p>
+      <p>
+        A background is <code>{BG}</code> for Fable and Opus, {bgN} of {bgN} each. Haiku says
+        <code>{first1('background', 'haiku').value}</code> ({first1('background', 'haiku').count}). Sonnet is the only
+        one that goes dark, in <mark>{dark('sonnet')} of {bgN}</mark>. And asked for two colors, every model’s most
+        common pair is a blue and something warm.
+      </p>
+    </div>
+    {(['button', 'background', 'hex2'] as Task[]).map((task) => (
+      <div class="wide stack">
+        <h3><code>{promptOf(task)}</code></h3>
+        <div class="permodel">
+          {ORDER.map((m) => (
+            <div class="stack">
+              <h4>{MODEL_LABEL[m]}</h4>
+              <Bars items={bars(task, m, task === 'hex2' ? 3 : 4)} format="count" labelWidth={task === 'hex2' ? '12.5em' : '8.5em'} />
+              <p class="mono small muted"><a href={href(`/runs/${sample(task, m).name}/`)}>every trial</a></p>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </Chapter>
+
+  <Chapter n={4} id="colorize" title="Add color" dek="The first campaign’s black circle, and three words. Each model has a palette.">
+    <div class="prose">
+      <p class="lede">
+        The seed is the black circle from the first campaign, byte for byte. The prompt is
+        <code>{promptOf('colorize')}</code>. All {num(colN * MODELS.length)} trials changed the picture.
+      </p>
+      <p>
+        Fable paints the circle red, <mark>{fillCount('fable', isRed)} of {colN}</mark>, and gives the page a
+        background in {setsBackground('fable')}. Opus paints it orange in {fillCount('opus', isOrange)} and red in
+        {fillCount('opus', isRed)}, sets a background every time, and wrote the same file in {sameFile('opus')} of
+        its {colN} trials. Sonnet changes exactly one line in {oneLine('sonnet')}: a fill on the circle, blue in
+        {fillCount('sonnet', isBlue)}. Haiku splits. {oneLine('haiku')} are one-line edits, and {haikuPair.length} put
+        <a href={href('/#gradient')}>the purple gradient</a> behind the circle, never on it.
+      </p>
+      <p class="small muted">Every cell below is one trial. Click any of them for the source and what the model said it did.</p>
+    </div>
+    {ORDER.map((m) => (
+      <div class="wide stack">
+        <div class="flex between">
+          <h3>{MODEL_LABEL[m]}</h3>
+          <span class="mono small muted">
+            background {setsBackground(m)}/{colN} · one line {oneLine(m)}/{colN} ·
+            <a href={href(`/runs/${sample('colorize', m).name}/`)}>every trial</a>
+          </span>
+        </div>
+        <SpecimenGrid trials={of('colorize', m)} cols={8} />
+        <div class="fills">
+          <Bars items={fillBars(m)} format="count" names={true} labelWidth="8.5em" title="the circle’s fill" />
+        </div>
+      </div>
+    ))}
+  </Chapter>
+
+  <Chapter n={5} id="favorite" title="A favorite" dek="Fable and Opus say blue. Sonnet and Haiku say they are a coding tool.">
+    <div class="prose">
+      <p class="lede">
+        <code>{promptOf('favorite')}</code> Fable and Opus answer every time, and the answer is blue:
+        {count('favorite', 'fable', 'blue')} and {count('favorite', 'opus', 'blue')} of {favN}, with blue-green or teal
+        for the rest. Sonnet declines <mark>{declined('favorite', 'sonnet')}</mark> times and Haiku
+        <mark>{declined('favorite', 'haiku')}</mark>.
+      </p>
+      <p>
+        They decline in character. {asTool('sonnet')} of Sonnet’s replies and {asTool('haiku')} of Haiku’s mention the
+        project, software or code: the model is answering as the tool it has been told it is.
+        <code>{promptOf('best')}</code> goes the same way. Fable and Opus open with “Blue”, {bestN} of {bestN} each.
+        Sonnet declines {declined('best', 'sonnet')} and Haiku {declined('best', 'haiku')}.
+      </p>
+      <p>
+        Before reading this as two kinds of model, read <a href="#room">the next section</a>. The line between the
+        models that answer and the models that decline is also a line in the room.
+      </p>
+    </div>
+    <div class="wide quotes">
+      <Quote trial={quoteFav} chars={230} />
+      <Quote trial={quoteDecline} chars={230} />
+      <Quote trial={quoteBest} chars={230} />
+    </div>
+    <div class="wide stack">
+      <h3><code>{promptOf('favorite')}</code></h3>
+      <div class="permodel">
+        {ORDER.map((m) => (
+          <div class="stack">
+            <h4>{MODEL_LABEL[m]}</h4>
+            <Bars items={favBars('favorite', m)} format="count" max={favN} />
+            <p class="mono small muted"><a href={href(`/runs/${sample('favorite', m).name}/`)}>every trial</a></p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </Chapter>
+
+  <Chapter n={6} id="room" title="The room changed" dek="Same binary, a week later, and a different system prompt for two models of four.">
+    <div class="prose">
+      <p class="lede">
+        Every trial runs inside Claude Code, pinned to one CLI binary, and the runner compares what the CLI sends the
+        model against a record kept from the first campaign. On the first launch every Fable and Opus run halted at its
+        first trial: <mark>{uncounted.length}</mark> attempts, none counted. The binary was the same. The system prompt
+        it served those two models was not.
+      </p>
+      <p>
+        For Fable and Opus the CLI had dropped a token-budget reminder, added a section on memory and notes, and added
+        a paragraph about the Edit tool. Opus had also gained a section called “Finishing work”, which tells the model
+        not to stop while work is still owed. Fable already had it in the first campaign. Sonnet’s and Haiku’s
+        conditions had not changed at all.
+      </p>
+      <p>
+        So the campaign added a control: two of the first campaign’s runs again, for Opus alone. On the empty SVG,
+        Opus had changed nothing in {untouched(wasSvg)} of {wasSvg.n} trials and asked what it should be. This time it
+        left {untouched(ctlSvg)} alone and changed {svgChanged}: <mark>{drew}</mark> drew a numeral 0, as
+        <a href={href('/#empty')}>Fable had</a>, and the rest still render blank. Every one that drew something then
+        tried to validate the file, which the room denies ({denials} denials in {denied.length} trials, none before).
+        On the empty HTML page it wrote one document {ctlHtml.n} times in each campaign, but not the same one:
+        {plural(wasHtml.trials[0].lines ?? 0, 'line')} then, {plural(ctlHtml.trials[0].lines ?? 0, 'line')} now.
+      </p>
+      <p>
+        Three prompt changes arrived together, so the control shows that the prompt moves the model without showing
+        which part does. And it means that on this page, Fable and Opus against Sonnet and Haiku compares two prompts
+        as well as four models. The favorite color and the control fall exactly on that line. Teal, the button and
+        the gradient do not: Sonnet sides with Fable and Opus on the first two.
+      </p>
+    </div>
+    <KeyRow
+      class="wide"
+      items={[
+        { value: `${untouched(wasSvg)}/${wasSvg.n}`, caption: 'empty SVGs Opus left alone, first campaign' },
+        { value: `${untouched(ctlSvg)}/${ctlSvg.n}`, caption: 'left alone a week later' },
+        { value: String(drew), caption: 'drew a numeral 0' },
+        { value: String(uncounted.length), caption: 'attempts halted on the changed prompt' },
+      ]}
+    />
+    <div class="wide stack">
+      <div class="flex between">
+        <h3>Opus, the empty SVG, again</h3>
+        <span class="mono small muted">
+          changed {svgChanged}/{ctlSvg.n} · drew {drew} ·
+          <a href={href(`/runs/${ctlSvg.name}/`)}>every trial</a> · <a href={href(`/runs/${wasSvg.name}/`)}>the first run</a>
+        </span>
+      </div>
+      <SpecimenGrid trials={ctlSvg.trials} cols={8} />
+    </div>
+  </Chapter>
+
+  <Chapter n={7} id="limits" title="What this cannot say" dek="Four limits, and what it cost.">
+    <div class="prose">
+      <ul>
+        <li>
+          <strong>Color apart from Claude Code.</strong> Every trial carries the harness’s system prompt. Whether the
+          bare models would also decline to have a favorite needs an arm with no harness.
+        </li>
+        <li>
+          <strong>Model against prompt</strong>, for anything that splits Fable and Opus from Sonnet and Haiku.
+        </li>
+        <li><strong>Which prompt change moved Opus.</strong> Three arrived together.</li>
+        <li><strong>Anything about effort.</strong> Every trial ran at low, as in the first campaign.</li>
+      </ul>
+      <p>
+        The campaign cost {fmtUsd(cost)} API-equivalent: {ORDER.map((m, i) => <>{i > 0 && ', '}{NAME(m)} {fmtUsd(costOf(m))}</>)}.
+        A color answer is one turn and a median of {chatWall.toFixed(1)} seconds.
+      </p>
+    </div>
+  </Chapter>
+
+  <section class="grid section rule-ink">
+    <div class="no"></div>
+    <div class="wide stack-lg">
+      <h2>Every answer is here.</h2>
+      <p class="dek">
+        {num(trials.length)} pages, one per trial, each with the reply as the model gave it. The colorize and control
+        trials have the render, the source and the diff.
+      </p>
+      <div class="more">
+        <a class="btn" href={href('/runs/#color')}>Browse the {runs.length} runs</a>
+        <a class="btn btn-ghost" href={href('/')}>The first campaign</a>
+        <a class="btn btn-ghost" href={href('/data/')}>Download the data</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .intro {
+    padding-block: calc(var(--row) * 8) calc(var(--row) * 6);
+  }
+  @media (min-width: 900px) {
+    .intro {
+      padding-block: calc(var(--row) * 12) calc(var(--row) * 8);
+    }
+  }
+  .keyline {
+    padding-block: calc(var(--row) * 5);
+  }
+  .permodel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: calc(var(--row) * 4) var(--gutter);
+  }
+  @media (min-width: 900px) {
+    .permodel {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .strips {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: calc(var(--row) * 1.5);
+  }
+  .strips li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    column-gap: calc(var(--row) * 1.5);
+    align-items: baseline;
+    font-size: var(--t-xs);
+  }
+  .strip {
+    grid-column: 1 / -1;
+    display: block;
+    height: calc(var(--row) * 4);
+    border: 1px solid var(--hair);
+    margin-bottom: calc(var(--row) * 0.5);
+  }
+  .stops {
+    overflow-wrap: anywhere;
+  }
+  .strips .n {
+    color: var(--ink-2);
+  }
+  .quotes {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: calc(var(--row) * 3) var(--gutter);
+  }
+  @media (min-width: 900px) {
+    .quotes {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .fills {
+    max-width: 30em;
+  }
+  .more {
+    display: flex;
+    gap: var(--gutter);
+    flex-wrap: wrap;
+  }
+  h3 {
+    margin-bottom: calc(var(--row) * 1);
+  }
+</style>

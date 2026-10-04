@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { CAMPAIGNS, allRuns, isCampaign, loadAll } from '../lib/data.ts';
 import { href } from '../lib/href.mjs';
 import { headline } from '../lib/stats.ts';
 
@@ -17,6 +18,9 @@ const SITE = 'https://centricle.com';
 // come from the same headline() the story's KeyRow reads rather than being typed.
 const h = headline();
 const trialCount = h.trialsCampaign.toLocaleString('en-US');
+// The footer counts the whole site: every campaign's trials and runs, the pilot aside.
+const everyTrial = CAMPAIGNS.flatMap((c) => loadAll(c.id).trials).filter(isCampaign).length.toLocaleString('en-US');
+const everyRun = allRuns().filter((r) => r.mode !== 'pilot').length;
 
 const {
   title,
@@ -32,6 +36,7 @@ const REPO = 'https://github.com/centricle/priors';
 
 const nav = [
   ['Story', '/'],
+  ['Color', '/color/'],
   ['Runs', '/runs/'],
   ['Method', '/method/'],
   ['Data', '/data/'],
@@ -113,7 +118,7 @@ const favicon =
           priors is a <a href="https://centricle.com/curios/">curio</a>. MIT licensed;
           the outputs are the models’ own.
         </span>
-        <span class="small muted mono">n = {trialCount} · {h.models} models · {h.runs} runs</span>
+        <span class="small muted mono">n = {everyTrial} · {h.models} models · {everyRun} runs</span>
       </div>
     </footer>
   </body>
