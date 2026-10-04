@@ -3,10 +3,11 @@
 #
 #   runs/<run>/NNN/<file>  ->  renders/<run>/NNN.webp
 #
-# Artifact tasks only (circle, html, svg, replica); text tasks have nothing to
-# render. Existing renders are kept unless --force. With no run names, renders
-# every run that has a trials.jsonl. Writes renders/README.md with the Chrome
-# build, since renders only reproduce on the same build and fonts.
+# Artifact tasks only (circle, html, svg, replica, colorize); text tasks have
+# nothing to render. Existing renders are kept unless --force. With no run
+# names, renders every run that has a trials.jsonl. Writes renders/README.md
+# with the Chrome build, since renders only reproduce on the same build and
+# fonts, and with every date a batch was rendered on.
 #
 # Measured 2026-09-28: a static page renders byte-identically every time. A page
 # with CSS animation matched in 4 of 6 renders, and the others differed in
@@ -33,7 +34,7 @@ list=$(mktemp "${TMPDIR:-/tmp}/priors-render.XXXXXX")
 trap 'rm -f "$list"' EXIT
 for run in "${runs[@]}"; do
   task=$(jq -r '.task' "$REPO/runs/$run/trials.jsonl" | head -1)
-  case $task in circle|html|svg|replica) ;; *) continue ;; esac
+  case $task in circle|html|svg|replica|colorize) ;; *) continue ;; esac
   file=$(ls "$REPO/tasks/$task/seed")
   for room in "$REPO/runs/$run"/[0-9][0-9][0-9]; do
     [ -f "$room/$file" ] || continue
@@ -59,6 +60,13 @@ done
 wait
 
 mkdir -p "$REPO/renders"
+# The dates accumulate: a later batch adds its day and keeps the earlier ones,
+# and a launch that rendered nothing adds none.
+dates=$(sed -n 's/^- Rendered: //p' "$REPO/renders/README.md" 2>/dev/null)
+today=$(date -u +%Y-%m-%d)
+if [ "$total" -gt 0 ] || [ -z "$dates" ]; then
+  case ", $dates," in *", $today,"*) ;; *) dates=${dates:+$dates, }$today ;; esac
+fi
 cat > "$REPO/renders/README.md" <<EOF
 # renders
 
@@ -68,11 +76,11 @@ viewport, prefers-color-scheme pinned to light, 2000 ms of virtual time, then
 \`cwebp -q 80\`.
 
 - Chrome: $("$CHROME" --version 2>/dev/null | tr -s ' ' | sed 's/ $//')
-- Rendered: $(date -u +%Y-%m-%d)
+- Rendered: $dates
 
 Renders only reproduce on the same Chrome build and fonts. Static pages render
 byte-identically. Animated pages can differ from one render to the next
-(animation phase). Pages flagged \`nondeterministic\` in \`data/trials.csv\`
+(animation phase). Pages flagged \`nondeterministic\` in a tally (\`data/*.csv\`)
 call Math.random or the clock; a render may vary.
 
 \`pilot-import/\` holds fresh renders of the pilot's outputs, runs 23-26
