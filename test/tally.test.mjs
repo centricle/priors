@@ -138,6 +138,22 @@ test('campaign 2: the counts the color parsers were written against', () => {
   assert.ok(of('colorize', F).every((r) => r.answer_ok && r.unchanged === false));
 });
 
+test('campaign 2: a seed no trial left alone borrows its render from the first campaign', () => {
+  const rows = tally(join(REPO, 'campaign-2.tsv'));
+  const of = (task) => rows.filter((r) => r.task === task);
+  assert.deepEqual([of('colorize').length, of('html').length, of('svg').length], [128, 32, 32]);
+  // Every colorize and control html trial changed its file, so neither has a render of its own seed.
+  assert.ok([...of('colorize'), ...of('html')].every((r) => r.unchanged === false));
+  // Colorize always changes the picture. The control's html edits never do: a blank page stays blank.
+  assert.ok(of('colorize').every((r) => r.same_picture === false));
+  assert.ok(of('html').every((r) => r.same_picture === true));
+  // The svg control has seed renders of its own: 22 files left alone, 6 pictures changed.
+  assert.equal(of('svg').filter((r) => r.unchanged).length, 22);
+  assert.equal(of('svg').filter((r) => r.same_picture === false).length, 6);
+  const out = execFileSync(process.execPath, [join(REPO, 'bin', 'tally.mjs'), '--campaign', join(REPO, 'campaign-2.tsv'), '--check'], { encoding: 'utf8' });
+  assert.match(out, /^ok: 3792 rows/);
+});
+
 test('tally: the default covers campaign.tsv and the imported pilot, nothing later', () => {
   const listed = new Set(readFileSync(join(REPO, 'campaign.tsv'), 'utf8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t')[0]));
   const rows = tally();
