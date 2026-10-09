@@ -102,6 +102,12 @@ for (const name of ['trials.csv', 'campaign-2.csv']) {
 // or its manifest is newer than the image. Unlike the renders and CSVs, the
 // cards are tracked: they are drawn with this machine's fonts, which the
 // deploy's build box does not have.
+//
+// So the build box never draws one. A fresh clone gives every file the
+// checkout's mtime, which makes "is the card older than the script" a race
+// there, and the loser is redrawn in DejaVu Sans: that is how production
+// served the two cards in two typefaces on 2026-10-09. Netlify sets
+// NETLIFY=true; a card missing there is a commit error, not a reason to draw.
 const CARDS = [
   { manifest: 'campaign.tsv', out: 'og.png', lines: ['Give a model a black circle.', 'Say improve. {n} times.'] },
   { manifest: 'campaign-2.tsv', out: 'og-color.png', lines: ['Ask a model for a color.', 'Do it {n} times.'] },
@@ -114,10 +120,15 @@ const plannedTrials = (manifest) =>
     .filter(Boolean)
     .reduce((sum, line) => sum + Number(line.split('\t')[4]), 0);
 
-let og = 'kept';
+const buildBox = Boolean(process.env.NETLIFY);
+let og = buildBox ? 'kept (build box)' : 'kept';
 for (const card of CARDS) {
   const manifest = join(repo, card.manifest);
   const out = join(pub, card.out);
+  if (buildBox) {
+    if (!existsSync(out)) throw new Error(`prebuild: ${card.out} is not committed; draw it locally and commit it`);
+    continue;
+  }
   if (fresh(out, here, manifest)) continue;
   const n = plannedTrials(manifest).toLocaleString('en-US');
   const [one, two] = card.lines.map((l) => l.replace('{n}', n));
