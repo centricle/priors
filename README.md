@@ -337,4 +337,4 @@ should carry:
 
 ## License
 
-MIT. Copyright (c) 2026 Kevin Smith. See `LICENSE`.
+MIT. Copyright (c) 2026 Centricle LLC. See `LICENSE`.
