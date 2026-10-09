@@ -226,6 +226,14 @@ check "campaigns: the first keeps its name" test -s "$T/brain/golden/later/room-
 (cd "$SRC" && bin/campaign.sh --dry-run --campaign campaign-2.tsv) > "$BASE/dry-run-2.txt" 2>&1
 check "dry run: the second manifest lists its own runs" eq "$(grep -E -c ': (sample|chain), ' "$BASE/dry-run-2.txt")" "$(awk 'NR > 1' "$SRC/campaign-2.tsv" | wc -l | tr -d ' ')"
 
+# The third manifest varies effort: 16 runs per level, max first in every
+# group (the launch's first 45 minutes are the cost probe), 900 s watchdog.
+(cd "$SRC" && PRIORS_WATCHDOG=900 bin/campaign.sh --dry-run --campaign campaign-3.tsv) > "$BASE/dry-run-3.txt" 2>&1
+check "dry run: campaign 3 is 48 runs, 3168 trials" grep -q '# 48 runs, 3168 trials' "$BASE/dry-run-3.txt"
+check "dry run: campaign 3 has 16 runs per level" eq "$(grep -c -- '--effort max' "$BASE/dry-run-3.txt") $(grep -c -- '--effort high' "$BASE/dry-run-3.txt") $(grep -c -- '--effort low' "$BASE/dry-run-3.txt")" "16 16 16"
+check "dry run: campaign 3 runs max first in every group" eq "$(grep -E '^[a-z]+-sample-.*: sample' "$BASE/dry-run-3.txt" | awk 'NR % 12 == 1' | grep -c 'effort max')" 4
+check "dry run: campaign 3 watchdog in the header and on every line" eq "$(grep -c '^# watchdog 900s' "$BASE/dry-run-3.txt") $(grep -c 'alarm 900' "$BASE/dry-run-3.txt")" "1 48"
+
 (cd "$SRC" && bin/campaign.sh --dry-run) > "$BASE/dry-run.txt" 2>&1
 check "dry run: every run listed" eq "$(grep -E -c ': (sample|chain), ' "$BASE/dry-run.txt")" "$(awk 'NR > 1' "$SRC/campaign.tsv" | wc -l | tr -d ' ')"
 check "dry run: 2608 trials" grep -q '# 41 runs, 2608 trials' "$BASE/dry-run.txt"
