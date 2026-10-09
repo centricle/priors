@@ -99,6 +99,7 @@ check "relay: models rotate" eq "$(rows $r '[.[].model_asked] | join(",")')" "$F
 check "relay: 5 counted, no halt" eq "$(rows $r '[.[] | select(.counted)] | length') $(ls "$T/.state/halted" | wc -l | tr -d ' ')" "5 0"
 check "relay: one golden per model" eq "$(ls "$T/brain/golden" | grep -c '\.json$')" 4
 check "relay: Fable matches the Haiku golden, masked" grep -q '^PASS  identical to the Haiku golden' "$T/brain/golden/room-$F-low-$(shasum -a 256 "$STUB" | cut -c1-12).checks.txt"
+check "relay: harness.mjs tables the goldens, four tool rows" eq "$(node "$T/bin/harness.mjs" --block t "$T/brain/golden"/*.json 2>/dev/null | grep -cE '^\| (Bash|Edit|Read|Write) ')" 4
 
 # ----------------------------------------------------- failures and brakes
 
