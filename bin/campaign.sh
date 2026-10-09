@@ -92,15 +92,16 @@ runs_of() { queue | awk -F'\t' -v g="$1" '$2 == g {print $1}'; }
 
 if [ "$dry_run" = 1 ]; then
   total=0
-  printf '# CLI %s\n# sha256 %s\n# manifest %s\n' "$claude_bin" "$PRIORS_CLAUDE_SHA" "$CAMPAIGN"
+  printf '# CLI %s\n# sha256 %s\n# manifest %s\n# watchdog %ss\n' "$claude_bin" "$PRIORS_CLAUDE_SHA" "$CAMPAIGN" "$WATCHDOG"
   for g in $(groups); do
     printf '\n## group %s (room %s, prompt %s)\n' "$g" "$(task_room "$g")" "$(q "$(task_prompt "$g")")"
-    queue | awk -F'\t' -v g="$g" '$2 == g' | while IFS=$'\t' read -r run task mode models n profile; do
+    queue | awk -F'\t' -v g="$g" '$2 == g' | while IFS=$'\t' read -r run task mode models n profile effort; do
+      EFFORT=${effort:-low}
       state=
       [ ! -f "$REPO/runs/$run/trials.jsonl" ] ||
         state=", $(jq -s '[.[] | select(.counted == true)] | length' "$REPO/runs/$run/trials.jsonl") counted so far"
       [ ! -f "$STATE/halted/$run" ] || state="$state, HALTED"
-      printf '\n%s: %s, n=%s, profile %s%s\n' "$run" "$mode" "$n" "$profile" "$state"
+      printf '\n%s: %s, n=%s, profile %s, effort %s%s\n' "$run" "$mode" "$n" "$profile" "$EFFORT" "$state"
       for m in $(printf '%s' "$models" | tr ',' ' '); do
         build_argv "$profile" "$m" '<session-id>' "$(task_prompt "$task")"
         show_cmd "$(task_room "$task")" "${ARGV[@]}"
@@ -151,7 +152,7 @@ if [ -f "$STATE/STOP" ]; then
 fi
 rm -f "$STATE"/pgids/* "$STATE"/capped/*
 build_gate
-log "launch: $(basename "$CAMPAIGN"), CLI $claude_bin sha256 $PRIORS_CLAUDE_SHA, jobs $jobs_n, ceiling $ceiling%"
+log "launch: $(basename "$CAMPAIGN"), CLI $claude_bin sha256 $PRIORS_CLAUDE_SHA, jobs $jobs_n, ceiling $ceiling%, watchdog ${WATCHDOG}s"
 
 # ------------------------------------------------------ stage 1: confirmation
 

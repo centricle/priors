@@ -13,7 +13,7 @@ STATE=$REPO/.state
 ROOM_ROOT=${PRIORS_ROOM_ROOT:-/private/tmp}
 CFG=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 WATCHDOG=${PRIORS_WATCHDOG:-300}
-EFFORT=low
+EFFORT=low  # the default; run.sh and the dry run set it per run from the manifest
 HAIKU=claude-haiku-4-5-20251001
 ROOM_TOOLS='["Bash","Edit","Read","Write"]'
 ATTRIBUTION='{"attribution":{"commit":"","pr":""}}'
@@ -99,7 +99,9 @@ unlock() { rm -rf "$STATE/locks/$1.lock"; }
 # when the tally and the site are taught its tasks.
 CAMPAIGN=${PRIORS_CAMPAIGN:-$REPO/campaign.tsv}
 
-# Manifest fields: run task mode models n profile. Prints the row for a run.
+# Manifest fields: run task mode models n profile [effort]. The seventh is the
+# --effort level for the run's trials, default low (decision 14), so the first
+# two manifests keep their six columns. Prints the row for a run.
 campaign_row() { awk -F'\t' -v r="$1" '$1 == r' "$CAMPAIGN"; }
 
 task_prompt() { cat "$REPO/tasks/$1/prompt.txt"; }
@@ -406,7 +408,7 @@ room_assertions() {
 #   $6 facts JSON  $7 where (run/step, for the record)
 golden_verdict() {
   local profile=$1 model=$2 rec=$3 room=$4 sid=$5 facts=$6 where=$7
-  local key gdir grel gfile cond sha gsha checks hk hfile masked hmasked first
+  local key gdir grel gfile cond sha gsha checks hk hfile masked hmasked other oname olabel sha12 ofile okey oeff
   GOLDEN_NOTE=
   key=$(golden_key "$profile" "$model")
   gdir=$(golden_dir)
@@ -459,20 +461,48 @@ golden_verdict() {
     fi
   fi
 
-  # Cross-campaign: under a later manifest, the same key's golden from the
-  # first campaign. A difference is what the CLI was served on another day,
-  # so it is recorded, not halted on, and comparisons across the two
-  # campaigns have to carry it.
-  first=$BRAIN/golden/$key.json
-  if [ "$gdir" != "$BRAIN/golden" ] && [ -f "$first" ]; then
-    if [ "$(jq -r .sha256 "$first")" = "$CONDITIONS_SHA" ]; then
-      checks="$checks"$'\n'"PASS  identical to the first campaign's golden"
+  # Cross-campaign: the same key's golden under every other manifest. A
+  # difference is what the CLI was served on another day, so it is recorded,
+  # not halted on, and comparisons across campaigns have to carry it. The
+  # served prompt moved between each pair of campaigns so far (09-27, 10-04,
+  # 10-09), so a later campaign is diffed against each earlier one, not only
+  # the first. The first keeps the file name vs-campaign.diff; the others
+  # are named after their manifest, vs-campaign-2.diff and so on.
+  for other in "$BRAIN/golden" "$BRAIN"/golden/*/; do
+    other=${other%/}
+    [ "$other" != "$gdir" ] && [ -f "$other/$key.json" ] || continue
+    if [ "$other" = "$BRAIN/golden" ]; then oname=campaign olabel="the first campaign's golden"
+    else oname=$(basename "$other") olabel="$oname's golden"; fi
+    if [ "$(jq -r .sha256 "$other/$key.json")" = "$CONDITIONS_SHA" ]; then
+      checks="$checks"$'\n'"PASS  identical to $olabel"
     else
-      checks="$checks"$'\n'"DIFF  differs from the first campaign's golden (see $key.vs-campaign.diff)"
-      diff <(jq -S .conditions "$first") <(printf '%s' "$cond" | jq -S .) > "$gdir/$key.vs-campaign.diff"
-      GOLDEN_NOTE="${GOLDEN_NOTE:+$GOLDEN_NOTE; }differs from the first campaign's golden; recorded in $grel/$key.vs-campaign.diff"
+      checks="$checks"$'\n'"DIFF  differs from $olabel (see $key.vs-$oname.diff)"
+      diff <(jq -S .conditions "$other/$key.json") <(printf '%s' "$cond" | jq -S .) > "$gdir/$key.vs-$oname.diff"
+      GOLDEN_NOTE="${GOLDEN_NOTE:+$GOLDEN_NOTE; }differs from $olabel; recorded in $grel/$key.vs-$oname.diff"
     fi
-  fi
+  done
+
+  # Cross-effort: this campaign's goldens for the same profile and model at
+  # other levels. On 10-09 the served prompt was the same at high and max
+  # (brain, probes/20261009-1456-effort); this records whether that holds in
+  # each campaign that varies effort. Recorded, never halted on. The diff sits
+  # beside whichever key was made later, named for the level it was compared
+  # with: room-<model>-low-<sha>.vs-max.diff when low ran after max.
+  sha12=$(printf '%s' "$PRIORS_CLAUDE_SHA" | cut -c1-12)
+  for ofile in "$gdir/$profile-$model-"*"-$sha12.json"; do
+    [ -f "$ofile" ] || continue
+    okey=$(basename "$ofile" .json)
+    [ "$okey" != "$key" ] || continue
+    oeff=${okey#"$profile-$model-"}; oeff=${oeff%-"$sha12"}
+    case $oeff in ''|*[!a-z]*) continue ;; esac  # another model whose name extends this one
+    if [ "$(jq -r .sha256 "$ofile")" = "$CONDITIONS_SHA" ]; then
+      checks="$checks"$'\n'"PASS  identical to this campaign's $oeff golden"
+    else
+      checks="$checks"$'\n'"DIFF  differs from this campaign's $oeff golden (see $key.vs-$oeff.diff)"
+      diff <(jq -S .conditions "$ofile") <(printf '%s' "$cond" | jq -S .) > "$gdir/$key.vs-$oeff.diff"
+      GOLDEN_NOTE="${GOLDEN_NOTE:+$GOLDEN_NOTE; }differs from this campaign's $oeff golden; recorded in $grel/$key.vs-$oeff.diff"
+    fi
+  done
 
   jq -n -S --arg key "$key" --arg source "$where" --arg sha "$CONDITIONS_SHA" \
     --arg cli "$PRIORS_CLAUDE_SHA" --arg made "$(iso)" --argjson conditions "$cond" \

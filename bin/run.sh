@@ -19,12 +19,16 @@ set -uo pipefail
 run=$1
 row=$(campaign_row "$run")
 [ -n "$row" ] || die "no run named $run in $(basename "$CAMPAIGN")"
-IFS=$'\t' read -r _ task mode models n profile <<EOF
+IFS=$'\t' read -r _ task mode models n profile effort <<EOF
 $row
 EOF
 IFS=, read -r -a model_list <<EOF
 $models
 EOF
+# The seventh field, absent on the first two manifests (decision 14: low).
+# The CLI judges the name; a level it rejects shows up as infra:api_error.
+EFFORT=${effort:-low}
+case $EFFORT in *[!a-z]*) die "effort must be a lowercase word, not: $EFFORT" ;; esac
 [ -n "${PRIORS_CLAUDE:-}" ] && [ -n "${PRIORS_CLAUDE_SHA:-}" ] ||
   die "PRIORS_CLAUDE and PRIORS_CLAUDE_SHA are unset; start runs with campaign.sh"
 [ -f "$STATE/gate.txt" ] || die "no $STATE/gate.txt; start runs with campaign.sh"

@@ -183,6 +183,44 @@ check "manifest: the first campaign's golden is untouched" eq "$(shasum -a 256 "
 camp --campaign third.tsv
 check "manifest: unchanged conditions are recorded as identical" grep -q "^PASS  identical to the first campaign's golden" "$T/brain/golden/third/room-$H-low-$K.checks.txt"
 
+# ---------------------------------------------------------- effort column
+
+# A seventh manifest field sets --effort per run; absent, it is low. Goldens
+# are per level, diffed against each other and against every earlier campaign.
+setup effort "digit-sample-$H-low	digit	sample	$H	1	room"
+camp
+{ printf 'run\ttask\tmode\tmodels\tn\tprofile\teffort\n'; printf 'word-sample-%s-max\tword\tsample\t%s\t2\troom\tmax\n' "$H" "$H"; } > "$T/effort.tsv"
+STUB_MODE=sysprompt camp --campaign effort.tsv
+r=word-sample-$H-max
+check "effort: the seventh field is recorded on every trial" eq "$(rows $r '[.[] | "\(.effort):\(.golden):\(.counted)"] | join(",")')" "max:golden:true,max:match:true"
+check "effort: the golden is keyed by level" test -f "$T/brain/golden/effort/room-$H-max-$K.json"
+printf 'word-sample-%s-low-3\tword\tsample\t%s\t1\troom\tlow\n' "$H" "$H" >> "$T/effort.tsv"
+printf 'number-sample-%s-low\tnumber\tsample\t%s\t1\troom\n' "$H" "$H" >> "$T/effort.tsv"
+camp --campaign effort.tsv
+check "effort: the finished max run is not rerun" eq "$(rows $r 'length')" 2
+check "effort: a six-column row records low and matches the low golden" eq "$(rows number-sample-$H-low '[.[] | "\(.effort):\(.golden)"] | join(",")')" "low:match"
+c=$T/brain/golden/effort/room-$H-low-$K.checks.txt
+check "effort: the low control matches the first campaign's golden" grep -q "^PASS  identical to the first campaign's golden" "$c"
+check "effort: and is diffed against this campaign's max golden" grep -q "^DIFF  differs from this campaign's max golden (see room-$H-low-$K.vs-max.diff)" "$c"
+check "effort: with the diff itself" test -s "$T/brain/golden/effort/room-$H-low-$K.vs-max.diff"
+check "effort: noted on the trial, not halted" eq "$(rows word-sample-$H-low-3 '.[0] | "\(.golden):\(.counted):\(.golden_note | test("max golden"))"')" "golden:true:true"
+camp --dry-run --campaign effort.tsv
+check "effort: the dry run shows each run's level" eq "$(grep -c -- '--effort max' "$T/out.txt") $(grep -c -- '--effort low' "$T/out.txt")" "1 2"
+check "effort: on the run line too" grep -q "^word-sample-$H-max: sample, n=2, profile room, effort max" "$T/out.txt"
+printf 'color-sample-%s-bad\tcolor\tsample\t%s\t1\troom\tMAX\n' "$H" "$H" >> "$T/effort.tsv"
+camp --campaign effort.tsv
+check "effort: a level that is not a lowercase word is refused" grep -q 'effort must be a lowercase word, not: MAX' "$T/out.txt"
+check "effort: and nothing ran for it" test ! -e "$T/runs/color-sample-$H-bad"
+
+# A third manifest is diffed against every earlier one, each diff named after
+# its manifest; the first campaign keeps vs-campaign.diff.
+{ printf 'run\ttask\tmode\tmodels\tn\tprofile\n'; printf 'hex-sample-%s-low\thex\tsample\t%s\t1\troom\n' "$H" "$H"; } > "$T/later.tsv"
+STUB_MODE=sysprompt camp --campaign later.tsv
+c=$T/brain/golden/later/room-$H-low-$K.checks.txt
+check "campaigns: a later manifest is diffed against every earlier one" eq "$(grep -c '^DIFF  differs from' "$c")" 2
+check "campaigns: the diff is named after the manifest" test -s "$T/brain/golden/later/room-$H-low-$K.vs-effort.diff"
+check "campaigns: the first keeps its name" test -s "$T/brain/golden/later/room-$H-low-$K.vs-campaign.diff"
+
 # -------------------------------------------------------------- dry run
 
 (cd "$SRC" && bin/campaign.sh --dry-run --campaign campaign-2.tsv) > "$BASE/dry-run-2.txt" 2>&1
