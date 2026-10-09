@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /**
  * Stage the files the site serves but does not own, before `astro dev` and
- * `astro build`. Everything here is generated from the repo root, gitignored
- * under site/public/, and safe to delete: a rerun rebuilds it.
+ * `astro build`. Everything here is generated from the repo root and safe to
+ * delete: a rerun rebuilds it. All of it is gitignored under site/public/
+ * except the two cards, for the reason given at the bottom.
  *
  *   ../renders/<run>/NNN.webp  ->  public/r/<run>/NNN.webp   copied as is (800x800)
  *                              ->  public/t/<run>/NNN.webp   200x200 thumbnail
  *   ../data/trials.csv         ->  public/trials.csv         the download on /data/
  *   ../data/campaign-2.csv     ->  public/campaign-2.csv     the second campaign's
  *   (drawn here)               ->  public/og.png             1200x630 social card
+ *   (drawn here)               ->  public/og-color.png       the same, for /color/
  *
  * Idempotent: a file is skipped when its output exists and is at least as new
  * as its source, so a second run does no image work.
@@ -92,34 +94,46 @@ for (const name of ['trials.csv', 'campaign-2.csv']) {
   }
 }
 
-// ----------------------------------------------------------------- og image
+// ---------------------------------------------------------------- og images
 
-// The trial count on the card is the sum of the campaign's planned runs, so it
-// follows campaign.tsv instead of being typed here. The card is drawn again
-// when this script or campaign.tsv is newer than the image.
-const campaign = join(repo, 'campaign.tsv');
-const trialCount = readFileSync(campaign, 'utf8')
-  .split('\n')
-  .slice(1)
-  .filter(Boolean)
-  .reduce((sum, line) => sum + Number(line.split('\t')[4]), 0);
+// One card per campaign: og.png for the story, og-color.png for /color/. The
+// trial count on each is the sum of its manifest's planned runs, so it follows
+// the TSV instead of being typed here. A card is drawn again when this script
+// or its manifest is newer than the image. Unlike the renders and CSVs, the
+// cards are tracked: they are drawn with this machine's fonts, which the
+// deploy's build box does not have.
+const CARDS = [
+  { manifest: 'campaign.tsv', out: 'og.png', lines: ['Give a model a black circle.', 'Say improve. {n} times.'] },
+  { manifest: 'campaign-2.tsv', out: 'og-color.png', lines: ['Ask a model for a color.', 'Do it {n} times.'] },
+];
 
-const ogOut = join(pub, 'og.png');
+const plannedTrials = (manifest) =>
+  readFileSync(manifest, 'utf8')
+    .split('\n')
+    .slice(1)
+    .filter(Boolean)
+    .reduce((sum, line) => sum + Number(line.split('\t')[4]), 0);
+
 let og = 'kept';
-if (!fresh(ogOut, here, campaign)) {
+for (const card of CARDS) {
+  const manifest = join(repo, card.manifest);
+  const out = join(pub, card.out);
+  if (fresh(out, here, manifest)) continue;
+  const n = plannedTrials(manifest).toLocaleString('en-US');
+  const [one, two] = card.lines.map((l) => l.replace('{n}', n));
   const font = 'Helvetica Neue, Helvetica, Arial, sans-serif';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <rect width="1200" height="630" fill="#ffffff"/>
   <circle cx="300" cy="315" r="200" fill="#000000"/>
   <text x="620" y="300" font-family="${font}" font-size="96" font-weight="800" letter-spacing="-3.84" fill="#0a0a0a">priors</text>
   <text font-family="${font}" font-size="30" font-weight="400" fill="#0a0a0a">
-    <tspan x="620" y="360">Give a model a black circle.</tspan>
-    <tspan x="620" y="400">Say improve. ${trialCount.toLocaleString('en-US')} times.</tspan>
+    <tspan x="620" y="360">${one}</tspan>
+    <tspan x="620" y="400">${two}</tspan>
   </text>
   <rect x="620" y="428" width="120" height="14" fill="#d9ff3a"/>
 </svg>`;
   mkdirSync(pub, { recursive: true });
-  await sharp(Buffer.from(svg)).png().toFile(ogOut);
+  await sharp(Buffer.from(svg)).png().toFile(out);
   og = 'drawn';
 }
 
