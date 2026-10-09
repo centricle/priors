@@ -61,6 +61,10 @@ export const COLUMNS = [
   ...Object.keys(FAMILIES).flatMap((f) => [`${f}_p_uk`, `${f}_p_us`]), 'spell_c_uk', 'spell_c_us',
   // appended 2026-09-30: the render against its input's render
   'same_picture',
+  // appended 2026-10-09: the result's thinking token count, from
+  // usage.output_tokens_details. The third campaign varies effort, and this
+  // is the only evidence a level took: the CLI records the level nowhere.
+  'thinking_tokens',
 ];
 
 // ------------------------------------------------------------------ features
@@ -433,6 +437,7 @@ function row(t, dir) {
     session_id: t.session_id, started_utc: t.started_utc,
     wall_s: t.wall_s, cost_usd: t.cost_usd, turns: t.turns,
     output_tokens: t.tokens?.output ?? null, thinking_blocks: t.thinking_blocks, denials: t.denials,
+    thinking_tokens: t.tokens?.thinking ?? null,
     tool_calls: tc ? Object.values(tc).reduce((a, b) => a + b, 0) : null,
     bash_calls: tc ? (tc.Bash ?? 0) : null,
     edit_calls: tc ? (tc.Edit ?? 0) + (tc.Write ?? 0) : null,
@@ -545,7 +550,12 @@ function summary(rows) {
   const abbr = { glow_or_shadow: 'glow', keyframes: 'keyf', radial_gradient: 'radl', pulse: 'puls', gradient_667eea: '667e', script: 'scrp', nondeterministic: 'rand', unchanged: 'noop', mentions_server: 'srvr' };
   const artHeader = `${pad('', 34)}${pad('n', 5)}${art.map((k) => pad(abbr[k], 5)).join('')}lines  $med`;
   const artLine = (label, rs) => `${pad(label, 34)}${pad(rs.length, 5)}${art.map((k) => pad(pct(rs.filter((r) => r[k] === true).length, rs.length), 5)).join('')}${pad(median(rs.map((r) => r.lines)), 7)}${(median(rs.map((r) => r.cost_usd)) ?? 0).toFixed(3)}`;
-  const label = (r) => (r.run.includes('relay') ? 'relay' : short(r.model));
+  // The third campaign varies effort. Its labels carry the level, so one
+  // model's rows at low, high and max stay apart; a campaign run at one level
+  // gets no suffix, and its tables read as they always did.
+  const levels = new Set(rows.map((r) => r.effort));
+  const who = (r) => (levels.size > 1 ? `${short(r.model)} ${r.effort}` : short(r.model));
+  const label = (r) => (r.run.includes('relay') ? 'relay' : who(r));
 
   // A section a campaign has no rows for is left out, heading and all.
   const has = (f) => rows.some(f);
@@ -586,25 +596,25 @@ function summary(rows) {
 
   H('Text answers: top values (count), share bare, share valid');
   for (const task of Object.keys(TEXT_PARSERS)) {
-    for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === task), (r) => short(r.model)))) {
+    for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === task), who))) {
       const vals = Object.entries(group(rs, (r) => r.answer_value)).sort((a, b) => b[1].length - a[1].length).slice(0, 6).map(([v, g]) => `${v || '∅'} ${g.length}`).join(', ');
-      out.push(`${pad(`${task} ${m}`, 18)} n=${pad(rs.length, 4)} bare ${pct(rs.filter((r) => r.answer_form === 'bare').length, rs.length)}%  ok ${pct(rs.filter((r) => r.answer_ok).length, rs.length)}%  | ${vals}`);
+      out.push(`${pad(`${task} ${m}`, 24)} n=${pad(rs.length, 4)} bare ${pct(rs.filter((r) => r.answer_form === 'bare').length, rs.length)}%  ok ${pct(rs.filter((r) => r.answer_ok).length, rs.length)}%  | ${vals}`);
     }
   }
 
   if (has((r) => r.task === 'gradient')) {
     H('Gradient: replies with #667eea and #764ba2 anywhere, and replies whose first gradient is exactly that pair');
-    for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === 'gradient'), (r) => short(r.model)))) {
+    for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === 'gradient'), who))) {
       const anywhere = rs.filter((r) => /#667eea/i.test(r.answer_raw) && /#764ba2/i.test(r.answer_raw)).length;
-      out.push(`${pad(m, 10)} n=${pad(rs.length, 4)} anywhere ${pad(anywhere, 4)} first ${rs.filter((r) => r.answer_value === '#667eea #764ba2').length}`);
+      out.push(`${pad(m, 12)} n=${pad(rs.length, 4)} anywhere ${pad(anywhere, 4)} first ${rs.filter((r) => r.answer_value === '#667eea #764ba2').length}`);
     }
   }
 
   if (has((r) => r.task === 'colorize')) {
     H('Colorize: the circle fill, top values (count), and trials whose file has a gradient');
-    for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === 'colorize'), (r) => short(r.model)))) {
+    for (const [m, rs] of Object.entries(group(rows.filter((r) => r.task === 'colorize'), who))) {
       const vals = Object.entries(group(rs, (r) => r.answer_value)).sort((a, b) => b[1].length - a[1].length).slice(0, 6).map(([v, g]) => `${v || '∅'} ${g.length}`).join(', ');
-      out.push(`${pad(m, 10)} n=${pad(rs.length, 4)} gradient ${pad(rs.filter((r) => r.linear_gradient || r.radial_gradient).length, 3)} | ${vals}`);
+      out.push(`${pad(m, 12)} n=${pad(rs.length, 4)} gradient ${pad(rs.filter((r) => r.linear_gradient || r.radial_gradient).length, 3)} | ${vals}`);
     }
   }
 
@@ -618,19 +628,36 @@ function summary(rows) {
   const artRows = rows.filter((r) => r.hex_colors !== undefined);
   const rank = (rs, n) => { const c = {}; for (const r of rs) for (const h of (r.hex_colors || '').split(' ').filter(Boolean)) c[h] = (c[h] || 0) + 1; return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, n); };
   out.push(rank(artRows, 15).map(([h, n]) => `${h} ${pct(n, artRows.length).trim()}%`).join('  '));
-  for (const [m, rs] of Object.entries(group(artRows, (r) => short(r.model)))) out.push(`${pad(m, 10)} ${rank(rs, 5).map(([h, n]) => `${h} ${pct(n, rs.length).trim()}%`).join('  ')}`);
+  for (const [m, rs] of Object.entries(group(artRows, who))) out.push(`${pad(m, 12)} ${rank(rs, 5).map(([h, n]) => `${h} ${pct(n, rs.length).trim()}%`).join('  ')}`);
 
   H('Spelling in prose: trials using British / American / both forms, by model');
-  for (const [m, rs] of Object.entries(group(rows, (r) => short(r.model)))) {
+  for (const [m, rs] of Object.entries(group(rows, who))) {
     const fam = (f) => { const uk = rs.filter((r) => r[`${f}_p_uk`] > 0).length, us = rs.filter((r) => r[`${f}_p_us`] > 0).length, both = rs.filter((r) => r[`${f}_p_uk`] > 0 && r[`${f}_p_us`] > 0).length; return `${f} ${uk}/${us}/${both}`; };
     const cuk = rs.reduce((a, r) => a + (r.spell_c_uk ?? 0), 0), cus = rs.reduce((a, r) => a + (r.spell_c_us ?? 0), 0);
-    out.push(`${pad(m, 10)} n=${pad(rs.length, 5)} ${Object.keys(FAMILIES).map(fam).map((s) => pad(s, 18)).join('')} code words UK ${cuk} US ${cus}`);
+    out.push(`${pad(m, 12)} n=${pad(rs.length, 5)} ${Object.keys(FAMILIES).map(fam).map((s) => pad(s, 18)).join('')} code words UK ${cuk} US ${cus}`);
+  }
+
+  // The manipulation check for a campaign that varies effort: a model whose
+  // thinking does not move between levels did not receive the level. Per
+  // task, because the file tasks think at low and the text tasks do not.
+  if (levels.size > 1) {
+    H('Effort: thinking tokens med / max, output tokens med, wall s med / max, $ sum, denials; by task, model and level');
+    const order = ['low', 'medium', 'high', 'xhigh', 'max'];
+    const max = (xs) => { const s = xs.filter((x) => x !== null && x !== undefined); return s.length ? Math.max(...s) : null; };
+    for (const task of [...new Set(rows.map((r) => r.task))]) {
+      const g = Object.entries(group(rows.filter((r) => r.task === task), who));
+      g.sort(([a], [b]) => { const [am, al] = a.split(' '), [bm, bl] = b.split(' '); return am.localeCompare(bm) || order.indexOf(al) - order.indexOf(bl); });
+      for (const [k, rs] of g) {
+        const th = rs.map((r) => r.thinking_tokens), wall = rs.map((r) => r.wall_s);
+        out.push(`${pad(`${task} ${k}`, 24)} n=${pad(rs.length, 4)} think ${pad(median(th), 6)}/ ${pad(max(th), 6)} out ${pad(median(rs.map((r) => r.output_tokens)), 6)} wall ${pad(median(wall)?.toFixed(1), 6)}/ ${pad(max(wall)?.toFixed(1), 6)} $${rs.reduce((a, r) => a + (r.cost_usd ?? 0), 0).toFixed(2).padStart(7)}  denials ${rs.reduce((a, r) => a + (r.denials ?? 0), 0)}`);
+      }
+    }
   }
 
   H('Cost and behavior by model (all tasks)');
-  for (const [m, rs] of Object.entries(group(rows.filter((r) => r.mode !== 'pilot'), (r) => short(r.model)))) {
+  for (const [m, rs] of Object.entries(group(rows.filter((r) => r.mode !== 'pilot'), who))) {
     const sum = rs.reduce((a, r) => a + (r.cost_usd ?? 0), 0);
-    out.push(`${pad(m, 10)} n=${pad(rs.length, 5)} $${sum.toFixed(2).padStart(7)}  wall med ${pad(median(rs.map((r) => r.wall_s))?.toFixed(1), 6)} turns med ${pad(median(rs.map((r) => r.turns)), 4)} thinking med ${pad(median(rs.map((r) => r.thinking_blocks)), 4)} denials ${rs.reduce((a, r) => a + (r.denials ?? 0), 0)}`);
+    out.push(`${pad(m, 12)} n=${pad(rs.length, 5)} $${sum.toFixed(2).padStart(7)}  wall med ${pad(median(rs.map((r) => r.wall_s))?.toFixed(1), 6)} turns med ${pad(median(rs.map((r) => r.turns)), 4)} thinking med ${pad(median(rs.map((r) => r.thinking_blocks)), 4)} denials ${rs.reduce((a, r) => a + (r.denials ?? 0), 0)}`);
   }
   return out.join('\n');
 }

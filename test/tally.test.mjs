@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { countLines } from '../bin/lines.mjs';
-import { declines, parseColorName, parseGradient, parseHex, parseNumber, parseRgb, parseWord, tally } from '../bin/tally.mjs';
+import { COLUMNS, declines, parseColorName, parseGradient, parseHex, parseNumber, parseRgb, parseWord, tally } from '../bin/tally.mjs';
 
 const REPO = new URL('..', import.meta.url).pathname;
 const HAIKU = 'claude-haiku-4-5-20251001';
@@ -160,6 +160,14 @@ test('tally: the default covers campaign.tsv and the imported pilot, nothing lat
   assert.ok(rows.every((r) => listed.has(r.run) || r.run === 'pilot-import'));
   assert.equal(rows.filter((r) => r.mode !== 'pilot').length, 2608);
   assert.equal(rows.filter((r) => r.mode === 'pilot').length, 32);
+  // thinking_tokens was appended last on 2026-10-09 and comes from the
+  // result's usage: Opus's first circle trial thought 75 tokens, Fable's
+  // first word trial none, and the pilot (no usage in its records) has null.
+  assert.equal(COLUMNS.at(-1), 'thinking_tokens');
+  const at = (run, step) => rows.find((r) => r.run === run && r.step === step);
+  assert.equal(at('circle-sample-claude-opus-5-5-low', 1).thinking_tokens, 75);
+  assert.equal(at('word-sample-claude-fable-5-1-low', 1).thinking_tokens, 0);
+  assert.equal(at('pilot-import', 1).thinking_tokens, null);
 });
 
 test('tally --check: pilot acceptance counts, seed hashes and input renders', () => {
