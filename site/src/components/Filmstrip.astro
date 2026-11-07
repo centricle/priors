@@ -10,7 +10,7 @@
  */
 import { MODEL_LABEL, fmtInt, fmtUsd, pad3, plural, thumbPath } from '../lib/data.ts';
 import type { Run } from '../lib/data.ts';
-import { href } from '../lib/href.mjs';
+import { asset, href } from '../lib/href.mjs';
 import { CHANGE_ORDER, NONDETERMINISTIC, changeLabels } from '../lib/stats.ts';
 
 interface Props {
@@ -37,8 +37,8 @@ const steps = run.trials.map((t) => {
   if (t.nondeterministic) tagText.set(NONDETERMINISTIC.id, NONDETERMINISTIC);
   return {
     step: t.step,
-    render: t.renderPath ? href(t.renderPath) : '',
-    thumb: t.renderPath ? href(thumbPath(t)!) : '',
+    render: t.renderPath ? asset(t.renderPath) : '',
+    thumb: t.renderPath ? asset(thumbPath(t)!) : '',
     lines: t.lines,
     // Counted the way the rest of the site counts: separators, and "1 line".
     linesText: t.lines === null ? null : fmtInt(t.lines),

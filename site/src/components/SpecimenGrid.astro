@@ -11,7 +11,7 @@
  */
 import type { Trial } from '../lib/data.ts';
 import { MODEL_LABEL, fmtUsd, pad3, plural, thumbPath } from '../lib/data.ts';
-import { href } from '../lib/href.mjs';
+import { asset, href } from '../lib/href.mjs';
 
 interface Props {
   trials: Trial[];
@@ -36,8 +36,8 @@ const legend = showModel
   : [];
 
 function cell(t: Trial) {
-  const full = t.renderPath ? href(t.renderPath) : null;
-  const thumb = t.renderPath ? href(thumbPath(t)!) : null;
+  const full = t.renderPath ? asset(t.renderPath) : null;
+  const thumb = t.renderPath ? asset(thumbPath(t)!) : null;
   const label = MODEL_LABEL[t.model];
   const n = pad3(t.step);
   const alt =

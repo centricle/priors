@@ -5,20 +5,32 @@
  * delete: a rerun rebuilds it. All of it is gitignored under site/public/
  * except the two cards, for the reason given at the bottom.
  *
- *   ../renders/<run>/NNN.webp  ->  public/r/<run>/NNN.webp   copied as is (800x800)
- *                              ->  public/t/<run>/NNN.webp   200x200 thumbnail
- *   ../data/trials.csv         ->  public/trials.csv         the download on /data/
- *   ../data/campaign-2.csv     ->  public/campaign-2.csv     the second campaign's
- *   (drawn here)               ->  public/og.png             1200x630 social card
- *   (drawn here)               ->  public/og-color.png       the same, for /color/
+ *   prebuild.mjs --dev     the dev server serves the renders itself:
+ *     ../renders/<run>/NNN.webp  ->  public/r/<run>/NNN.webp   copied as is (800x800)
+ *                                ->  public/t/<run>/NNN.webp   200x200 thumbnail
+ *   prebuild.mjs --build   production serves them from a Cloudflare Worker
+ *     (cdn/config.mjs, `npm run cdn`), so public/r, public/t and any CSV
+ *     left under public/ are removed before Astro copies public/ into dist.
+ *     The HTML points at the Worker through `asset()` in src/lib/href.mjs;
+ *     scripts/check-assets.mjs proves after the build that every path it
+ *     references is there.
+ *   both:
+ *     (drawn here)               ->  public/og.png             1200x630 social card
+ *     (drawn here)               ->  public/og-color.png       the same, for /color/
  *
- * Idempotent: a file is skipped when its output exists and is at least as new
- * as its source, so a second run does no image work.
+ * The mode is the npm hook's to pass (`prebuild` and `predev` in
+ * package.json), so every `npm run build` is production-shaped with nothing
+ * exported first, and `npm run dev` stays local. Running --build deletes the
+ * dev images; the next --dev regenerates them, about a minute of sharp.
+ *
+ * The CSV downloads on /data/ come from a GitHub release (bin/release-data.sh)
+ * and are no longer copied here.
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import { stageRenders } from './lib/renders.mjs';
 
 const started = performance.now();
 const here = fileURLToPath(import.meta.url);
@@ -26,72 +38,36 @@ const site = join(dirname(here), '..');
 const repo = join(site, '..');
 const pub = join(site, 'public');
 
-const THUMB = { size: 200, quality: 72 };
-const CONCURRENCY = 8;
+const mode = process.argv[2];
+if (mode !== '--dev' && mode !== '--build') {
+  console.error('usage: prebuild.mjs --dev | --build');
+  process.exit(2);
+}
 
 // Up to date: the output exists and is not older than the newest input.
 const fresh = (out, ...inputs) => existsSync(out) && inputs.every((i) => statSync(out).mtimeMs >= statSync(i).mtimeMs);
 
-async function pool(items, limit, fn) {
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) await fn(items[next++]);
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-}
-
 // ------------------------------------------------------------------ renders
 
-const rendersDir = join(repo, 'renders');
-if (!existsSync(rendersDir)) {
-  console.error('prebuild: ../renders does not exist; nothing to serve');
-  process.exit(1);
-}
-
-const jobs = [];
-for (const run of readdirSync(rendersDir, { withFileTypes: true })) {
-  if (!run.isDirectory()) continue;
-  for (const file of readdirSync(join(rendersDir, run.name))) {
-    if (!file.endsWith('.webp')) continue;
-    jobs.push({
-      src: join(rendersDir, run.name, file),
-      full: join(pub, 'r', run.name, file),
-      thumb: join(pub, 't', run.name, file),
-    });
+let renders;
+if (mode === '--dev') {
+  const n = await stageRenders(join(repo, 'renders'), pub);
+  renders = `copied ${n.copied}, thumbs ${n.thumbs}, skipped ${n.skipped}${n.removed ? `, removed ${n.removed}` : ''}`;
+} else {
+  // Astro copies public/ whole into dist, so anything staged for dev would
+  // ship as a second copy of what the Worker serves. Nothing here is tracked.
+  let removed = 0;
+  for (const dir of ['r', 't']) {
+    if (!existsSync(join(pub, dir))) continue;
+    rmSync(join(pub, dir), { recursive: true, force: true });
+    removed++;
   }
-}
-
-let copied = 0;
-let thumbs = 0;
-let skipped = 0;
-
-await pool(jobs, CONCURRENCY, async (job) => {
-  if (fresh(job.full, job.src)) skipped++;
-  else {
-    mkdirSync(dirname(job.full), { recursive: true });
-    copyFileSync(job.src, job.full);
-    copied++;
+  for (const file of existsSync(pub) ? readdirSync(pub) : []) {
+    if (!file.endsWith('.csv')) continue;
+    rmSync(join(pub, file), { force: true });
+    removed++;
   }
-  if (fresh(job.thumb, job.src)) skipped++;
-  else {
-    mkdirSync(dirname(job.thumb), { recursive: true });
-    await sharp(job.src).resize(THUMB.size, THUMB.size).webp({ quality: THUMB.quality }).toFile(job.thumb);
-    thumbs++;
-  }
-});
-
-// ---------------------------------------------------------------------- csv
-
-// One file per campaign, each its own download on /data/.
-let csv = 'kept';
-for (const name of ['trials.csv', 'campaign-2.csv']) {
-  const csvSrc = join(repo, 'data', name);
-  const csvOut = join(pub, name);
-  if (!fresh(csvOut, csvSrc)) {
-    mkdirSync(pub, { recursive: true });
-    copyFileSync(csvSrc, csvOut);
-    csv = 'copied';
-  }
+  renders = removed ? `removed ${removed} dev entries from public/` : 'public/ already clean';
 }
 
 // ---------------------------------------------------------------- og images
@@ -99,9 +75,9 @@ for (const name of ['trials.csv', 'campaign-2.csv']) {
 // One card per campaign: og.png for the story, og-color.png for /color/. The
 // trial count on each is the sum of its manifest's planned runs, so it follows
 // the TSV instead of being typed here. A card is drawn again when this script
-// or its manifest is newer than the image. Unlike the renders and CSVs, the
-// cards are tracked: they are drawn with this machine's fonts, which the
-// deploy's build box does not have.
+// or its manifest is newer than the image. Unlike the renders, the cards are
+// tracked: they are drawn with this machine's fonts, which the deploy's build
+// box does not have.
 //
 // So the build box never draws one. A fresh clone gives every file the
 // checkout's mtime, which makes "is the card older than the script" a race
@@ -149,4 +125,4 @@ for (const card of CARDS) {
 }
 
 const secs = ((performance.now() - started) / 1000).toFixed(1);
-console.log(`prebuild: copied ${copied}, thumbs ${thumbs}, skipped ${skipped}, csv ${csv}, og ${og}, ${secs}s`);
+console.log(`prebuild ${mode.slice(2)}: ${renders}, og ${og}, ${secs}s`);

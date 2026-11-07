@@ -3,6 +3,7 @@ import '../styles/global.css';
 import { CAMPAIGNS, allRuns, isCampaign, loadAll } from '../lib/data.ts';
 import { href } from '../lib/href.mjs';
 import { headline } from '../lib/stats.ts';
+import { origin as assetOrigin } from '../../cdn/config.mjs';
 
 interface Props {
   title?: string;
@@ -71,6 +72,8 @@ const favicon =
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href={favicon} type="image/svg+xml" />
+    <!-- The renders come from another origin in production (cdn/config.mjs); open its connection before the first <img> asks. Plain <img> requests use no CORS, so no crossorigin. -->
+    {import.meta.env.PROD && <link rel="preconnect" href={assetOrigin} />}
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="priors" />
     <meta property="og:title" content={fullTitle} />

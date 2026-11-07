@@ -5,10 +5,11 @@
   "private": true,
   "description": "The site for priors: what four Claude models reach for when told to improve a black circle.",
   "scripts": {
-    "prebuild": "node scripts/prebuild.mjs",
-    "predev": "node scripts/prebuild.mjs",
+    "prebuild": "node scripts/prebuild.mjs --build",
+    "predev": "node scripts/prebuild.mjs --dev",
     "dev": "astro dev",
-    "build": "astro build && node scripts/stage-base.mjs",
+    "build": "astro build && node scripts/stage-base.mjs && node scripts/check-assets.mjs",
+    "cdn": "node scripts/cdn.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

@@ -1,0 +1,17 @@
+# An assets-only Worker: no `main`, nothing runs, every request is answered
+# from the files under ./assets. Deployed by `npm run cdn` (scripts/cdn.mjs),
+# which stages ./assets from ../../renders, writes _headers and manifest.json
+# there, and spawns wrangler from this directory.
+#
+# `name` has to agree with `name` in config.mjs; cdn.mjs checks. Never add a
+# `cache` key: Workers Caching bills asset requests that are otherwise free.
+
+name = "priors-assets"
+compatibility_date = "2026-10-19"
+workers_dev = true
+account_id = "859f039a379ee580302c3cd7fea54fe8"
+
+[assets]
+directory = "./assets"
+# Serve paths exactly as written: no .html stripping, no index lookup.
+html_handling = "none"

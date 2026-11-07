@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import Base from '../layouts/Base.astro';
 import { COLUMNS } from '../lib/columns.ts';
 import type { ColumnGroup } from '../lib/columns.ts';
-import { isCampaign, loadAll, repoRoot } from '../lib/data.ts';
+import { DATA_RELEASE, isCampaign, loadAll, repoRoot } from '../lib/data.ts';
 import { href } from '../lib/href.mjs';
 
 const REPO = 'https://github.com/centricle/priors';
@@ -53,13 +53,15 @@ const groups = [...new Set(COLUMNS.map((c) => c.group))].map((g) => ({
       <h1>Data</h1>
       <p class="dek">
         One file per campaign holds every trial. Here they are, and what each column means.
+        The downloads are the same files as <code>data/</code> in <a href={`${REPO}/tree/main/data`} rel="noopener">the repo</a>,
+        served from its releases.
       </p>
       <p>
-        <a class="btn" href={href('/trials.csv')} download>trials.csv</a>
+        <a class="btn" href={`${DATA_RELEASE}/trials.csv`} download>trials.csv</a>
         <span class="mono small muted dl">{fmt(total)} rows · {COLUMNS.length} columns · {size}</span>
       </p>
       <p>
-        <a class="btn" href={href('/campaign-2.csv')} download>campaign-2.csv</a>
+        <a class="btn" href={`${DATA_RELEASE}/campaign-2.csv`} download>campaign-2.csv</a>
         <span class="mono small muted dl">{fmt(second.trials.length)} rows · {COLUMNS.length} columns · {secondSize}</span>
       </p>
     </div>

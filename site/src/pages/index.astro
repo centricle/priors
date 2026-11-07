@@ -10,7 +10,7 @@ import Filmstrip from '../components/Filmstrip.astro';
 import SentenceScrub from '../components/SentenceScrub.astro';
 import Bars from '../components/Bars.astro';
 import HexChart from '../components/HexChart.astro';
-import { href } from '../lib/href.mjs';
+import { asset, href } from '../lib/href.mjs';
 import {
   loadAll, MODELS, MODEL_LABEL, MODEL_ID, pad3, fmtUsd, fmtPct, fmtInt, outputOf, seedOf, promptOf, isArtifact, isCampaign,
   countLines, plural,
@@ -80,7 +80,7 @@ const picks = Object.fromEntries(
       cost: fmtUsd(t.cost_usd!),
       labels: changeLabels(t).map((l) => l.text),
       samePicture: t.same_picture === true,
-      render: href(t.renderPath!),
+      render: asset(t.renderPath!),
       url: href(`/runs/${t.run}/${pad3(t.step)}/`),
     })),
   ]),

@@ -12,7 +12,7 @@ import SourceView from '../../../components/SourceView.astro';
 import Swatches from '../../../components/Swatches.astro';
 import { allRuns, isArtifact, outputOf, pad3, plural, prevOutput, runNamed } from '../../../lib/data.ts';
 import { describeChange } from '../../../lib/stats.ts';
-import { href } from '../../../lib/href.mjs';
+import { asset, href } from '../../../lib/href.mjs';
 import '../_runs.css';
 
 export function getStaticPaths() {
@@ -79,7 +79,7 @@ const stepUrl = (s: number) => href(`/runs/${run.name}/${pad3(s)}/`);
         <div class="stage" data-runit data-kind={kind}>
           <div class="frame" data-frame>
             {t.renderPath ? (
-              <img src={href(t.renderPath)} width="800" height="800" alt={`Render of ${run.label}, ${chain ? 'step' : 'trial'} ${n}`} decoding="async" />
+              <img src={asset(t.renderPath)} width="800" height="800" alt={`Render of ${run.label}, ${chain ? 'step' : 'trial'} ${n}`} decoding="async" />
             ) : (
               <p class="none mono">no render</p>
             )}

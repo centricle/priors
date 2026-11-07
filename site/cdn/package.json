@@ -1,0 +1,10 @@
+{
+  "name": "priors-cdn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "wrangler, kept out of site/package.json so the Netlify build never installs it.",
+  "devDependencies": {
+    "wrangler": "4.151.2"
+  }
+}

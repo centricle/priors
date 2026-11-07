@@ -73,6 +73,12 @@ export const CAMPAIGNS = [
 ] as const;
 export type Campaign = (typeof CAMPAIGNS)[number]['id'];
 
+// Where the downloads on /data/ point: one fixed GitHub release, tag `data`,
+// re-cut by bin/release-data.sh with every file CAMPAIGNS names. A release
+// has no bandwidth cap; a CSV served by Netlify counts against the team's.
+// The path never moves, so a link shared today keeps working.
+export const DATA_RELEASE = 'https://github.com/centricle/priors/releases/download/data';
+
 export interface Tokens {
   input: number;
   output: number;
@@ -305,6 +311,7 @@ export function repoRoot(): string {
   return (rootDir ??= findRoot());
 }
 
+// A bare site path, like renderPath; asset() in href.mjs decides the host.
 export const thumbPath = (t: Trial): string | null => (t.renderPath ? t.renderPath.replace(/^\/r\//, '/t/') : null);
 
 // ------------------------------------------------------------ files on disk
@@ -467,6 +474,7 @@ export function loadAll(campaign: Campaign = 1): Loaded {
       spell_c_uk: num(r.spell_c_uk), spell_c_us: num(r.spell_c_us), same_picture: flag(r.same_picture),
       result: j?.result ?? '', tokens: j?.tokens ?? null,
       isRelay: r.run.includes('relay'), hasRender,
+      // A bare site path; asset() in href.mjs decides the host.
       renderPath: hasRender ? `/r/${r.run}/${pad3(step)}.webp` : null,
       outputFile: str(r.file),
     };
