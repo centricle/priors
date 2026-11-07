@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-labelledby="zero-title zero-desc">
+  <title id="zero-title">Zero</title>
+  <desc id="zero-desc">The digit 0, drawn as an oval ring with slightly heavier sides than top and bottom.</desc>
+  <path fill="#1a1a1a" fill-rule="evenodd" d="M50 8 A28 42 0 1 1 50 92 A28 42 0 1 1 50 8 Z M50 18 A16 32 0 1 0 50 82 A16 32 0 1 0 50 18 Z"/>
+</svg>

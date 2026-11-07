@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Placeholder</title>
+  <desc id="desc">A neutral placeholder image: a bold blue ring centered on a rounded light-gray square.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="40" fill="#f4f4f5" stroke="#d4d4d8" stroke-width="2"/>
+  <circle cx="128" cy="128" r="64" fill="none" stroke="#2563eb" stroke-width="24"/>
+</svg>
