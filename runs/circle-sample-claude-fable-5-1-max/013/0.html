@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shaded Sphere</title>
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+    }
+    body {
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 30%, #1b2a4a 0%, #080b14 100%);
+    }
+    svg {
+      width: min(80vw, 80vh, 400px);
+      height: auto;
+      display: block;
+    }
+    .orb {
+      transform-origin: center;
+      animation: float 6s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(-1.5%); }
+      50%      { transform: translateY(1.5%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .orb { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-labelledby="orbTitle orbDesc">
+    <title id="orbTitle">Shaded sphere</title>
+    <desc id="orbDesc">A glossy blue sphere with a soft highlight and drop shadow, centered on the screen.</desc>
+    <defs>
+      <radialGradient id="sphereFill" cx="38%" cy="32%" r="78%">
+        <stop offset="0%"   stop-color="#7cc0ff"/>
+        <stop offset="38%"  stop-color="#2d6cdf"/>
+        <stop offset="100%" stop-color="#0a1a3f"/>
+      </radialGradient>
+      <radialGradient id="highlight" cx="50%" cy="50%" r="50%">
+        <stop offset="0%"   stop-color="rgba(255,255,255,0.55)"/>
+        <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+      </radialGradient>
+      <radialGradient id="shadow" cx="50%" cy="50%" r="50%">
+        <stop offset="55%"  stop-color="rgba(0,0,0,0.45)"/>
+        <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+      </radialGradient>
+    </defs>
+    <g class="orb">
+      <ellipse cx="200" cy="362" rx="130" ry="22" fill="url(#shadow)"/>
+      <circle cx="200" cy="200" r="178" fill="url(#sphereFill)"/>
+      <ellipse cx="152" cy="138" rx="62" ry="42" fill="url(#highlight)"/>
+    </g>
+  </svg>
+</body>
+</html>

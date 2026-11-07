@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #f4f4f5;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #18181b; }
+    }
+    svg {
+      width: clamp(200px, 80vmin, 400px);
+      height: clamp(200px, 80vmin, 400px);
+      filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.25));
+    }
+    .disc {
+      transform-origin: center;
+      animation: pulse 4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(0.96); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .disc { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <svg viewBox="0 0 400 400" role="img" aria-labelledby="title desc">
+    <title id="title">Circle</title>
+    <desc id="desc">A circle filled with a blue-to-purple gradient.</desc>
+    <defs>
+      <radialGradient id="fill" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="#60a5fa"/>
+        <stop offset="60%" stop-color="#6366f1"/>
+        <stop offset="100%" stop-color="#4f46e5"/>
+      </radialGradient>
+    </defs>
+    <circle class="disc" cx="200" cy="200" r="198" fill="url(#fill)"/>
+  </svg>
+</body>
+</html>

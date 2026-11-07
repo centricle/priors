@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Sphere</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-start: #eef2f7;
+      --bg-end: #cdd6e4;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-start: #1b2230;
+        --bg-end: #0b0e14;
+      }
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 40%, var(--bg-start), var(--bg-end));
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .sphere {
+      width: min(400px, 80vmin);
+      height: min(400px, 80vmin);
+      display: block;
+      overflow: visible;
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .sphere circle {
+      filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.35));
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-14px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sphere {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg
+    class="sphere"
+    viewBox="0 0 400 400"
+    role="img"
+    aria-label="A glossy blue sphere"
+    xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="shade" cx="38%" cy="32%" r="72%">
+        <stop offset="0%"  stop-color="#9ad0ff"/>
+        <stop offset="45%" stop-color="#3b82f6"/>
+        <stop offset="100%" stop-color="#14307a"/>
+      </radialGradient>
+      <radialGradient id="highlight" cx="34%" cy="26%" r="26%">
+        <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.9"/>
+        <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <circle cx="200" cy="200" r="190" fill="url(#shade)"/>
+    <circle cx="200" cy="200" r="190" fill="url(#highlight)"/>
+  </svg>
+</body>
+</html>

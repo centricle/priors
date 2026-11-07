@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Circle · ae683f770</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-start: #f4f5f7;
+      --bg-end: #dfe3ea;
+      --circle-start: #6ea8fe;
+      --circle-end: #1d4ed8;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-start: #1b1e24;
+        --bg-end: #0b0d10;
+        --circle-start: #60a5fa;
+        --circle-end: #1e3a8a;
+      }
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 35%, var(--bg-start), var(--bg-end));
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    svg {
+      width: min(80vw, 80vh, 400px);
+      height: auto;
+      display: block;
+    }
+
+    .disc {
+      filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.25));
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: pulse 4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(0.96); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .disc {
+        animation: none;
+      }
+    }
+
+    #disc-fill .stop-start { stop-color: var(--circle-start); }
+    #disc-fill .stop-end   { stop-color: var(--circle-end); }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-labelledby="title desc">
+    <title id="title">Circle</title>
+    <desc id="desc">A single filled circle centered on the canvas.</desc>
+    <defs>
+      <radialGradient id="disc-fill" cx="35%" cy="30%" r="80%">
+        <stop class="stop-start" offset="0%"/>
+        <stop class="stop-end" offset="100%"/>
+      </radialGradient>
+    </defs>
+    <circle class="disc" cx="200" cy="200" r="190" fill="url(#disc-fill)"/>
+  </svg>
+</body>
+</html>

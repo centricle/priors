@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 30%, #1b2735 0%, #090a0f 100%);
+    }
+    svg {
+      width: min(80vw, 80vh, 400px);
+      height: auto;
+      aspect-ratio: 1 / 1;
+      display: block;
+      filter: drop-shadow(0 12px 40px rgba(97, 126, 255, 0.45));
+      animation: fade-in 900ms ease-out both;
+    }
+    .orb {
+      transform-origin: center;
+      animation: breathe 6s ease-in-out infinite;
+    }
+    @keyframes fade-in {
+      from { opacity: 0; transform: scale(0.9); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.04); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      svg,
+      .orb {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-label="A glowing circle">
+    <title>A glowing circle</title>
+    <defs>
+      <radialGradient id="orb-fill" cx="38%" cy="32%" r="75%">
+        <stop offset="0%"  stop-color="#9bb8ff" />
+        <stop offset="45%" stop-color="#617eff" />
+        <stop offset="100%" stop-color="#2a3bb0" />
+      </radialGradient>
+    </defs>
+    <circle class="orb" cx="200" cy="200" r="190" fill="url(#orb-fill)" />
+  </svg>
+</body>
+</html>

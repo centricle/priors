@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Circle</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0f1221;
+      --bg-accent: #1b2140;
+      --glow: rgba(99, 179, 237, 0.45);
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 30%, var(--bg-accent), var(--bg) 70%);
+      overflow: hidden;
+    }
+
+    .stage {
+      width: min(80vw, 80vh, 400px);
+      aspect-ratio: 1 / 1;
+      filter: drop-shadow(0 0 40px var(--glow));
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .orb {
+      transform-origin: center;
+      animation: breathe 6s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+      0%, 100% { transform: scale(0.97); }
+      50%      { transform: scale(1); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .orb {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <svg
+      id="ae683f770"
+      viewBox="0 0 400 400"
+      role="img"
+      aria-labelledby="orb-title orb-desc"
+    >
+      <title id="orb-title">Glowing circle</title>
+      <desc id="orb-desc">A single circle filled with a soft blue-to-violet radial gradient.</desc>
+      <defs>
+        <radialGradient id="orb-fill" cx="38%" cy="32%" r="75%">
+          <stop offset="0%"   stop-color="#9ad7ff"/>
+          <stop offset="45%"  stop-color="#4f8bff"/>
+          <stop offset="100%" stop-color="#6a3cff"/>
+        </radialGradient>
+      </defs>
+      <circle class="orb" cx="200" cy="200" r="198" fill="url(#orb-fill)"/>
+    </svg>
+  </div>
+</body>
+</html>

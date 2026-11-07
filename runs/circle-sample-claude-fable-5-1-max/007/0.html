@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glowing Circle</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 30%, #1b2735 0%, #090a0f 100%);
+    }
+    svg {
+      width: min(80vw, 80vh, 400px);
+      height: min(80vw, 80vh, 400px);
+      overflow: visible;
+    }
+    .orb {
+      transform-origin: center;
+      animation: breathe 6s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.06); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .orb { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-label="Glowing circle">
+    <title>Glowing circle</title>
+    <defs>
+      <radialGradient id="orb-fill" cx="50%" cy="38%" r="65%">
+        <stop offset="0%"   stop-color="#8ad8ff"/>
+        <stop offset="45%"  stop-color="#3a8ee6"/>
+        <stop offset="100%" stop-color="#14346b"/>
+      </radialGradient>
+      <filter id="orb-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="12" result="blur"/>
+        <feMerge>
+          <feMergeNode in="blur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    <circle class="orb" cx="200" cy="200" r="190"
+            fill="url(#orb-fill)" filter="url(#orb-glow)"/>
+  </svg>
+</body>
+</html>

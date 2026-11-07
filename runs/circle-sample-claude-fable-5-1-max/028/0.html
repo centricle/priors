@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orb</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 35%, #1b2735 0%, #090a0f 70%);
+      overflow: hidden;
+    }
+    .stage {
+      width: min(80vw, 80vh, 400px);
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .orb {
+      transform-origin: 200px 200px;
+      animation: breathe 6s ease-in-out infinite;
+      filter: drop-shadow(0 0 40px rgba(99, 179, 237, 0.55));
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.06); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .orb { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-label="Glowing blue orb">
+      <title>Glowing blue orb</title>
+      <defs>
+        <radialGradient id="orbFill" cx="38%" cy="32%" r="75%">
+          <stop offset="0%"  stop-color="#eaf6ff"/>
+          <stop offset="28%" stop-color="#8cc8ff"/>
+          <stop offset="65%" stop-color="#3a7bd5"/>
+          <stop offset="100%" stop-color="#11284d"/>
+        </radialGradient>
+      </defs>
+      <circle class="orb" cx="200" cy="200" r="190" fill="url(#orbFill)"/>
+    </svg>
+  </div>
+</body>
+</html>

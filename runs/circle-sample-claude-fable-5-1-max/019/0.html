@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 35%, #1b2735, #090a0f);
+    }
+
+    svg {
+      width: min(80vmin, 400px);
+      height: min(80vmin, 400px);
+    }
+
+    .disc {
+      fill: url(#discGradient);
+      filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.55));
+      transform-origin: center;
+      animation: rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: scale(0.85);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .disc {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-labelledby="title desc">
+    <title id="title">Circle</title>
+    <desc id="desc">A single filled circle centered on a dark background.</desc>
+    <defs>
+      <radialGradient id="discGradient" cx="50%" cy="38%" r="65%">
+        <stop offset="0%" stop-color="#8ec5ff"/>
+        <stop offset="55%" stop-color="#4a79ff"/>
+        <stop offset="100%" stop-color="#1e3a8a"/>
+      </radialGradient>
+    </defs>
+    <circle class="disc" cx="200" cy="200" r="190"/>
+  </svg>
+</body>
+</html>

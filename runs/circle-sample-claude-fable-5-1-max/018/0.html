@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A responsive, accessible SVG circle demo.">
+  <meta name="color-scheme" content="light dark">
+  <title>SVG Circle</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #f4f6fb;
+      --circle-start: #4f8cff;
+      --circle-end: #6a5cff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #11131a;
+        --circle-start: #5a9bff;
+        --circle-end: #8f7dff;
+      }
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: var(--bg);
+      /* Fallback stack keeps rendering consistent without external fonts. */
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    svg {
+      /* Scales with the viewport but never grows past a comfortable size. */
+      width: min(80vw, 80vh, 400px);
+      height: auto;
+      display: block;
+    }
+
+    .circle {
+      fill: url(#circle-gradient);
+      transform-origin: center;
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(0.94); }
+    }
+
+    /* Respect users who prefer less motion. */
+    @media (prefers-reduced-motion: reduce) {
+      .circle {
+        animation: none;
+      }
+    }
+
+    /* Set stop colors via CSS so the custom properties resolve.
+       var() does not work inside SVG stop-color presentation attributes. */
+    .stop-start { stop-color: var(--circle-start); }
+    .stop-end { stop-color: var(--circle-end); }
+  </style>
+</head>
+<body>
+  <svg
+    id="ae683f770"
+    viewBox="0 0 400 400"
+    role="img"
+    aria-labelledby="circle-title circle-desc">
+    <title id="circle-title">Circle</title>
+    <desc id="circle-desc">A single circle filled with a blue-to-purple gradient.</desc>
+    <defs>
+      <linearGradient id="circle-gradient" x1="0" y1="0" x2="1" y2="1">
+        <stop class="stop-start" offset="0%" />
+        <stop class="stop-end" offset="100%" />
+      </linearGradient>
+    </defs>
+    <circle class="circle" cx="200" cy="200" r="200" />
+  </svg>
+</body>
+</html>

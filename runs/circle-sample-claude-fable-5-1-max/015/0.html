@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-accent: #1e293b;
+      --ring: #38bdf8;
+      --glow: rgba(56, 189, 248, 0.45);
+      --size: min(80vmin, 400px);
+    }
+
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 35%, var(--bg-accent), var(--bg));
+      overflow: hidden;
+    }
+
+    .stage {
+      width: var(--size);
+      height: var(--size);
+      display: grid;
+      place-items: center;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .disc {
+      transform-origin: center;
+      animation: rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .disc__fill {
+      filter: drop-shadow(0 0 24px var(--glow));
+      transition: transform 400ms ease;
+    }
+
+    .stage:hover .disc__fill {
+      transform: scale(1.03);
+    }
+
+    .disc__ring {
+      fill: none;
+      stroke: var(--ring);
+      stroke-width: 3;
+      opacity: 0.6;
+      transform-origin: center;
+      animation: pulse 3.2s ease-in-out infinite;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.92);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 0.6;
+      }
+      50% {
+        transform: scale(1.06);
+        opacity: 0.15;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .disc,
+      .disc__ring {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <svg viewBox="-20 -20 440 440" role="img" aria-labelledby="title desc">
+      <title id="title">Blue circle</title>
+      <desc id="desc">A glowing blue disc centered on a dark background.</desc>
+      <defs>
+        <radialGradient id="discGradient" cx="40%" cy="35%" r="75%">
+          <stop offset="0%" stop-color="#7dd3fc"/>
+          <stop offset="55%" stop-color="#38bdf8"/>
+          <stop offset="100%" stop-color="#0ea5e9"/>
+        </radialGradient>
+      </defs>
+      <g class="disc">
+        <circle class="disc__ring" cx="200" cy="200" r="200"/>
+        <circle class="disc__fill" cx="200" cy="200" r="190" fill="url(#discGradient)"/>
+      </g>
+    </svg>
+  </div>
+</body>
+</html>
