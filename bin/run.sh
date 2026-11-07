@@ -112,10 +112,11 @@ to_debris() {
 # -------------------------------------------------------------- one trial
 
 # trial <step> <attempt> <model>: sets T_COUNTED (true/false), T_CLASS,
-# T_HALT (a reason, or empty) and appends one row to trials.jsonl.
+# T_HALT (a reason, or empty), T_RETURNED (the models that answered, comma
+# separated) and appends one row to trials.jsonl.
 trial() {
   local step=$1 attempt=$2 model=$3 nnn sid src input_sha out err started ended
-  local cls facts rec argvsha verdict note output_sha dest stream_dest first ret keep
+  local cls facts rec argvsha verdict note output_sha dest stream_dest first ret keep retnote
   nnn=$(printf '%03d' "$step")
   sid=$(uuidgen | tr '[:upper:]' '[:lower:]')
   T_HALT=
@@ -173,7 +174,11 @@ trial() {
       MANY:*) [ -n "$T_HALT" ] || T_HALT="one trial returned several models: ${ret#MANY:}" ;;
       '') ;;
       *) [ -z "$first" ] || [ "$first" = "$ret" ] || [ -n "$T_HALT" ] ||
-           T_HALT="model changed: $model returned $first earlier, $ret now" ;;
+           T_HALT="model changed: $model returned $first earlier, $ret now"
+         # The backstop for a swap no event announces. "Model changed" alone
+         # cannot see one that began at trial 1: there is nothing earlier.
+         returned_matches "$model" "$ret" || [ -n "$T_HALT" ] ||
+           T_HALT="asked $model, returned $ret" ;;
     esac
     # A trial that cannot be vouched for is kept, but out of the sample.
     [ -z "$T_HALT" ] || T_COUNTED=false
@@ -221,11 +226,17 @@ trial() {
       tokens: $facts.tokens, denials: $facts.denials, thinking_blocks: $facts.thinking_blocks,
       tool_calls: $facts.tool_calls, result: $facts.result,
       input_sha256: $input_sha, output_sha256: $output_sha, rate_limit: $facts.rate_limit,
+      fallback: $facts.fallback,
       conditions_sha256: (if $cond_sha == "" then null else $cond_sha end),
       golden: $verdict, golden_note: (if $note == "" then null else $note end),
       halt: (if $halt == "" then null else $halt end)}' >> "$trials"
 
-  log "$nnn a$attempt $model: $T_CLASS${T_COUNTED:+ counted=$T_COUNTED} golden=$verdict $(printf '%s' "$facts" | jq -r '"cost=\(.cost_usd // "n/a") turns=\(.turns // "n/a") 7d=\(.rate_limit.unifiedWindows.seven_day.utilization // "n/a")"') ${TRIAL_WALL}s"
+  # The line names the asked model; returned= appears only when the answer
+  # came from something else, so a swap is visible in the log, not just the row.
+  T_RETURNED=$(printf '%s' "$facts" | jq -r '.model_returned | join(",")')
+  retnote=
+  returned_matches "$model" "$T_RETURNED" || retnote=" returned=${T_RETURNED:-none}"
+  log "$nnn a$attempt $model: $T_CLASS${T_COUNTED:+ counted=$T_COUNTED} golden=$verdict$retnote $(printf '%s' "$facts" | jq -r '"cost=\(.cost_usd // "n/a") turns=\(.turns // "n/a") 7d=\(.rate_limit.unifiedWindows.seven_day.utilization // "n/a")"') ${TRIAL_WALL}s"
 }
 
 # ------------------------------------------------------------------ main
@@ -250,6 +261,15 @@ if [ "$last" -ge "$n" ]; then
 fi
 [ "$last" = 0 ] || log "resuming at step $((last + 1)) of $n"
 
+# Fallbacks (see classify in lib.sh) are retried without a wait and without
+# touching the infrastructure streak. The run gives up, as a halt, once this
+# start has seen at least FALLBACK_MIN of them and they outnumber the trials
+# it counted: a model refused every time stops after FALLBACK_MIN trials,
+# one refused now and then carries on. Counted per start, not read back from
+# trials.jsonl, so a relaunch takes a fresh look.
+FALLBACK_MIN=${PRIORS_FALLBACK_MIN:-3}
+fb_here=0 ok_here=0
+
 step=$((last + 1))
 while [ "$step" -le "$n" ]; do
   if [ "$mode" = chain ] && [ "${#model_list[@]}" -gt 1 ]; then
@@ -258,7 +278,7 @@ while [ "$step" -le "$n" ]; do
     model=${model_list[0]}
   fi
 
-  attempt=1
+  attempt=1 infra=0
   while :; do
     brake "$model"
     case $? in 0) ;; 2) capped "$step" ;; *) stopping "$step" ;; esac
@@ -267,17 +287,28 @@ while [ "$step" -le "$n" ]; do
     [ -z "$T_HALT" ] || halt "step $step: $T_HALT"
     if [ "$T_COUNTED" = true ]; then
       infra_streak reset >/dev/null
+      ok_here=$((ok_here + 1))
       break
     fi
+    if [ "$T_CLASS" = fallback ]; then
+      fb_here=$((fb_here + 1))
+      if [ "$fb_here" -ge "$FALLBACK_MIN" ] && [ "$fb_here" -gt "$ok_here" ]; then
+        halt "step $step: $fb_here refusals answered by another model (${T_RETURNED:-none}) against $ok_here counted since this start; the run gives up"
+      fi
+      log "step $step attempt $attempt: refused, answered by ${T_RETURNED:-nothing}; not counted, retrying ($fb_here so far, $ok_here counted)"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    infra=$((infra + 1))
     streak=$(infra_streak bump)
     if [ "$streak" -ge 5 ]; then
       request_stop "five infrastructure failures in a row (last: $run step $step, $T_CLASS)"
       stopping "$step"
     fi
-    [ "$attempt" -lt 3 ] || halt "step $step: three infrastructure failures (last: $T_CLASS)"
+    [ "$infra" -lt 3 ] || halt "step $step: three infrastructure failures (last: $T_CLASS)"
     set -- ${PRIORS_RETRY_WAITS:-30 120}
     wait_s=$1
-    [ "$attempt" = 1 ] || wait_s=$2
+    [ "$infra" = 1 ] || wait_s=$2
     log "step $step attempt $attempt: $T_CLASS; retrying in ${wait_s}s"
     t_end=$(( $(now) + wait_s ))
     while [ "$(now)" -lt "$t_end" ]; do stop_requested && stopping "$step"; sleep 1; done

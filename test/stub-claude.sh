@@ -6,7 +6,12 @@
 # real one. It refuses to run unless CLAUDE_CONFIG_DIR is set, so a test can
 # never write into the real ~/.claude.
 #
-# STUB_MODE: ok (default), noresult, exit142, quota96, plant, sysprompt, slow.
+# STUB_MODE: ok (default), noresult, exit142, quota96, plant, sysprompt, slow,
+# fallback, fallback-mixed, othermodel. The last three answer as
+# STUB_FALLBACK_MODEL (default claude-opus-4-8): fallback for the whole
+# session with a model_refusal_fallback event (a refusal of the very first
+# response), fallback-mixed after one response from the asked model, and
+# othermodel with no event at all.
 # A mode may be prefixed "first-N:" to apply only to the first N calls
 # counted in STUB_COUNTER, e.g. first-1:exit142. STUB_PLANT is the text
 # `plant` writes; STUB_SLEEP is how long `slow` sleeps.
@@ -77,11 +82,24 @@ jq -n -c --arg cwd "$cwd" --arg model "$model" --arg sid "$sid" --arg date "$(da
 # The stream.
 seven=0.50
 [ "$mode" != quota96 ] || seven=0.96
-jq -n -c --arg cwd "$cwd" --arg model "$model" --arg sid "$sid" '
+fbm=${STUB_FALLBACK_MODEL:-claude-opus-4-8}
+case $mode in
+  fallback|othermodel) m1=$fbm m2=$fbm ;;
+  fallback-mixed) m1=$model m2=$fbm ;;
+  *) m1=$model m2=$model ;;
+esac
+event=false
+case $mode in fallback|fallback-mixed) event=true ;; esac
+jq -n -c --arg cwd "$cwd" --arg model "$model" --arg sid "$sid" --arg m1 "$m1" --arg m2 "$m2" --argjson event "$event" '
   {type: "system", subtype: "init", cwd: $cwd, session_id: $sid, tools: ["Bash", "Edit", "Read", "Write"],
    mcp_servers: [], model: $model, claude_code_version: "2.1.283"},
-  {type: "assistant", message: {model: $model, content: [{type: "thinking", thinking: "hm"}]}},
-  {type: "assistant", message: {model: $model, content: [{type: "text", text: "Done."}]}}'
+  {type: "assistant", message: {model: $m1, content: [{type: "thinking", thinking: "hm"}]}},
+  (if $event then
+     {type: "system", subtype: "informational", content: "safeguards stopped the response above", level: "notice"},
+     {type: "system", subtype: "model_refusal_fallback", trigger: "refusal", direction: "retry", scope: "session",
+      original_model: $model, fallback_model: $m2, api_refusal_category: "cyber"}
+   else empty end),
+  {type: "assistant", message: {model: $m2, content: [{type: "text", text: "Done."}]}}'
 own=null
 mw=${STUB_MODEL_WINDOW:-}
 [ "${mw%:*}" != "$model" ] || own=${mw##*:}

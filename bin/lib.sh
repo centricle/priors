@@ -305,20 +305,40 @@ kill_group() {
 # The class of a finished trial (B3.7), as JSON: {class, counted, truncated}.
 # Infrastructure is retried and never counted. Cap hits count and stop a
 # chain. Everything else counts: refusals, questions and no-ops included.
+#
+# Except a fallback: a safeguard refused the asked model and the CLI (from
+# 2.1.283, campaign 3) finished the session on another one, emitting a
+# system model_refusal_fallback event. The output is not the asked model's,
+# so the trial is recorded and never counted; run.sh retries the step and
+# gives the run up when fallbacks outnumber counted trials. The event is the
+# test, not model_returned: when the very first response is refused, every
+# assistant message is the fallback model's and nothing looks mixed.
 classify() {
   jl "$1" | jq -c --argjson rc "$2" '
     ([.[] | select(.type == "result")] | last) as $r
     | ([.[] | select(.type == "rate_limit_event") | .rate_limit_info] | last) as $rl
+    | ([.[] | select(.type == "system" and .subtype == "model_refusal_fallback")] | first) as $fb
     | if $rc == 142 then {class: "infra:watchdog"}
       elif $r == null then
         (if ($rl.status // "") == "rejected" then {class: "infra:rate_limited"} else {class: "infra:no_result"} end)
+      elif $fb != null then {class: "fallback"}
       elif ($r.subtype == "error_max_turns" or $r.subtype == "error_max_budget_usd") then {class: "truncated"}
       elif $r.subtype == "error_during_execution" then {class: "infra:error_during_execution"}
       elif $r.stop_reason == "refusal" then {class: "refusal"}
       elif $r.is_error == true then
         (if ($rl.status // "") == "rejected" then {class: "infra:rate_limited"} else {class: "infra:api_error"} end)
       else {class: "ok"} end
-    | . + {counted: (.class | startswith("infra:") | not), truncated: (.class == "truncated")}'
+    | . + {counted: (.class | (startswith("infra:") or . == "fallback") | not), truncated: (.class == "truncated")}'
+}
+
+# returned_matches <asked> <returned>: the model that answered is the one
+# asked for. A full ID must match exactly; a bare alias (the pilot's
+# `haiku`, the harness profile's) names a family, claude-<alias>-*.
+returned_matches() {
+  [ "$2" = "$1" ] && return 0
+  case $1 in *-*) return 1 ;; esac
+  case $2 in claude-"$1"-*) return 0 ;; esac
+  return 1
 }
 
 # The measurements a trial row carries from its stream-json.
@@ -346,6 +366,8 @@ stream_facts() {
         tool_calls: ([$a[] | .message.content[]? | select(type == "object" and .type == "tool_use") | .name] | group_by(.) | map({key: .[0], value: length}) | from_entries),
         result: ($r.result // null),
         rate_limit: ([.[] | select(.type == "rate_limit_event") | .rate_limit_info] | last),
+        fallback: ([.[] | select(.type == "system" and .subtype == "model_refusal_fallback")
+          | {original_model, fallback_model, trigger, scope, category: .api_refusal_category}] | first),
         init_memory_paths: ($init.memory_paths // null),
         init_mcp_servers: ($init.mcp_servers // null)
       }'

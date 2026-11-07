@@ -154,6 +154,36 @@ setup golden2 "digit-sample-$H-low	digit	sample	$H	2	room"
 STUB_MODE=first-1:sysprompt camp
 check "golden: a later mismatch also halts" eq "$(rows $r '[.[] | "\(.golden):\(.counted)"] | join(",")')" "golden:true,mismatch:false"
 
+# ------------------------------------------------------- refusal fallback
+
+# A safeguard refusal the CLI answered with another model is recorded, never
+# counted, and retried; a run refused every time gives up after three.
+setup fallback "digit-sample-$F-low	digit	sample	$F	3	room"
+STUB_MODE=fallback camp
+r=digit-sample-$F-low
+check "fallback: three attempts at step 1, none counted" eq "$(rows $r '[.[] | "\(.step).\(.attempt):\(.class):\(.counted)"] | join(",")')" "1.1:fallback:false,1.2:fallback:false,1.3:fallback:false"
+check "fallback: the run gives up as a halt" grep -q '3 refusals answered by another model (claude-opus-4-8) against 0 counted' "$T/.state/halted/$r"
+check "fallback: the event is on the row" eq "$(rows $r '.[0].fallback | "\(.original_model)>\(.fallback_model):\(.category)"')" "$F>claude-opus-4-8:cyber"
+check "fallback: the log names the model that answered" grep -q "001 a1 $F: fallback counted=false golden=none returned=claude-opus-4-8 " "$T/.state/campaign.log"
+check "fallback: no stream or step directory in the run" eq "$(ls "$T/runs/$r" | grep -c '^[0-9]')" 0
+check "fallback: no STOP, so not an infrastructure streak" test ! -f "$T/.state/STOP"
+rm "$T/.state/halted/$r"
+camp
+check "fallback: a relaunch looks afresh and fills the run" eq "$(rows $r '[.[] | select(.counted)] | length') $(rows $r 'length')" "3 6"
+
+setup fallback2 "digit-sample-$F-low	digit	sample	$F	3	room"
+STUB_MODE=first-1:fallback-mixed camp
+check "fallback: one mid-session, retried, then the run carries on" eq "$(rows $r '[.[] | "\(.step).\(.attempt):\(.class):\(.counted)"] | join(",")')" "1.1:fallback:false,1.2:ok:true,2.1:ok:true,3.1:ok:true"
+check "fallback: mixed models are a fallback, not a halt" eq "$(ls "$T/.state/halted" | wc -l | tr -d ' ')" 0
+check "fallback: its stream went to debris" eq "$(ls "$T/.state/debris/$r" | grep -c '^001-a1-.*\.jsonl$')" 1
+
+# A swap with no event: trial 1 is the first, so "model changed" has nothing
+# to compare with; the asked-against-returned check is what halts it.
+setup swap "digit-sample-$F-low	digit	sample	$F	2	room"
+STUB_MODE=othermodel camp
+check "swap: halted, the trial not counted" eq "$(rows $r '[.[] | "\(.class):\(.counted)"] | join(",")')" "ok:false"
+check "swap: the halt names both models" grep -q "asked $F, returned claude-opus-4-8" "$T/.state/halted/$r"
+
 # ------------------------------------------------------- a second manifest
 
 setup manifest "digit-sample-$H-low	digit	sample	$H	2	room"
