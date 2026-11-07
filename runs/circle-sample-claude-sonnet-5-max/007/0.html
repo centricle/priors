@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #f4f4f8;
+      overflow: hidden;
+    }
+    svg {
+      width: min(400px, 80vmin);
+      height: min(400px, 80vmin);
+    }
+    circle {
+      fill: #4f46e5;
+      transition: transform 0.2s ease, fill 0.2s ease;
+      transform-origin: center;
+    }
+    circle:hover {
+      fill: #4338ca;
+      transform: scale(1.03);
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-label="A solid indigo circle">
+    <circle cx="200" cy="200" r="190"/>
+  </svg>
+</body>
+</html>
