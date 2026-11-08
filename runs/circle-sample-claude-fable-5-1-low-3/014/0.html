@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      background: #f4f4f5;
+      color: #18181b;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    svg {
+      display: block;
+      width: min(400px, 90vmin);
+      height: auto;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #18181b;
+        color: #f4f4f5;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg
+    viewBox="0 0 400 400"
+    role="img"
+    aria-labelledby="circle-title circle-desc"
+  >
+    <title id="circle-title">Circle</title>
+    <desc id="circle-desc">A solid circle centered in a square canvas.</desc>
+    <circle cx="200" cy="200" r="200" fill="currentColor"/>
+  </svg>
+</body>
+</html>

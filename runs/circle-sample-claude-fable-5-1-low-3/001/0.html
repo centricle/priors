@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Circle</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #fafafa;
+      --fg: #111;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --fg: #fafafa;
+      }
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--fg);
+    }
+
+    svg {
+      display: block;
+      width: min(400px, 80vmin);
+      height: auto;
+      aspect-ratio: 1;
+    }
+
+    circle {
+      fill: currentColor;
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-labelledby="circle-title">
+    <title id="circle-title">A solid circle</title>
+    <circle cx="200" cy="200" r="200"/>
+  </svg>
+</body>
+</html>

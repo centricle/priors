@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      min-height: 100%;
+    }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #f5f5f5;
+      padding: 1rem;
+    }
+    svg {
+      width: min(400px, 100%);
+      height: auto;
+      aspect-ratio: 1 / 1;
+      display: block;
+    }
+    circle {
+      fill: #222;
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-labelledby="circle-title">
+    <title id="circle-title">A solid dark circle</title>
+    <circle cx="200" cy="200" r="200"/>
+  </svg>
+</body>
+</html>

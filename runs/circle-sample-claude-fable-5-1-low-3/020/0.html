@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100dvh;
+      padding: 1rem;
+      background: radial-gradient(circle at 30% 20%, #f8fafc, #cbd5e1);
+      color: #0f172a;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    svg {
+      width: min(400px, 90vw);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 24px 40px rgba(15, 23, 42, 0.35));
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: radial-gradient(circle at 30% 20%, #1e293b, #020617);
+      }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      svg {
+        animation: float 6s ease-in-out infinite;
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50%      { transform: translateY(-12px); }
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400" role="img" aria-labelledby="circle-title">
+    <title id="circle-title">A dark circle with a soft highlight</title>
+    <defs>
+      <radialGradient id="sphere" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="#64748b"/>
+        <stop offset="60%" stop-color="#1e293b"/>
+        <stop offset="100%" stop-color="#020617"/>
+      </radialGradient>
+    </defs>
+    <circle cx="200" cy="200" r="196" fill="url(#sphere)"/>
+  </svg>
+</body>
+</html>
