@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" role="img" aria-labelledby="zero-title zero-desc">
+  <title id="zero-title">Zero</title>
+  <desc id="zero-desc">The numeral 0, drawn as a bold oval outline centred in a square canvas.</desc>
+  <ellipse cx="50" cy="50" rx="22" ry="36" fill="none" stroke="currentColor" stroke-width="12"/>
+</svg>
