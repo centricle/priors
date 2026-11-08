@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #0f172a;
+    }
+    svg {
+      width: 400px;
+      height: 400px;
+      max-width: 90vmin;
+      max-height: 90vmin;
+      filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.4));
+    }
+    circle {
+      fill: url(#circleGradient);
+      transition: transform 0.2s ease;
+    }
+    circle:hover {
+      transform: scale(1.03);
+      transform-origin: center;
+    }
+  </style>
+</head>
+<body>
+  <svg id="ae683f770" viewBox="0 0 400 400">
+    <defs>
+      <radialGradient id="circleGradient" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="#60a5fa"/>
+        <stop offset="100%" stop-color="#2563eb"/>
+      </radialGradient>
+    </defs>
+    <circle cx="200" cy="200" r="196"/>
+  </svg>
+</body>
+</html>
