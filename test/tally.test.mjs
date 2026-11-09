@@ -62,15 +62,20 @@ test('declines: Haiku number 007 and 055 and word 051 record no answer', () => {
   assert.deepEqual(parseNumber(reply(number, 18), false), { value: '42', form: 'framed', ok: true });
 });
 
-test('declines: exactly those three replies in the campaign', () => {
-  const flagged = [];
-  for (const run of readdirSync(join(REPO, 'runs')).sort()) {
-    if (run === 'pilot' || !existsSync(join(REPO, 'runs', run, 'trials.jsonl'))) continue;
-    for (const t of trialsOf(run)) {
-      if (['number', 'digit', 'word'].includes(t.task) && declines((t.result ?? '').trim())) flagged.push(`${t.task}/${t.step}`);
-    }
-  }
-  assert.deepEqual(flagged, ['number/7', 'number/55', 'word/51']);
+/** The runs a manifest lists, in its order. */
+const runsOf = (manifest) => readFileSync(join(REPO, manifest), 'utf8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t')[0]);
+
+/** Text-task trials that ask a question and commit to nothing, as run/step. */
+const flaggedIn = (runs) => runs.filter((run) => existsSync(join(REPO, 'runs', run, 'trials.jsonl'))).flatMap((run) =>
+  trialsOf(run).filter((t) => ['number', 'digit', 'word'].includes(t.task) && declines((t.result ?? '').trim())).map((t) => `${run}/${t.step}`));
+
+test('declines: exactly those three replies in campaigns 1 and 2', () => {
+  assert.deepEqual(flaggedIn([...runsOf('campaign.tsv'), ...runsOf('campaign-2.tsv')]),
+    [`number-sample-${HAIKU}-low/7`, `number-sample-${HAIKU}-low/55`, `word-sample-${HAIKU}-low/51`]);
+});
+
+test('declines: campaign 3 flags one reply, Haiku word 041 at high', () => {
+  assert.deepEqual(flaggedIn(runsOf('campaign-3.tsv')), [`word-sample-${HAIKU}-high/41`]);
 });
 
 test('unchanged: empty for the text tasks, which have no file to leave alone', () => {
