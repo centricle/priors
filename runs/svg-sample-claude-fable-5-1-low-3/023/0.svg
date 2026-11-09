@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="256" height="256" viewBox="0 0 256 256"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Placeholder graphic</title>
+  <desc id="desc">A rounded square with a centered circle, used as a starting point.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="24" fill="#f3f4f6" stroke="#9ca3af" stroke-width="4"/>
+  <circle cx="128" cy="128" r="64" fill="#3b82f6"/>
+</svg>

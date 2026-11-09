@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="200" height="200" viewBox="0 0 200 200"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Placeholder graphic</title>
+  <desc id="desc">A rounded square background with a centered circle.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#7b3fe4"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="200" height="200" rx="24" fill="url(#bg)"/>
+  <circle cx="100" cy="100" r="56" fill="#ffffff" fill-opacity="0.92"/>
+  <circle cx="100" cy="100" r="56" fill="none" stroke="#1e2a44" stroke-width="4"/>
+</svg>

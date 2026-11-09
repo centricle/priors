@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="256" height="256"
+     viewBox="0 0 256 256"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">Placeholder graphic</title>
+  <desc id="desc">An empty canvas with a light background, ready for content.</desc>
+  <rect width="256" height="256" fill="#f5f5f5"/>
+</svg>
