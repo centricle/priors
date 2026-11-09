@@ -98,4 +98,7 @@ export const COLUMNS: Column[] = [
 
   // appended after the spelling columns; the glossary lists it under lineage
   { name: 'same_picture', group: 'lineage', meaning: 'True when the trial’s render is pixel-identical to the render of its input (the seed, or the previous chain step), whether or not the file changed. Empty for tasks without a render (the text tasks and sentence).' },
+
+  // appended for the third campaign; the glossary lists it under cost
+  { name: 'thinking_tokens', group: 'cost', meaning: 'Thinking tokens in the session, the share of output_tokens spent thinking, as the CLI’s result reported it. Empty for the pilot, which has no transcript.' },
 ];

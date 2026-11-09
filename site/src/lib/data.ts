@@ -166,6 +166,8 @@ export interface Trial {
   spell_c_us: number | null;
   /** The render is pixel-identical to its input's render (the seed, or the previous chain step). Null without a render. */
   same_picture: boolean | null;
+  /** Thinking tokens as the CLI's result reported them, part of output_tokens. Null for the pilot. */
+  thinking_tokens: number | null;
 
   // joined from runs/<run>/trials.jsonl
   /** The model's final message (markdown). Empty when the attempt line is missing. */
@@ -472,6 +474,7 @@ export function loadAll(campaign: Campaign = 1): Loaded {
       color_p_uk: num(r.color_p_uk), color_p_us: num(r.color_p_us), center_p_uk: num(r.center_p_uk), center_p_us: num(r.center_p_us),
       gray_p_uk: num(r.gray_p_uk), gray_p_us: num(r.gray_p_us), ize_p_uk: num(r.ize_p_uk), ize_p_us: num(r.ize_p_us),
       spell_c_uk: num(r.spell_c_uk), spell_c_us: num(r.spell_c_us), same_picture: flag(r.same_picture),
+      thinking_tokens: num(r.thinking_tokens),
       result: j?.result ?? '', tokens: j?.tokens ?? null,
       isRelay: r.run.includes('relay'), hasRender,
       // A bare site path; asset() in href.mjs decides the host.
