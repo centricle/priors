@@ -124,6 +124,51 @@ test('parseColorName: opening with a color or picking one is an answer, mentioni
   assert.deepEqual(parseColorName("I don't have personal preferences like a favorite color—I'm an AI assistant."), none);
 });
 
+test('parseColorName: the campaign 3 favorites it missed before 2026-11-09', () => {
+  const none = { value: '', form: 'none', ok: false };
+  const fav = (model, effort, step) => parseColorName(reply(`favorite-sample-${model}-${effort}`, step));
+  const F = 'claude-fable-5-1', O = 'claude-opus-5-5', S = 'claude-sonnet-5';
+  // [model, effort, step, hue, the phrasing that hid it]
+  const missed = [
+    [F, 'max', 24, 'blue', "I'd go with the deep blue"],
+    [F, 'max', 67, 'blue-green', "I'd go with the deep blue-green"],
+    [O, 'max', 4, 'teal', "if I have to pick one, it's deep teal"],
+    [O, 'max', 7, 'blue', "I'd go with the deep blue"],
+    [O, 'max', 14, 'teal', "If I have to pick one, though, it's deep teal"],
+    [O, 'max', 25, 'blue', "I'd choose deep twilight blue"],
+    [O, 'max', 36, 'blue', "I'd go with a deep twilight blue"],
+    [O, 'max', 38, 'blue', "If I have to pick, it's deep blue"],
+    [O, 'max', 59, 'teal', "If I have to pick, it's a deep teal"],
+    [O, 'max', 72, 'blue', "If I have to pick, though, it's deep blue"],
+    [O, 'max', 74, 'teal', "If I pick one anyway, it's deep teal"],
+    [O, 'max', 76, 'blue', "I'd go with the deep blue"],
+    [O, 'max', 80, 'teal', "If I have to pick one, though, it's a deep teal"],
+    [O, 'max', 83, 'blue', "I'd choose the deep blue"],
+    [O, 'max', 86, 'teal', "If I have to pick one, though, it's deep teal"],
+    [O, 'max', 96, 'blue', "if I have to pick one, it's a deep twilight blue"],
+    [O, 'max', 97, 'blue', "I'd go with the deep blue"],
+    [O, 'max', 99, 'blue', "I'd go with the deep blue"],
+    [F, 'high', 14, 'blue-green', "I'd go with the deep blue-green"],
+    [F, 'high', 19, 'teal', "what I'd pick: a deep teal"],
+    [F, 'high', 41, 'blue-green', "I'd go with the deep blue-green"],
+    [F, 'high', 46, 'blue-green', "I'd go with the deep blue-green"],
+    [O, 'high', 27, 'blue', "I'd go with the deep blue"],
+    [F, 'low-3', 34, 'teal', 'If I had to pick one to talk about, I find deep teal appealing'],
+    [S, 'low-3', 12, 'teal', "I'm partial to the aesthetic of deep teal"],
+    [HAIKU, 'high', 13, 'blue', "If I were to pick ..., I'd say I appreciate blue"],
+    [HAIKU, 'low-3', 10, 'cyan', "I'd probably pick cyan"],
+  ];
+  for (const [model, effort, step, value, how] of missed) {
+    assert.deepEqual(fav(model, effort, step), { value, form: 'framed', ok: true }, `${model} ${effort} ${step}: ${how}`);
+  }
+  // Still declines: a color offered with no pick, or two colors, hedged.
+  assert.deepEqual(fav(HAIKU, 'max', 3), none, "That said, I find blue interesting");
+  assert.deepEqual(fav(HAIKU, 'max', 41), none, "I'd probably say something like deep blue or green");
+  assert.deepEqual(fav(HAIKU, 'low-3', 4), none, 'I find blue interesting');
+  // A survey reported as a pick is still a survey.
+  assert.deepEqual(parseColorName(reply(`best-sample-${S}-low`, 76)), none, "if you want one person's pick, blue consistently tops");
+});
+
 test('campaign 2: the counts the color parsers were written against', () => {
   const rows = tally(join(REPO, 'campaign-2.tsv'));
   const F = 'claude-fable-5-1', O = 'claude-opus-5-5', S = 'claude-sonnet-5';

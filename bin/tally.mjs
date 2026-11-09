@@ -218,20 +218,37 @@ export function parseGradient(raw) {
 // ("deep blue" and "slate blue" are blue; teal is its own word), so that 100
 // replies make one distribution.
 const HUES = 'blue-green|red|orange|yellow|green|blue|purple|violet|indigo|pink|brown|black|white|gray|grey|teal|cyan|turquoise|magenta|maroon|navy|gold|coral|crimson|lavender|cerulean|azure|emerald|amber|aqua|cobalt|fuchsia|lilac|lime|mauve|mint|olive|peach|periwinkle|plum|rose|salmon|sapphire|scarlet|silver|ultramarine';
-const SHADES = 'deep|dark|light|bright|soft|pale|royal|sky|ocean|slate|steel|navy|midnight|forest|electric|cobalt|warm|cool|rich|vivid|muted|dusty|calm|nice|terminal';
-const COLOR = `(?:a |an )?(?:(?:${SHADES})[ -])*(${HUES})`;
+const SHADES = 'deep|dark|light|bright|soft|pale|royal|sky|ocean|slate|steel|navy|midnight|twilight|forest|electric|cobalt|warm|cool|rich|vivid|muted|dusty|calm|nice|terminal';
+const COLOR = `(?:a |an |the )?(?:(?:${SHADES})[ -])*(${HUES})`;
 const COLOR_LEADS = new RegExp(`^(?:probably |definitely |honestly,? )?${COLOR}\\b`, 'i');
 const COLOR_ONLY = new RegExp(`^${COLOR}$`, 'i');
-const COLOR_PICKED = new RegExp(`\\b(?:I(?:'d| would|'ll| will)? (?:say|pick|choose|go with|have to say|lean toward)|had to (?:pick|choose)(?: one)?[:,]?|I(?:'ll say I)? like|partial to|drawn to|going with|(?:it|that)(?:'d| would) be|my (?:pick|choice|answer|vote) (?:is|would be))\\s+${COLOR}\\b`, 'i');
+const PICKS = [
+  `I(?:'d| would|'ll| will)?(?: probably)? (?:say|pick|choose|go with|have to say|lean toward)[:,]?`,
+  `had to (?:pick|choose)(?: one)?[:,]?`,
+  `I(?:'ll say I)? like`,
+  `I(?:'d| would) say I appreciate`,
+  `partial to(?: the aesthetic of)?`,
+  `drawn to`,
+  `going with`,
+  `(?:it|that)(?:'d| would) be`,
+  `my (?:pick|choice|answer|vote) (?:is|would be)`,
+  // "If I have to pick one, though, it's deep teal": the pick, then the color,
+  // in the same sentence.
+  `(?:pick|choose)\\b[^.?!:]*?,\\s*(?:it(?:'s| is)|I find)`,
+];
+const COLOR_PICKED = new RegExp(`\\b(?:${PICKS.join('|')})\\s+${COLOR}\\b`, 'i');
 const hue = (m) => (m[1].toLowerCase() === 'grey' ? 'gray' : m[1].toLowerCase());
 
 /**
  * A reply commits to a color in one of two ways: it opens with it ("Teal.",
  * "Blue, probably: ...", "Probably a deep blue-green, like teal"), or it says
- * it picks one ("if I had to pick, I'd say deep blue", "I'll go with **teal**").
- * A color mentioned any other way is not an answer: "blue is the most commonly
- * preferred color across surveys" reports a fact, and a list of what each color
- * is good for chooses none, bold or not.
+ * it picks one ("if I had to pick, I'd say deep blue", "I'll go with **teal**",
+ * "I'd go with the deep blue of the sky just after sunset", "If I have to pick
+ * one, it's deep teal"). A color mentioned any other way is not an answer:
+ * "blue is the most commonly preferred color across surveys" reports a fact, a
+ * list of what each color is good for chooses none, bold or not, and neither
+ * does "I don't have a favorite. That said, I find blue interesting" (no pick)
+ * or "I'd probably say something like deep blue or green" (two, hedged).
  */
 export function parseColorName(raw) {
   const t = unmark(raw);
