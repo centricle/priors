@@ -1,4 +1,4 @@
-// The 60 columns of data/trials.csv, in header order, for the /data/ glossary.
+// The 61 columns of every campaign's CSV, in header order, for the /data/ glossary.
 //
 // The column set is frozen upstream (bin/tally.mjs appends, never renames or
 // reorders), and data.ts refuses to load a CSV whose header differs from this
@@ -22,14 +22,14 @@ export interface Column {
 
 export const COLUMNS: Column[] = [
   // identity
-  { name: 'run', group: 'identity', meaning: 'Run name: task, mode, model and effort, e.g. circle-sample-claude-haiku-4-5-20251001-low. pilot-import holds the 32 pilot trials. A name ending in -2 is the second campaign’s rerun of the run without it.' },
-  { name: 'task', group: 'identity', meaning: 'What the model was given: circle, html, svg, replica, sentence, number, digit or word in the first campaign; hex, hex2, rgb, gradient, button, background, color, favorite, best or colorize in the second.' },
+  { name: 'run', group: 'identity', meaning: 'Run name: task, mode, model and effort, e.g. circle-sample-claude-haiku-4-5-20251001-low. pilot-import holds the 32 pilot trials. A name ending in -2 is the second campaign’s rerun of the run without it; one ending in -low-3, -high or -max is the third campaign’s, at that effort.' },
+  { name: 'task', group: 'identity', meaning: 'What the model was given: circle, html, svg, replica, sentence, number, digit or word in the first campaign; hex, hex2, rgb, gradient, button, background, color, favorite, best or colorize in the second; circle, svg, word and favorite again in the third.' },
   { name: 'mode', group: 'identity', meaning: 'sample (independent trials from the same seed), chain (each step starts from the previous step’s output) or pilot (the original 32-trial pilot).' },
   { name: 'profile', group: 'identity', meaning: 'room (stripped Claude Code: four tools, no user config) or harness (the everyday Claude Code setup with the full user config).' },
   { name: 'step', group: 'identity', meaning: 'Trial number within the run, from 1. In a chain it is also the position in the chain.' },
   { name: 'model', group: 'identity', meaning: 'Model id the CLI reports as having answered. In relay runs it rotates by step.' },
   { name: 'model_asked', group: 'identity', meaning: 'Model id or alias passed to the CLI. Differs from model only for the pilot and harness replica, which asked for the alias haiku.' },
-  { name: 'effort', group: 'identity', meaning: 'Reasoning effort setting. low on every row.' },
+  { name: 'effort', group: 'identity', meaning: 'Reasoning effort setting: low in the first two campaigns; low, high or max in the third.' },
   { name: 'cli_version', group: 'identity', meaning: 'Claude Code CLI version that ran the trial.' },
   { name: 'session_id', group: 'identity', meaning: 'Session UUID of the trial.' },
   { name: 'started_utc', group: 'identity', meaning: 'When the trial started, UTC, ISO 8601.' },

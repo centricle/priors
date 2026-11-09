@@ -652,5 +652,5 @@ export function runNamed(name: string): Run | undefined {
 export const isArtifact = (t: Trial): boolean => ARTIFACT_TASKS.includes(t.task);
 /** A task that asks for a color in chat (the second campaign's, colorize aside). */
 export const isColorTask = (task: Task): boolean => (COLOR_TASKS as readonly string[]).includes(task);
-/** The pilot ran before the campaign and is not part of its 2,608 trials. */
+/** The pilot ran before the first campaign and is not part of its 2,608 trials. */
 export const isCampaign = (t: Trial): boolean => t.mode !== 'pilot';
