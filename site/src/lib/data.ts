@@ -66,10 +66,25 @@ export const TEXT_TASKS: readonly Task[] = ['number', 'digit', 'word'];
 
 // Each campaign's manifest at the repo root and its tally under data/. The
 // second campaign also reruns the first's svg and html samples for Opus, under
-// run names ending in -2: the same task names, a different campaign.
+// run names ending in -2: the same task names, a different campaign. The third
+// runs four tasks at three effort levels; its low cells end in -3, since the
+// first two campaigns already hold the -low names.
+//
+// `held` names a manifest run that ended short of its n, with the reason. Its
+// count comes from the CSV instead of the manifest, which stays the runner's
+// record of what was planned; a held run with no counted trials has no Run.
+// Every other shortfall still throws.
 export const CAMPAIGNS = [
   { id: 1, manifest: 'campaign.tsv', csv: 'trials.csv' },
   { id: 2, manifest: 'campaign-2.tsv', csv: 'campaign-2.csv' },
+  {
+    id: 3, manifest: 'campaign-3.tsv', csv: 'campaign-3.csv',
+    held: {
+      'circle-sample-claude-fable-5-1-max': 'A safety classifier moved every attempt to another model, so none counted.',
+      'circle-sample-claude-fable-5-1-high': 'Given up once diverted attempts outnumbered counted ones.',
+      'circle-sample-claude-opus-5-5-max': 'Stopped by hand after its second diverted attempt.',
+    },
+  },
 ] as const;
 export type Campaign = (typeof CAMPAIGNS)[number]['id'];
 
@@ -194,21 +209,48 @@ export interface Run {
   isRelay: boolean;
   /** The earlier campaign's run this one repeats (the same name without its -N), else null. */
   rerunOf: string | null;
+  /** The reasoning effort every trial of the run was given: low, high or max. */
+  effort: string;
   n: number;
   trials: Trial[];
   label: string;
 }
 
-// An attempt that did not count: retried after the harness halted on it.
+/** Claude Code finished the session on another model after a safeguard refusal. */
+export interface Fallback {
+  original_model: string;
+  fallback_model: string;
+  /** The classifier's category ("cyber"), when the stream recorded one. */
+  category: string | null;
+}
+
+// An attempt that did not count: retried after the harness halted on it, or
+// after a fallback put another model's work in the room.
 export interface Attempt {
   run: string;
   step: number;
   attempt: number;
+  /** The model asked, never a fallback's substitute (claude-opus-4-8 is not Opus 5.5). */
   model: Model;
+  /** The runner's classification of the attempt ("ok", "fallback"), when it recorded one. */
+  class: string | null;
+  category: string | null;
+  fallback: Fallback | null;
   halt: string | null;
   cost_usd: number | null;
   wall_s: number | null;
   result: string;
+}
+
+/** A manifest run that ended short of its n; see `held` in CAMPAIGNS. */
+export interface Held {
+  name: string;
+  task: Task;
+  model: Model;
+  effort: string;
+  planned: number;
+  counted: number;
+  reason: string;
 }
 
 export interface Loaded {
@@ -216,6 +258,7 @@ export interface Loaded {
   runs: Run[];
   runByName: Map<string, Run>;
   uncounted: Attempt[];
+  held: Held[];
 }
 
 // --------------------------------------------------------------------- csv
@@ -376,6 +419,18 @@ interface JsonlLine {
   tokens: Tokens | null;
   result: string | null;
   halt: string | null;
+  class?: string | null;
+  fallback?: { original_model: string; fallback_model: string; category?: string | null } | null;
+}
+
+// What the stream recorded as a fallback, or else a returned model that is not
+// the one asked: Opus max step 2 halted as "one trial returned several models"
+// with Opus 4.8 among them and no fallback event. The pilot's alias "haiku"
+// returning claude-haiku-4-5-20251001 is the same model, not a substitute.
+function fallbackOf(l: JsonlLine): Fallback | null {
+  if (l.fallback) return { original_model: l.fallback.original_model, fallback_model: l.fallback.fallback_model, category: l.fallback.category ?? null };
+  const other = (l.model_returned ?? []).find((m) => !m.includes(l.model_asked));
+  return other ? { original_model: l.model_asked, fallback_model: other, category: null } : null;
 }
 
 function readJsonl(run: string): JsonlLine[] {
@@ -389,11 +444,17 @@ function renderSet(run: string): Set<string> {
   return new Set(existsSync(dir) ? readdirSync(dir) : []);
 }
 
-function labelOf(r: Omit<Run, 'label'>): string {
+// In a campaign that varies effort, the label names the level and not the
+// rerun: "svg · sample · Opus 5.5 · low" is the third campaign's run of what
+// the first campaign called "svg · sample · Opus 5.5", and the second
+// campaign's "· rerun" keeps its own label. Labels stay unique across
+// campaigns, which allRuns() checks.
+function labelOf(r: Omit<Run, 'label'>, showEffort: boolean): string {
   const who = r.isRelay ? 'relay' : r.models.map((m) => MODEL_LABEL[m]).join(' + ');
   const parts: string[] = [r.task, r.mode, who];
   if (r.profile !== 'room') parts.push(r.profile);
-  if (r.rerunOf) parts.push('rerun');
+  if (showEffort) parts.push(r.effort);
+  else if (r.rerunOf) parts.push('rerun');
   return parts.join(' · ');
 }
 
@@ -411,7 +472,9 @@ export function loadAll(campaign: Campaign = 1): Loaded {
   const hit = cache.get(campaign);
   if (hit) return hit;
   const root = repoRoot();
-  const { manifest, csv } = CAMPAIGNS.find((c) => c.id === campaign)!;
+  const spec = CAMPAIGNS.find((c) => c.id === campaign)!;
+  const { manifest, csv } = spec;
+  const heldReasons: Record<string, string> = 'held' in spec ? spec.held : {};
 
   const table = parseCsv(readFileSync(join(root, 'data', csv), 'utf8')).filter((r) => !(r.length === 1 && r[0] === ''));
   const header = table[0];
@@ -420,24 +483,33 @@ export function loadAll(campaign: Campaign = 1): Loaded {
     throw new Error(`data: ${csv} header differs from src/lib/columns.ts; update the glossary and the Trial type`);
   }
 
-  // Runs in campaign order, then whatever else the CSV holds (the pilot).
-  const planned = new Map<string, number>();
+  // Runs in campaign order, then whatever else the CSV holds (the pilot). The
+  // first two manifests have no effort column; every run in them is low.
+  const planned = new Map<string, { task: string; models: string; n: number; effort: string }>();
   for (const line of readFileSync(join(root, manifest), 'utf8').split('\n').slice(1).filter(Boolean)) {
-    const [name, , , , n] = line.split('\t');
-    planned.set(name, Number(n));
+    const [name, task, , models, n, , effort] = line.split('\t');
+    planned.set(name, { task, models, n: Number(n), effort: effort ?? 'low' });
   }
+  for (const name of Object.keys(heldReasons)) {
+    if (!planned.has(name)) throw new Error(`data: CAMPAIGNS holds ${name}, which ${manifest} does not list`);
+  }
+  const showEffort = new Set([...planned.values()].map((p) => p.effort)).size > 1;
 
+  // Every attempt of every run, the manifest's included: a held run can have
+  // fallbacks and no counted trial at all.
   const jsonl = new Map<string, JsonlLine>();
   const uncounted: Attempt[] = [];
   const renders = new Map<string, Set<string>>();
   const seenRuns = new Set<string>();
   for (const cells of table.slice(1)) seenRuns.add(cells[0]);
-  for (const run of seenRuns) {
+  for (const run of [...seenRuns, ...[...planned.keys()].filter((k) => !seenRuns.has(k))]) {
     for (const l of readJsonl(run)) {
       if (l.counted) jsonl.set(`${run}|${l.step}`, l);
       else {
+        const fallback = fallbackOf(l);
         uncounted.push({
-          run, step: l.step, attempt: l.attempt, model: modelOf(l.model_returned?.[0] ?? l.model_asked),
+          run, step: l.step, attempt: l.attempt, model: modelOf(l.model_asked),
+          class: l.class ?? null, category: fallback?.category ?? null, fallback,
           halt: l.halt ?? null, cost_usd: l.cost_usd ?? null, wall_s: l.wall_s ?? null, result: l.result ?? '',
         });
       }
@@ -494,27 +566,51 @@ export function loadAll(campaign: Campaign = 1): Loaded {
   }
   const names = [...planned.keys(), ...[...byRun.keys()].filter((k) => !planned.has(k))];
   const runs: Run[] = [];
+  const held: Held[] = [];
   for (const name of names) {
-    const rows = byRun.get(name);
-    if (!rows) throw new Error(`data: ${manifest} lists ${name} but ${csv} has no rows for it`);
-    if (planned.has(name) && planned.get(name) !== rows.length) {
-      throw new Error(`data: ${name} has ${rows.length} rows, ${manifest} says ${planned.get(name)}`);
+    const rows = byRun.get(name) ?? [];
+    const plan = planned.get(name);
+    if (plan && name in heldReasons) {
+      if (rows.length >= plan.n) throw new Error(`data: ${name} is held but has all ${plan.n} rows; drop it from CAMPAIGNS`);
+      held.push({ name, task: oneOf(TASKS, plan.task, 'task'), model: modelOf(plan.models), effort: plan.effort,
+        planned: plan.n, counted: rows.length, reason: heldReasons[name] });
+      if (!rows.length) continue;
+    } else {
+      if (!rows.length) throw new Error(`data: ${manifest} lists ${name} but ${csv} has no rows for it`);
+      if (plan && plan.n !== rows.length) throw new Error(`data: ${name} has ${rows.length} rows, ${manifest} says ${plan.n}`);
     }
     rows.sort((a, b) => a.step - b.step);
     const head = rows[0];
+    if (rows.some((t) => t.effort !== head.effort)) throw new Error(`data: ${name} mixes effort levels`);
     const parts = { name, campaign, task: head.task, mode: head.mode, profile: head.profile, isRelay: head.isRelay,
-      rerunOf: rerunOf(name, campaign), n: rows.length, trials: rows,
+      rerunOf: rerunOf(name, campaign), effort: head.effort, n: rows.length, trials: rows,
       models: MODELS.filter((m) => rows.some((t) => t.model === m)) };
-    runs.push({ ...parts, label: labelOf(parts) });
+    runs.push({ ...parts, label: labelOf(parts, showEffort) });
   }
 
-  const loaded = { trials, runs, runByName: new Map(runs.map((r) => [r.name, r])), uncounted };
+  const loaded = { trials, runs, runByName: new Map(runs.map((r) => [r.name, r])), uncounted, held };
   cache.set(campaign, loaded);
   return loaded;
 }
 
-/** Every campaign's runs, in campaign order. Run names are unique across campaigns. */
-export const allRuns = (): Run[] => CAMPAIGNS.flatMap((c) => loadAll(c.id).runs);
+// A run's label is its page title and every trial's title is the label plus a
+// number, so two runs with one label would give two pages one title.
+let labelsChecked = false;
+
+/** Every campaign's runs, in campaign order. Run names and labels are unique across campaigns. */
+export function allRuns(): Run[] {
+  const runs = CAMPAIGNS.flatMap((c) => loadAll(c.id).runs);
+  if (!labelsChecked) {
+    const seen = new Map<string, string>();
+    for (const r of runs) {
+      const other = seen.get(r.label);
+      if (other) throw new Error(`data: ${other} and ${r.name} share the label ${JSON.stringify(r.label)}`);
+      seen.set(r.label, r.name);
+    }
+    labelsChecked = true;
+  }
+  return runs;
+}
 
 /** A run by name, whichever campaign it belongs to. */
 export function runNamed(name: string): Run | undefined {
