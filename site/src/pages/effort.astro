@@ -1,0 +1,1193 @@
+---
+/**
+ * The third campaign's story: the effort dial.
+ *
+ * Everything here is computed from the third campaign's rows (loadAll(3)),
+ * sliced by level before anything is counted. Pooled, the three levels blend,
+ * which is what headline() in stats.ts does, so it is not used here. The first
+ * two campaigns are read only where the copy sets a low cell beside the run it
+ * repeats. As on the other stories, no count is typed into the prose, and a
+ * sentence that says "every", "only", "never" or "none" is checked by claim(),
+ * so the build fails on the day the data stops saying it.
+ *
+ * Two things are read from disk beside the loader: each attempt's line in
+ * runs/<run>/trials.jsonl, for the launch, input and conditions hashes; and a
+ * few trials' transcripts, runs/<run>/NNN.jsonl, for the commands the room
+ * refused and the shell commands a trial ran.
+ *
+ * The diverted attempts (chapter 6) are counted and never shown. Another model
+ * wrote them.
+ */
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import Base from '../layouts/Base.astro';
+import Chapter from '../components/Chapter.astro';
+import KeyRow from '../components/KeyRow.astro';
+import Numeral from '../components/Numeral.astro';
+import Quote from '../components/Quote.astro';
+import SpecimenGrid from '../components/SpecimenGrid.astro';
+import { asset, href } from '../lib/href.mjs';
+import {
+  loadAll, MODELS, MODEL_LABEL, MODEL_ID, fmtInt, fmtPct, fmtSec, fmtUsd, modelOf, pad3, promptOf, repoRoot, rerunGap, seedOf,
+  type Held, type Model, type Run, type Task, type Trial,
+} from '../lib/data.ts';
+import {
+  EFFORTS, NO_ANSWER, answerDistribution, effortCost, effortGrid, featureShares, isRecolored, marginOfError, spellingByModel, sum,
+  type Effort, type EffortCell,
+} from '../lib/stats.ts';
+
+const num = fmtInt;
+function claim(ok: boolean, what: string): void {
+  if (!ok) throw new Error(`effort: the copy says ${what}, and the data no longer does`);
+}
+
+// Small counts in words, so a sentence can open with one and it is still computed.
+const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+  'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+function say(n: number): string {
+  if (!Number.isInteger(n) || n < 0 || n > 99) throw new Error(`effort: no words for ${n}`);
+  if (n < 20) return ONES[n];
+  return TENS[Math.floor(n / 10)] + (n % 10 ? `-${ONES[n % 10]}` : '');
+}
+const Say = (n: number) => say(n).replace(/^./, (c) => c.toUpperCase());
+const and = (xs: readonly string[]) => (xs.length < 3 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+const NAME = (m: Model) => MODEL_LABEL[m].split(' ')[0];
+const ORDER: Model[] = ['fable', 'opus', 'sonnet', 'haiku'];
+
+const first = loadAll(1);
+const second = loadAll(2);
+const { trials, runs, runByName, uncounted, held } = loadAll(3);
+
+// ------------------------------------------------------------------ cells
+// One run per task, model and level. The low cells end in -3, since the first
+// two campaigns already hold the -low names. A held run with no counted trial
+// has no Run, so its cell is empty.
+const TASKS3: Task[] = ['circle', 'svg', 'word', 'favorite'];
+const ARTIFACT3: Task[] = ['circle', 'svg'];
+const TEXT3: Task[] = ['word', 'favorite'];
+claim(runs.every((r) => TASKS3.includes(r.task)) && TASKS3.every((task) => runs.some((r) => r.task === task)), 'the campaign ran these four tasks');
+const SUFFIX: Record<Effort, string> = { low: 'low-3', high: 'high', max: 'max' };
+const nameOf = (task: Task, m: Model, e: Effort) => `${task}-sample-${MODEL_ID[m]}-${SUFFIX[e]}`;
+const heldBy = new Map<string, Held>(held.map((h) => [h.name, h]));
+claim(
+  runs.length + held.filter((h) => h.counted === 0).length === TASKS3.length * MODELS.length * EFFORTS.length,
+  'every task ran for every model at every level',
+);
+function cell(task: Task, m: Model, e: Effort): Trial[] {
+  const name = nameOf(task, m, e);
+  const r = runByName.get(name);
+  if (r) return r.trials;
+  if (heldBy.has(name)) return [];
+  throw new Error(`effort: no run ${name}`);
+}
+const runHref = (task: Task, m: Model, e: Effort) => href(`/runs/${nameOf(task, m, e)}/`);
+const full = (task: Task) => Math.max(...runs.filter((r) => r.task === task).map((r) => r.n));
+function at(task: Task, m: Model, e: Effort, step: number): Trial {
+  const t = cell(task, m, e).find((x) => x.step === step);
+  if (!t) throw new Error(`effort: no trial ${nameOf(task, m, e)}/${pad3(step)}`);
+  return t;
+}
+const out = (t: Trial) => t.output ?? '';
+const left = (ts: Trial[]) => ts.filter((t) => t.unchanged === true).length;
+const denials = (ts: Trial[]) => sum(ts.map((t) => t.denials));
+
+// --------------------------------------------------------------- the disk
+const root = repoRoot();
+interface Line {
+  run: string;
+  task: string;
+  model_asked: string;
+  effort: string;
+  counted: boolean;
+  argv_sha256?: string;
+  cli_sha256?: string;
+  input_sha256?: string;
+  conditions_sha256?: string | null;
+  fallback?: Record<string, unknown> | null;
+}
+const linesOf = (run: string): Line[] => {
+  const path = join(root, 'runs', run, 'trials.jsonl');
+  return existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as Line) : [];
+};
+const lines3 = [...runs.map((r) => r.name), ...held.filter((h) => h.counted === 0).map((h) => h.name)].flatMap(linesOf);
+const lines2 = second.runs.map((r) => r.name).flatMap(linesOf);
+
+// What the room refused, and every shell command, from the trial's own stream.
+const transcripts = new Map<string, { bash: string[]; denied: string[] }>();
+function transcript(t: Trial): { bash: string[]; denied: string[] } {
+  const key = `${t.run}/${pad3(t.step)}`;
+  const hit = transcripts.get(key);
+  if (hit) return hit;
+  const path = join(root, 'runs', t.run, `${pad3(t.step)}.jsonl`);
+  if (!existsSync(path)) throw new Error(`effort: no transcript ${key}`);
+  const got = { bash: [] as string[], denied: [] as string[] };
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    if (!line) continue;
+    const d = JSON.parse(line);
+    if (d.type === 'assistant') {
+      for (const c of d.message?.content ?? []) if (c.type === 'tool_use' && c.name === 'Bash') got.bash.push(String(c.input?.command ?? '').trim());
+    }
+    if (d.type === 'result') {
+      got.denied = (d.permission_denials ?? []).map((p: { tool_name: string; tool_input?: { command?: string } }) => String(p.tool_input?.command ?? p.tool_name).trim());
+    }
+  }
+  claim(got.denied.length === (t.denials ?? 0), `${key}’s transcript holds as many denials as its row`);
+  transcripts.set(key, got);
+  return got;
+}
+
+// ----------------------------------------------------------- 0. the lake
+const blank = at('svg', 'opus', 'low', 1);
+const zero = at('svg', 'opus', 'max', 1);
+const lake = at('svg', 'opus', 'max', 17);
+claim(blank.unchanged === true, 'the low trial left the file alone');
+const longest = trials.reduce((a, t) => ((t.wall_s ?? 0) > (a.wall_s ?? 0) ? t : a));
+const deepest = trials.reduce((a, t) => ((t.thinking_tokens ?? 0) > (a.thinking_tokens ?? 0) ? t : a));
+claim(longest === lake && deepest === lake, 'the lake is the campaign’s longest trial and its most thinking');
+const lakeTitle = /<title[^>]*>([^<]+)<\/title>/.exec(out(lake))?.[1] ?? '';
+claim(/lake/i.test(lakeTitle), 'the lake calls itself one');
+const panes = [
+  { t: blank, what: 'left alone' },
+  { t: zero, what: 'a zero' },
+  { t: lake, what: `“${lakeTitle}”` },
+].map((p) => {
+  claim(p.t.hasRender, `${p.t.run}/${pad3(p.t.step)} has a render`);
+  return {
+    ...p,
+    url: href(`/runs/${p.t.run}/${pad3(p.t.step)}/`),
+    src: asset(p.t.renderPath!),
+    alt: `Opus 5.5 at effort ${p.t.effort}, trial ${pad3(p.t.step)}: ${p.what}.`,
+    meta: `${p.t.effort} · ${num(p.t.thinking_tokens ?? 0)} thinking tokens · ${fmtSec(p.t.wall_s ?? 0)}`,
+  };
+});
+
+// --------------------------------------------------------------- 1. dial
+const grids = Object.fromEntries(TASKS3.map((task) => [task, effortGrid(trials, task)])) as Record<Task, Record<Model, Record<Effort, EffortCell>>>;
+const think = (task: Task, m: Model, e: Effort) => grids[task][m][e].medianThinking ?? 0;
+const swing = (xs: number[]) => Math.max(...xs) / Math.min(...xs) - 1;
+const haikuSwing = (f: (c: EffortCell) => number | null) => Math.max(...TASKS3.map((task) => swing(EFFORTS.map((e) => f(grids[task].haiku[e]) ?? 0))));
+const haikuThink = haikuSwing((c) => c.medianThinking);
+claim(haikuThink < 0.25, 'Haiku’s thinking barely moves between levels');
+claim(haikuSwing((c) => c.medianWall) <= haikuThink && haikuSwing((c) => c.totalCost) <= haikuThink, 'Haiku’s time and cost move no more than its thinking');
+claim(haikuSwing((c) => c.medianWall) < 0.05, 'Haiku’s median trial takes the same time at every level');
+const REACHED: Model[] = ['fable', 'opus', 'sonnet'];
+claim(
+  REACHED.every((m) => ARTIFACT3.every((task) => grids[task][m].max.n === 0 || think(task, m, 'max') > 3 * think(task, m, 'low'))),
+  'max multiplies the thinking of Fable, Opus and Sonnet on both files',
+);
+claim(
+  REACHED.every((m) => ARTIFACT3.every((task) => {
+    const counted = EFFORTS.filter((e) => grids[task][m][e].n > 0).map((e) => think(task, m, e));
+    return counted.every((v, i) => i === 0 || v > counted[i - 1]);
+  })),
+  'Fable, Opus and Sonnet think more at each step of the dial on both files',
+);
+const argvs = (task: Task, m: Model, e: Effort) =>
+  new Set(lines3.filter((l) => l.task === task && l.effort === e && modelOf(l.model_asked) === m).map((l) => l.argv_sha256));
+claim(
+  TASKS3.every((task) => {
+    const sets = EFFORTS.map((e) => argvs(task, 'haiku', e));
+    return sets.every((s) => s.size === 1) && new Set(sets.map((s) => [...s][0])).size === EFFORTS.length;
+  }),
+  'Haiku is launched differently at each level',
+);
+const textLowHigh = Math.max(...TEXT3.flatMap((task) => REACHED.flatMap((m) => [think(task, m, 'low'), think(task, m, 'high')])));
+claim(textLowHigh < 50, 'Fable, Opus and Sonnet think little or not at all on text at low and high');
+claim(TEXT3.every((task) => (['fable', 'opus'] as Model[]).every((m) => think(task, m, 'max') > textLowHigh)), 'max makes Fable and Opus think on text');
+const sonnetText = TEXT3.flatMap((task) => EFFORTS.flatMap((e) => cell(task, 'sonnet', e)));
+claim(sonnetText.every((t) => t.thinking_tokens === 0), 'Sonnet spends no thinking tokens on any text trial');
+const fableCircle = grids.circle.fable;
+claim(fableCircle.max.n === 0 && fableCircle.high.n > 0 && fableCircle.high.n < full('circle'), 'Fable’s circle is short at high and empty at max');
+
+// -------------------------------------------------------------- 2. cliff
+const cost = effortCost(trials, uncounted);
+const highOverLow = (cost.byLevel.high - cost.byLevel.low) / cost.byLevel.low;
+claim(Math.abs(highOverLow) < 0.05, 'high costs what low does');
+claim(cost.byLevel.max > 2 * (cost.byLevel.low + cost.byLevel.high), 'max costs more than twice low and high together');
+const maxOverHigh = Math.floor(cost.byLevel.max / cost.byLevel.high);
+const os = grids.svg.opus;
+const fsv = grids.svg.fable;
+const opusStep = think('svg', 'opus', 'high') / think('svg', 'opus', 'low');
+claim(opusStep >= 1.5 && opusStep < 2.5 && think('svg', 'opus', 'max') > 20 * think('svg', 'opus', 'high'), 'high roughly doubles Opus’s thinking on the SVG and max is a cliff');
+const opusCliff = Math.round(think('svg', 'opus', 'max') / think('svg', 'opus', 'high'));
+const opusSvgShare = os.max.totalCost / cost.counted;
+claim(think('svg', 'fable', 'max') < think('svg', 'opus', 'max') && fsv.max.totalCost < os.max.totalCost, 'Fable’s cliff on the SVG is the smaller');
+const sc = grids.circle.sonnet;
+claim((sc.max.medianWall ?? 0) < 4 * (sc.low.medianWall ?? 0), 'Sonnet’s circle slows gently');
+const costOf = (m: Model, e: Effort) => sum(trials.filter((t) => t.model === m && t.effort === e).map((t) => t.cost_usd));
+const costModel = (m: Model) => sum(trials.filter((t) => t.model === m).map((t) => t.cost_usd));
+const sec = (s: number | null) => fmtSec(s ?? 0);
+
+// ------------------------------------------------------------ 3. empty SVG
+const svgCell = (m: Model, e: Effort) => cell('svg', m, e);
+const drew = (ts: Trial[]) => ts.filter((t) => t.same_picture === false).length;
+const rewrote = (ts: Trial[]) => ts.filter((t) => t.unchanged === false && t.same_picture === true).length;
+// Asking what the file should show, in words: Opus does not always end on a question mark.
+const ASKS = /tell me what|what (it|the (file|graphic|svg|image)|`?0\.svg`?) should (show|depict|be)|what should (it|`?0\.svg`?)|what (do|would) you (want|like)/i;
+const ZERO_TITLE = /<title[^>]*>\s*(0|zero)\s*<\/title>|aria-label="(0|zero)"/i;
+const isZero = (t: Trial) => ZERO_TITLE.test(out(t)) || /\b(digit|numeral)\s+(\*\*)?(0|zero)\b|"0"|\*\*0\*\*/i.test(t.result);
+const opusMax = svgCell('opus', 'max');
+const opusActed = opusMax.filter((t) => !t.unchanged);
+claim(opusActed.every((t) => t.same_picture === false), 'every Opus max trial that changed the file drew something');
+const opusZeros = opusActed.filter(isZero);
+claim(opusZeros.length === opusActed.length - 1 && !opusZeros.includes(lake) && opusZeros.includes(zero), 'every Opus max drawing but the lake is a zero');
+const icons = opusZeros.filter((t) => /viewBox="0 0 24 24"/.test(out(t)) && /currentColor/.test(out(t)));
+claim(icons.length > opusZeros.length / 2, 'most of Opus’s zeros are 24-unit icons in currentColor');
+const badges = opusZeros.filter((t) => /<linearGradient/.test(out(t)));
+const stops = badges.length === 1 ? [...out(badges[0]).matchAll(/stop-color="(#[0-9a-f]{6})"/gi)].map((m) => m[1].toLowerCase()) : [];
+claim(stops.length === 2, 'one zero sits on a badge with a two-stop gradient');
+const [badgeFrom, badgeTo] = stops;
+const opusLeftMax = opusMax.filter((t) => t.unchanged);
+claim(opusLeftMax.every((t) => /should (it )?(show|be)\b|tell me what/i.test(t.result)), 'every Opus max trial that left the SVG alone asks what it should show');
+claim(
+  opusLeftMax.every((t) => ASKS.test(t.result)) && svgCell('opus', 'low').filter((t) => t.unchanged).every((t) => ASKS.test(t.result)),
+  'Opus asks what to draw whenever it leaves the file alone, at low and at max',
+);
+const sonnetMax = svgCell('sonnet', 'max');
+claim(sonnetMax.filter((t) => t.unchanged).every((t) => t.result.includes('?')), 'every Sonnet max trial that changed nothing asked a question');
+claim(EFFORTS.every((e) => left(svgCell('sonnet', e)) > 0.9 * full('svg')), 'Sonnet stays an asker at every level');
+const sonnetActed = sonnetMax.filter((t) => !t.unchanged);
+const emptyBox = (t: Trial) => /^<svg\b[^>]*\bviewBox="[^"]+"[^>]*>\s*<\/svg>$/.test(out(t).trim());
+const circleOnly = (t: Trial) => /<circle\b/.test(out(t)) && !/<rect\b/.test(out(t));
+const roundedSquare = (t: Trial) => /<rect\b[^>]*\brx="/.test(out(t));
+claim(
+  sonnetActed.length === 3 && [emptyBox, circleOnly, roundedSquare].every((f) => sonnetActed.filter(f).length === 1),
+  'the three Sonnet max trials that acted drew a circle, a rounded square and an empty viewBox',
+);
+const fableSvg = (e: Effort) => svgCell('fable', e);
+claim(EFFORTS.every((e) => left(fableSvg(e)) < full('svg') / 10), 'Fable changes the file in nearly every trial at every level');
+claim(drew(fableSvg('low')) > rewrote(fableSvg('low')) && rewrote(fableSvg('high')) > drew(fableSvg('high')), 'Fable mostly draws at low and mostly rewrites at high');
+const fableZerosMax = fableSvg('max').filter((t) => t.same_picture === false && ZERO_TITLE.test(out(t))).length;
+claim(fableZerosMax > drew(fableSvg('max')) / 2, 'most of Fable’s max drawings are a zero');
+const asksQ = (ts: Trial[]) => ts.filter((t) => t.result.includes('?')).length;
+claim(asksQ(fableSvg('max')) > asksQ(fableSvg('low')) + asksQ(fableSvg('high')), 'Fable asks more at max than at low and high together');
+const fableLowDenied = fableSvg('low').flatMap((t) => transcript(t).denied);
+claim(fableLowDenied.length > 0 && fableLowDenied.every((c) => /^xmllint\b/.test(c)), 'every command Fable is denied at low is xmllint');
+claim(fableSvg('max').every((t) => (t.denials ?? 0) > 0), 'Fable is denied something in every max trial');
+const CHECKERS = ['xmllint', 'rsvg-convert', 'resvg', 'qlmanage', 'inkscape', 'magick', 'convert', 'python3', 'svgo'];
+const reachedFor = (ts: Trial[]) => {
+  const cmds = ts.flatMap((t) => transcript(t).denied);
+  return CHECKERS.filter((tool) => cmds.some((c) => new RegExp(`(?<![\\w-])${tool.replace('-', '\\-')}(?![\\w-])`).test(c)));
+};
+const fableTools = reachedFor(fableSvg('max'));
+const opusTools = reachedFor(opusMax);
+claim(fableTools.length > 2 && opusTools.length > 2, 'Fable and Opus each reach for several checkers at max');
+claim(denials(svgCell('opus', 'low')) === 0 && denials(svgCell('opus', 'high')) === 0, 'Opus is denied nothing on the SVG at low or high');
+const opusDenied = opusMax.filter((t) => (t.denials ?? 0) > 0).length;
+
+// --------------------------------------------------------------- 4. circle
+const circ = (m: Model, e: Effort) => cell('circle', m, e);
+const hk = EFFORTS.map((e) => featureShares(circ('haiku', e)));
+const spread = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
+claim(hk.every((f) => f.shares.glow_or_shadow.count === f.n), 'Haiku adds a shadow or glow to every circle at every level');
+claim(
+  spread(hk.map((f) => f.shares.gradient_667eea.count)) <= 2 && spread(hk.map((f) => f.medianLines ?? 0)) <= 2,
+  'Haiku’s circle is the same at every level',
+);
+const PLAIN = ['glow_or_shadow', 'keyframes', 'radial_gradient', 'linear_gradient', 'gradient_667eea', 'script'] as const;
+const plain = (t: Trial) => PLAIN.every((k) => t[k] !== true) && !isRecolored(t);
+claim(EFFORTS.every((e) => circ('opus', e).every(plain)), 'Opus’s circle has no shadow, gradient, animation, script or color at any level');
+const opusMaxCircle = circ('opus', 'max').length;
+const opusThinkUp = Math.round(think('circle', 'opus', 'high') / think('circle', 'opus', 'low'));
+claim(opusThinkUp >= 4 && opusThinkUp <= 6, 'Opus thinks about five times as much at high on the circle');
+const looks = (e: Effort) => circ('opus', e).filter((t) => (t.bash_calls ?? 0) > 0);
+claim(looks('low').length === 0, 'Opus runs no command on the circle at low');
+claim(looks('high').every((t) => transcript(t).bash.every((c) => /^(ls|wc)\b/.test(c))), 'every command Opus runs on the circle at high lists the directory or counts bytes');
+const sn = (e: Effort) => circ('sonnet', e);
+claim(left(sn('max')) === 0, 'Sonnet changes every circle at max');
+const recolored = (ts: Trial[]) => ts.filter(isRecolored).length;
+const BLUE = '#3b82f6';
+const blues = (ts: Trial[]) => ts.filter((t) => t.hex_colors.includes(BLUE)).length;
+const aria = (ts: Trial[]) => ts.filter((t) => /\baria-[a-z]+=/.test(out(t))).length;
+const hex6 = (h: string) => (h.length === 4 ? `#${[...h.slice(1)].map((c) => c + c).join('')}` : h).toLowerCase();
+const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+const lum = (hex: string) => {
+  const [r, g, b] = rgb(hex).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const bodyBg = (t: Trial) => {
+  const m = /body\s*\{[^}]*?background(?:-color)?\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})\b/i.exec(out(t));
+  return m ? hex6(m[1]) : null;
+};
+const lightGray = (hex: string) => lum(hex) > 0.8 && spread(rgb(hex).map((c) => Math.round(c * 255))) <= 16;
+claim(sn('max').every((t) => { const b = bodyBg(t); return b !== null && lightGray(b); }), 'every Sonnet max circle sets a light gray page');
+claim(aria(sn('max')) === sn('max').length && aria(sn('low')) < sn('low').length && aria(sn('high')) < sn('high').length, 'only at max does every Sonnet circle add aria attributes');
+const openTries = sn('max').flatMap((t) => transcript(t).denied.filter((c) => /^open\b/.test(c)));
+claim(openTries.every((c) => /0\.html$/.test(c)), 'every open Sonnet tried was the page itself');
+const opened = sn('max').filter((t) => transcript(t).denied.some((c) => /^open\b/.test(c))).length;
+claim(opened > 0 && denials(sn('low')) === 0 && denials(sn('high')) === 0, 'Sonnet’s circle is denied nothing at low or high');
+const fableThen = first.runByName.get(`circle-sample-${MODEL_ID.fable}-low`)!.trials;
+const fableNow = circ('fable', 'low');
+const fableLowRun = runByName.get(nameOf('circle', 'fable', 'low'))!;
+const gap = rerunGap(fableLowRun)!;
+claim(gap.of.campaign === 1 && gap.sameCli, 'Fable’s low circle repeats the first campaign’s run on the same CLI');
+const oneArgv = (run: string) => new Set(linesOf(run).map((l) => l.argv_sha256));
+const argvThen = oneArgv(gap.of.name), argvNow = oneArgv(fableLowRun.name);
+claim(argvThen.size === 1 && argvNow.size === 1 && [...argvThen][0] === [...argvNow][0], 'Fable’s low circle is launched exactly as in the first campaign');
+const inputs = new Set([...linesOf(gap.of.name), ...linesOf(fableLowRun.name)].map((l) => l.input_sha256));
+claim(seedOf('circle') !== '' && inputs.size === 1, 'Fable’s low circle starts from the first campaign’s seed');
+const darkMode = (ts: Trial[]) => ts.filter((t) => /prefers-color-scheme/.test(out(t))).length;
+const gradient = (ts: Trial[]) => ts.filter((t) => t.radial_gradient || t.linear_gradient).length;
+const fThen = featureShares(fableThen), fNow = featureShares(fableNow);
+claim(
+  darkMode(fableThen) === 0 && fThen.shares.glow_or_shadow.count === 0 && fThen.shares.keyframes.count === 0 && gradient(fableThen) === 0,
+  'the first campaign’s Fable added no dark mode, shadow, animation or gradient',
+);
+claim(darkMode(fableNow) > fableNow.length / 2, 'most of Fable’s low circles now add a dark mode');
+
+// ------------------------------------------------------- 5. word and color
+const answered = (t: Trial) => t.answer_form !== 'none' && t.answer_value !== null;
+const said = (ts: Trial[], v: string) => ts.filter((t) => answered(t) && t.answer_value === v).length;
+const topOf = (ts: Trial[]) => answerDistribution(ts).values[0];
+const word = (m: Model, e: Effort) => cell('word', m, e);
+const wordN = full('word');
+const LANTERN = 'lantern';
+claim((['fable', 'opus'] as Model[]).every((m) => EFFORTS.every((e) => topOf(word(m, e)).value === LANTERN)), 'lantern is Fable’s and Opus’s word at every level');
+const opusEmber = EFFORTS.map((e) => said(word('opus', e), 'ember'));
+claim(opusEmber[0] === 0 && opusEmber[1] === 0 && opusEmber[2] > 0, 'Opus says ember only at max');
+const fableOthers = answerDistribution(word('fable', 'max')).values.filter((v) => v.parsed && v.value !== LANTERN).map((v) => v.value);
+const HAIKU_WORD = topOf(word('haiku', 'low')).value;
+claim(EFFORTS.every((e) => topOf(word('haiku', e)).value === HAIKU_WORD), 'Haiku has one word at every level');
+const distinct = (ts: Trial[]) => answerDistribution(ts).values.filter((v) => v.parsed).length;
+const sonnetRange = EFFORTS.map((e) => distinct(word('sonnet', e)));
+claim(sonnetRange[2] > sonnetRange[0] && sonnetRange[2] > sonnetRange[1], 'Sonnet’s words spread at max');
+const sonnetSaid = (v: string) => EFFORTS.map((e) => said(word('sonnet', e), v));
+const framed = (e: Effort) => word('opus', e).filter((t) => t.answer_form === 'framed');
+claim(framed('low').length > framed('high').length, 'Opus frames its word less at high than at low');
+claim(word('opus', 'max').filter((t) => t.answer_form === 'bare').length > wordN / 2, 'Opus mostly answers bare at max');
+const modal = (ts: Trial[]): Trial => {
+  const by = new Map<string, Trial[]>();
+  for (const t of ts) by.set(t.result.trim(), [...(by.get(t.result.trim()) ?? []), t]);
+  return [...by.values()].sort((a, b) => b.length - a.length)[0][0];
+};
+const framedLow = modal(framed('low')).result.trim();
+const OFFER = /\*\*\s*\n\s*\n\s*If\b/;
+const offers = (e: Effort) => word('opus', e).filter((t) => OFFER.test(t.result));
+claim(offers('max').length > 0 && offers('low').length === 0 && offers('high').length === 0, 'Opus makes the offer only at max');
+const hangman = offers('max').find((t) => /hangman/i.test(t.result))!;
+claim(hangman !== undefined, 'one of Opus’s offers mentions hangman');
+const wordThen = (m: Model) => first.runByName.get(`word-sample-${MODEL_ID[m]}-low`)!.trials;
+claim(said(wordThen('opus'), LANTERN) === wordThen('opus').length && said(word('opus', 'low'), LANTERN) === word('opus', 'low').length, 'Opus says lantern every time, then and now');
+const SONNET_THEN = topOf(wordThen('sonnet')).value;
+const HAIKU_THEN = topOf(wordThen('haiku')).value;
+claim(HAIKU_THEN === HAIKU_WORD && SONNET_THEN !== topOf(word('sonnet', 'low')).value, 'Haiku kept its word and Sonnet lost its first one');
+
+const fav = (m: Model, e: Effort) => cell('favorite', m, e);
+const favN = full('favorite');
+const declined = (ts: Trial[]) => ts.filter((t) => !answered(t)).length;
+const DECLINERS: Model[] = ['sonnet', 'haiku'];
+const ANSWERERS: Model[] = ['fable', 'opus'];
+claim(DECLINERS.every((m) => EFFORTS.every((e) => declined(fav(m, e)) > 0.9 * fav(m, e).length)), 'Sonnet and Haiku decline at every level');
+// The same test as /color/, so the second campaign's numbers here match that page.
+const TOOLISH = /project|software|coding|\bcode\b|engineering/i;
+const asTool = (ts: Trial[]) => ts.filter((t) => TOOLISH.test(t.result)).length;
+const favThen = (m: Model) => second.runByName.get(`favorite-sample-${MODEL_ID[m]}-low`)!.trials;
+const toolNow = (m: Model) => EFFORTS.map((e) => asTool(fav(m, e)));
+const [sLow, sHigh, sMax] = toolNow('sonnet');
+claim(sMax > sLow && sMax > sHigh && sLow < asTool(favThen('sonnet')) && sHigh < asTool(favThen('sonnet')), 'Sonnet’s tool frame thins at low and high and comes back at max');
+claim(toolNow('haiku').every((v) => v < asTool(favThen('haiku'))), 'Haiku’s tool frame stays thinner than in the second campaign');
+const dirRefs = (e: Effort) => {
+  const others = fav('sonnet', e).filter((t) => !TOOLISH.test(t.result));
+  return { n: others.length, dir: others.filter((t) => /this directory/i.test(t.result)).length };
+};
+claim(EFFORTS.every((e) => dirRefs(e).dir > dirRefs(e).n / 2), 'most of Sonnet’s other replies point at this directory');
+const TEAL = 'teal';
+claim(ANSWERERS.every((m) => EFFORTS.every((e) => topOf(fav(m, e)).value === TEAL)), 'Fable and Opus say teal most at every level');
+claim(ANSWERERS.every((m) => topOf(favThen(m)).value === 'blue'), 'Fable and Opus said blue most in the second campaign');
+claim(
+  ANSWERERS.every((m) => new Set([...linesOf(favThen(m)[0].run), ...linesOf(nameOf('favorite', m, 'low'))].map((l) => l.argv_sha256)).size === 1),
+  'Fable and Opus were asked their favorite with the same launch in both campaigns',
+);
+const endsAsking = fav('opus', 'max').filter((t) => t.result.trim().endsWith('?')).length;
+const whatsYours = fav('opus', 'max').filter((t) => /what[’']s yours\?$/i.test(t.result.trim())).length;
+claim(endsAsking > 0.9 * favN && whatsYours > endsAsking / 2, 'Opus nearly always ends on a question at max, most often asking yours');
+const quoteThen = modal(favThen('fable'));
+const quoteNow = modal(fav('fable', 'low'));
+claim(quoteThen.answer_value === 'blue' && quoteNow.answer_value === TEAL, 'the two Fable quotes say blue and then teal');
+
+// ----------------------------------------------------------- 6. classifier
+const fallbacks = uncounted.filter((a) => a.fallback !== null);
+claim(fallbacks.length === uncounted.length, 'every uncounted attempt was a diversion');
+const taskOfRun = (name: string) => runByName.get(name)?.task ?? heldBy.get(name)?.task;
+claim(fallbacks.every((a) => taskOfRun(a.run) === 'circle'), 'only circles were diverted');
+const subs = [...new Set(fallbacks.map((a) => a.fallback!.fallback_model))];
+claim(subs.length === 1 && !MODELS.some((m) => MODEL_ID[m] === subs[0]), 'one model outside the study finished every diverted attempt');
+const [subFamily, subMajor, subMinor] = subs[0].replace(/^claude-/, '').split('-');
+const SUB = `${subFamily[0].toUpperCase()}${subFamily.slice(1)} ${subMajor}.${subMinor}`;
+const filed = fallbacks.filter((a) => a.category);
+const categories = [...new Set(filed.map((a) => a.category!))];
+claim(categories.length === 1, 'every diversion that recorded a category recorded the same one');
+const diverted = (m: Model, e: Effort) => fallbacks.filter((a) => a.run === nameOf('circle', m, e)).length;
+const attempts = (m: Model, e: Effort) => circ(m, e).length + uncounted.filter((a) => a.run === nameOf('circle', m, e)).length;
+claim(DECLINERS.every((m) => EFFORTS.every((e) => diverted(m, e) === 0)), 'Sonnet and Haiku were never diverted');
+const rate = (m: Model, e: Effort) => diverted(m, e) / attempts(m, e);
+claim(ANSWERERS.every((m) => rate(m, 'low') < rate(m, 'high') && rate(m, 'high') < rate(m, 'max')), 'the diversion rate climbs with the level for Fable and Opus');
+// What a diversion leaves in the record: who switched to whom and why, and nothing the model wrote.
+const SWITCH_FIELDS = ['original_model', 'fallback_model', 'trigger', 'scope', 'category'];
+claim(
+  lines3.filter((l) => l.fallback).every((l) => Object.keys(l.fallback!).every((k) => SWITCH_FIELDS.includes(k))),
+  'the stream records the switch and not what was flagged',
+);
+const fableHighLines = linesOf(nameOf('circle', 'fable', 'high'));
+claim(
+  new Set(fableHighLines.map((l) => l.input_sha256)).size === 1 && new Set(fableHighLines.map((l) => l.argv_sha256)).size === 1,
+  'Fable’s counted and diverted circles at high started from the same file and launch',
+);
+const fableHighCounted = circ('fable', 'high').length;
+claim(diverted('fable', 'high') > fableHighCounted, 'Fable at high was diverted more often than it got through');
+claim(new Set(lines3.filter((l) => l.task === 'circle').map((l) => l.input_sha256)).size === 1, 'every circle attempt started from the same file');
+const busy = ANSWERERS.flatMap((m) => svgCell(m, 'max'));
+const toolLoad = (task: Task, m: Model, e: Effort) => sum(cell(task, m, e).map((t) => t.tool_calls));
+const byLoad = TASKS3.flatMap((task) => MODELS.flatMap((m) => EFFORTS.map((e) => ({ task, m, e, load: toolLoad(task, m, e) })))).sort((a, b) => b.load - a.load);
+claim(
+  byLoad.slice(0, 2).every((c) => c.task === 'svg' && c.e === 'max' && ANSWERERS.includes(c.m)),
+  'Fable’s and Opus’s SVG sessions at max are the most tool-heavy in the campaign',
+);
+const heldRows = [...held].sort((a, b) => ORDER.indexOf(a.model) - ORDER.indexOf(b.model) || EFFORTS.indexOf(b.effort as Effort) - EFFORTS.indexOf(a.effort as Effort));
+const divertedCost = cost.allAttempts - cost.counted;
+
+// ------------------------------------------------------------- 7. spelling
+const SPELLERS: Model[] = ['fable', 'opus'];
+const hue = (ts: Trial[], m: Model) => spellingByModel(ts)[m].families.color;
+const sampleThen = (task: Task, m: Model) => first.runByName.get(`${task}-sample-${MODEL_ID[m]}-low`)!.trials;
+const mentionsHue = (task: Task) => /\bcolou?rs?\b/i.test(promptOf(task));
+claim(!mentionsHue('circle') && !mentionsHue('svg') && mentionsHue('favorite'), 'only the favorite prompt says the word');
+claim(ARTIFACT3.every((task) => hue(sampleThen(task, 'fable'), 'fable').uk > hue(sampleThen(task, 'fable'), 'fable').us), 'Fable wrote British in the first campaign');
+const fableNowUk = sum(ARTIFACT3.flatMap((task) => EFFORTS.map((e) => hue(cell(task, 'fable', e), 'fable').uk)));
+const fableNowUs = sum(ARTIFACT3.flatMap((task) => EFFORTS.map((e) => hue(cell(task, 'fable', e), 'fable').us)));
+claim(fableNowUk * 5 < fableNowUs, 'Fable’s British is all but gone');
+claim(ARTIFACT3.every((task) => (['low', 'high'] as Effort[]).every((e) => hue(cell(task, 'opus', e), 'opus').uk > 0)), 'Opus still writes British at low and high');
+claim(
+  SPELLERS.every((m) => EFFORTS.every((e) => fav(m, e).every((t) => (t.color_p_uk ?? 0) === 0) && fav(m, e).some((t) => (t.color_p_us ?? 0) > 0))),
+  'Fable and Opus answer the favorite in American at every level',
+);
+
+// ----------------------------------------------------------------- 8. room
+const conditions = (ls: Line[], m: Model) => new Set(ls.filter((l) => l.conditions_sha256 && modelOf(l.model_asked) === m).map((l) => l.conditions_sha256!));
+claim(MODELS.every((m) => conditions(lines3, m).size === 1), 'each model got the same conditions at every level and in both sittings');
+claim(MODELS.every((m) => [...conditions(lines3, m)].every((h) => !conditions(lines2, m).has(h))), 'every model’s conditions changed since the second campaign');
+const clis = new Set([...lines2, ...lines3].map((l) => l.cli_sha256));
+claim(clis.size === 1, 'the second and third campaigns ran one binary');
+const starts = trials.map((t) => Date.parse(t.started_utc)).sort((a, b) => a - b);
+let cut = 1;
+for (let i = 1; i < starts.length; i++) if (starts[i] - starts[i - 1] > starts[cut] - starts[cut - 1]) cut = i;
+const HALF_DAY = 12 * 3_600_000;
+claim(starts.every((s, i) => i === 0 || i === cut || s - starts[i - 1] < HALF_DAY) && starts[cut] - starts[cut - 1] > HALF_DAY, 'the campaign ran in two sittings');
+const sittings = [cut, starts.length - cut];
+const opusSvg1 = first.runByName.get(`svg-sample-${MODEL_ID.opus}-low`)!;
+const opusSvg2 = second.runByName.get(`svg-sample-${MODEL_ID.opus}-low-2`)!;
+const opusSvg3 = runByName.get(nameOf('svg', 'opus', 'low'))!;
+claim(left(opusSvg1.trials) === opusSvg1.n && left(opusSvg2.trials) < left(opusSvg3.trials), 'Opus went back to leaving the SVG alone');
+
+// --------------------------------------------------------------- 9. limits
+const moe = Math.round(marginOfError(full('svg')) * 100);
+const fableHighN = fableCircle.high.n;
+const opusMaxN = grids.circle.opus.max.n;
+---
+
+<Base
+  title="Effort"
+  path="/effort/"
+  ogImage="/og-effort.png"
+  description={`The same ${say(MODELS.length)} Claude models and ${say(TASKS3.length)} tasks at effort low, high and max. High costs what low does. Max costs more than ${maxOverHigh} times as much, and sends Opus off to paint a lake in an empty file called 0.svg.`}
+>
+  <header class="grid intro">
+    <div class="head stack-lg">
+      <h1>Effort</h1>
+      <p class="dek">
+        The first two campaigns ran every trial at effort low. This one asks the same {say(MODELS.length)} models
+        {say(TASKS3.length)} of the same questions at {and([...EFFORTS])}. Mostly the dial does less than its name
+        suggests. Then, at max, Opus is handed an empty file called <code>0.svg</code> and spends {sec(lake.wall_s)}
+        painting a lake in it.
+      </p>
+    </div>
+  </header>
+
+  <section class="grid lake">
+    <figure class="wide triptych">
+      {panes.map((p) => (
+        <a class="pane" href={p.url}>
+          <img src={p.src} width="800" height="800" alt={p.alt} decoding="async" />
+          <span class="mono small">{p.meta}</span>
+          <span class="small what">{p.what}</span>
+        </a>
+      ))}
+      <figcaption class="small muted">
+        Opus 5.5, <code>{promptOf('svg')}</code>, the same empty file three times. Each picture is a trial; click it
+        for the source and the reply.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class="keyline grid rule-ink">
+    <KeyRow
+      class="full"
+      max="xl"
+      items={[
+        { value: num(trials.length), caption: 'trials, each a fresh session' },
+        { value: String(MODELS.length), caption: `models: ${MODELS.map((m) => MODEL_LABEL[m]).join(', ')}` },
+        { value: String(EFFORTS.length), caption: `levels: ${and([...EFFORTS])}` },
+        { value: fmtUsd(cost.counted), caption: 'API-equivalent cost of the counted trials' },
+      ]}
+    />
+  </section>
+
+  <Chapter n={1} id="dial" title="Does the dial reach the model?" dek={`It reaches ${say(REACHED.length)} models of ${say(MODELS.length)}. Haiku does not notice.`} rule="none">
+    <div class="prose">
+      <p class="lede">
+        The setting is Claude Code’s <code>--effort</code>, and the check that it arrived is the thinking: tokens spent
+        before the answer, median per trial. On the circle and the SVG, Fable, Opus and Sonnet think more as the dial
+        goes up. Haiku 4.5 does not. Its median moves at most <mark>{fmtPct(haikuThink)}</mark> between levels on any task, and its time and
+        cost move no more than that.
+      </p>
+      <p>
+        Haiku is launched differently at each level, so the setting is sent. Whether the CLI drops it on the way or
+        the model ignores it, these data cannot tell apart. Haiku’s rows are the null.
+      </p>
+      <p>
+        On the one-turn text tasks, high is low. Fable, Opus and Sonnet think a median of at most {textLowHigh} tokens
+        at either. Only max gets Fable and Opus thinking in earnest, and Sonnet never thinks at all: {num(sonnetText.length)} word and
+        favorite trials, not one thinking token.
+      </p>
+    </div>
+    <div class="wide scroll">
+      <table class="levels">
+        <thead>
+          <tr>
+            <th>task</th>
+            <th>model</th>
+            {EFFORTS.map((e) => <th class="num">{e}</th>)}
+          </tr>
+        </thead>
+        {TASKS3.map((task) => (
+          <tbody>
+            {ORDER.map((m, i) => (
+              <tr>
+                <td>{i === 0 && <code>{task}</code>}</td>
+                <td>{MODEL_LABEL[m]}</td>
+                {EFFORTS.map((e) => {
+                  const c = grids[task][m][e];
+                  return (
+                    <td class="num">
+                      {c.n === 0 ? <a href="#classifier">held</a> : num(c.medianThinking ?? 0)}
+                      {c.n > 0 && c.n < full(task) && <span class="few"> n={c.n}</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+      <p class="small muted">
+        Median thinking tokens per trial. A cell is {full('circle')} trials on the files and {full('word')} on the
+        text tasks. Fable’s circle at high is {fableCircle.high.n} trials and at max there is none to count, for
+        reasons in <a href="#classifier">§ 06</a>.
+      </p>
+    </div>
+  </Chapter>
+
+  <Chapter n={2} id="cliff" title="Max is a cliff" dek="High costs what low does. Max costs more than twice the two together.">
+    <KeyRow
+      class="wide"
+      items={[
+        { value: fmtUsd(cost.byLevel.low), caption: 'every trial at low' },
+        { value: fmtUsd(cost.byLevel.high), caption: 'at high' },
+        { value: fmtUsd(cost.byLevel.max), caption: 'at max', mark: true },
+        { value: fmtUsd(cost.allAttempts), caption: `all ${num(cost.attempts)} attempts, the diverted ones included` },
+      ]}
+    />
+    <div class="prose">
+      <p class="lede">
+        Low cost {fmtUsd(cost.byLevel.low)} and high {fmtUsd(cost.byLevel.high)}, within {fmtPct(Math.abs(highOverLow))}
+        of each other. Max cost {fmtUsd(cost.byLevel.max)}.
+      </p>
+      <p>
+        The steepest drop is Opus on the empty SVG. High doubles its thinking, {num(think('svg', 'opus', 'low'))} to
+        {num(think('svg', 'opus', 'high'))} tokens at the median; max multiplies that by {opusCliff}, to
+        <mark>{num(think('svg', 'opus', 'max'))}</mark>. The median trial goes from {sec(os.low.medianWall)} to
+        {sec(os.high.medianWall)} to {sec(os.max.medianWall)}, and the cell’s {os.max.n} trials cost
+        {fmtUsd(os.low.totalCost)}, {fmtUsd(os.high.totalCost)} and then {fmtUsd(os.max.totalCost)}: {fmtPct(opusSvgShare)}
+        of the whole campaign, in one cell. Fable on the same file is a smaller cliff, {num(think('svg', 'fable', 'low'))},
+        {num(think('svg', 'fable', 'high'))} and {num(think('svg', 'fable', 'max'))} tokens, {fmtUsd(fsv.low.totalCost)},
+        {fmtUsd(fsv.high.totalCost)} and {fmtUsd(fsv.max.totalCost)}.
+      </p>
+      <p>
+        Opus’s {say(grids.circle.opus.max.n)} circles at max took {sec(grids.circle.opus.max.medianWall)} at the median.
+        Sonnet’s circle slows gently, {sec(sc.low.medianWall)}, {sec(sc.high.medianWall)}, {sec(sc.max.medianWall)}.
+        Haiku’s does not slow at all. The longest trial of the campaign is the lake: {sec(lake.wall_s)} and
+        {num(lake.thinking_tokens ?? 0)} thinking tokens, for a file it was asked only to improve.
+      </p>
+    </div>
+    <div class="wide">
+      <Numeral
+        value={fmtUsd(os.max.totalCost)}
+        caption={`Opus on the empty SVG at max: ${os.max.n} trials, ${fmtPct(opusSvgShare)} of everything the campaign spent.`}
+        size="xl"
+      />
+    </div>
+    <div class="wide scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>model</th>
+            {EFFORTS.map((e) => <th class="num">{e}</th>)}
+            <th class="num">all</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ORDER.map((m) => (
+            <tr>
+              <td>{MODEL_LABEL[m]}</td>
+              {EFFORTS.map((e) => <td class="num">{fmtUsd(costOf(m, e))}</td>)}
+              <td class="num">{fmtUsd(costModel(m))}</td>
+            </tr>
+          ))}
+          <tr class="total">
+            <td>all four</td>
+            {EFFORTS.map((e) => <td class="num">{fmtUsd(cost.byLevel[e])}</td>)}
+            <td class="num">{fmtUsd(cost.counted)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="small muted">API-equivalent cost of the counted trials, every task, by model and level.</p>
+    </div>
+  </Chapter>
+
+  <Chapter n={3} id="empty" title="The empty SVG" dek="Opus turns from asker to actor, and only at max. Sonnet does not turn.">
+    <div class="prose">
+      <p class="lede">
+        The seed is <code>{seedOf('svg').trim()}</code> and the prompt is <code>{promptOf('svg')}</code>. The
+        <a href={href('/#cost')}>first campaign</a> ended by asking whether more effort would turn Opus and Sonnet
+        from askers into actors. It turns one of them, at one level.
+      </p>
+      <p>
+        Opus leaves the file alone in {left(svgCell('opus', 'low'))} of {full('svg')} at low and
+        {left(svgCell('opus', 'high'))} at high. At max it acts in <mark>{opusActed.length}</mark>, and every one of
+        those draws something. {Say(opusZeros.length)} draw a zero (the file is called <code>0.svg</code>), {icons.length}
+        of them as a 24-by-24 icon in <code>currentColor</code>; one puts its zero on a badge that fades from
+        <code>{badgeFrom}</code> to <code>{badgeTo}</code>. The other is the lake. The {opusLeftMax.length} that leave
+        the file alone ask what it should show, as Opus does at low.
+      </p>
+      <p>
+        Sonnet stays an asker. {Say(left(sonnetMax))} of {sonnetMax.length} at max change nothing and ask a question. The
+        {say(sonnetActed.length)} that act draw a circle, a rounded square and an empty <code>viewBox</code>.
+      </p>
+      <p>
+        Fable acts at every level, but what it does shifts. At low it draws in {drew(fableSvg('low'))} trials and in
+        {rewrote(fableSvg('low'))} rewrites the file into something that renders as blank as before. At high the split is
+        {drew(fableSvg('high'))} and {rewrote(fableSvg('high'))}; at max, {drew(fableSvg('max'))} and
+        {rewrote(fableSvg('max'))}, and {fableZerosMax} of those {drew(fableSvg('max'))} drawings are a zero. At max,
+        {asksQ(fableSvg('max'))} of its replies include a question, against {asksQ(fableSvg('low'))} and
+        {asksQ(fableSvg('high'))} at low and high.
+      </p>
+      <p>
+        Effort also sends both looking for a way to check their work, and the room refuses them. Fable is
+        denied {denials(fableSvg('low'))} commands at low, every one of them <code>xmllint</code>, then
+        {denials(fableSvg('high'))} at high and <mark>{denials(fableSvg('max'))}</mark> at max, at least one in each of
+        its {fableSvg('max').length} trials, reaching for {fableTools.map((t, i) => <>{i > 0 && (i === fableTools.length - 1 ? ' and ' : ', ')}<code>{t}</code></>)}. Opus is denied
+        nothing at low or high and {denials(opusMax)} commands at max, in {opusDenied} of {opusMax.length} trials.
+      </p>
+    </div>
+    <div class="wide quotes">
+      <Quote trial={zero} chars={240} />
+    </div>
+    {EFFORTS.map((e) => (
+      <div class="wide stack">
+        <div class="flex between">
+          <h3>Opus 5.5 at {e}</h3>
+          <span class="mono small muted">
+            left alone {left(svgCell('opus', e))}/{svgCell('opus', e).length} ·
+            <a href={runHref('svg', 'opus', e)}>every trial</a>
+          </span>
+        </div>
+        <SpecimenGrid trials={svgCell('opus', e)} cols={8} />
+      </div>
+    ))}
+    <div class="wide">
+      <table>
+        <thead>
+          <tr>
+            <th>model</th>
+            {EFFORTS.map((e) => <th class="num">{e}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {ORDER.map((m) => (
+            <tr>
+              <td>{MODEL_LABEL[m]}</td>
+              {EFFORTS.map((e) => <td class="num"><a href={runHref('svg', m, e)}>{left(svgCell(m, e))}/{svgCell(m, e).length}</a></td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="small muted">Trials that left the empty SVG exactly as it was, by model and level.</p>
+    </div>
+  </Chapter>
+
+  <Chapter n={4} id="circle" title="The circle" dek="Effort does not make the tidy models decorate, or stop the one that does. Sonnet is the exception.">
+    <div class="prose">
+      <p class="lede">
+        <code>{promptOf('circle')}</code>, on the <a href={href('/#circle')}>first campaign’s black circle</a>. Haiku
+        is the same at every level: a shadow or glow in {and(hk.map((f) => String(f.shares.glow_or_shadow.count)))} of
+        {full('circle')}, the purple gradient in {and(hk.map((f) => String(f.shares.gradient_667eea.count)))}, a median
+        page of {and(hk.map((f) => String(f.medianLines)))} lines.
+      </p>
+      <p>
+        Opus stays plain. None of its circles has a shadow, a gradient, an animation, a script or a new color, at any
+        level, including the {say(opusMaxCircle)} that max managed to count (<a href="#classifier">§ 06</a>). What
+        high changes is process: {say(opusThinkUp)} times the thinking, and {looks('high').length} of
+        {circ('opus', 'high').length} trials list the directory or count the file’s bytes. At low, none
+        runs a command at all.
+      </p>
+      <p>
+        Sonnet is the one effort moves, and not toward doing less. It leaves the circle alone in {left(sn('low'))} of
+        {sn('low').length} at low and {left(sn('high'))} at high, and in none at max. At max {recolored(sn('max'))} of
+        {sn('max').length} give the circle a color, <code>{BLUE}</code> in {blues(sn('max'))}; all {sn('max').length}
+        set a light gray page background, and all {sn('max').length} add <code>aria</code> attributes, against {aria(sn('low'))}
+        and {aria(sn('high'))} at low and high; {featureShares(sn('max')).shares.glow_or_shadow.count} add a shadow. {Say(opened)} tried to open
+        the page in a browser, which the room refused. At low and high, Sonnet’s circle is never refused anything.
+      </p>
+      <p>
+        Fable’s circle at high is {say(fableHighN)} trials, and at max there is none (<a href="#classifier">§ 06</a>).
+        Its low baseline moved anyway. Same level, seed and launch as the first campaign, {gap.later}:
+        <mark>{darkMode(fableNow)} of {fableNow.length}</mark> now add a dark mode through
+        <code>prefers-color-scheme</code>, against {darkMode(fableThen)} then; {fNow.shares.glow_or_shadow.count} add a
+        shadow, {fNow.shares.keyframes.count} an animation and {gradient(fableNow)} a gradient, where the first
+        campaign’s Fable added none; the median page grew from {fThen.medianLines} lines to {fNow.medianLines}. The
+        system prompt the CLI served changed in between (<a href="#room">§ 08</a>).
+      </p>
+    </div>
+    {(['low', 'max'] as Effort[]).map((e) => (
+      <div class="wide stack">
+        <div class="flex between">
+          <h3>Sonnet 5 at {e}</h3>
+          <span class="mono small muted">
+            left alone {left(sn(e))}/{sn(e).length} · <code>{BLUE}</code> {blues(sn(e))} ·
+            <a href={runHref('circle', 'sonnet', e)}>every trial</a>
+          </span>
+        </div>
+        <SpecimenGrid trials={sn(e)} cols={8} />
+      </div>
+    ))}
+  </Chapter>
+
+  <Chapter n={5} id="word" title="A word, and a color" dek="“lantern” survives thinking. The decline survives max. The favorite is now teal.">
+    <div class="prose">
+      <p class="lede">
+        <code>{promptOf('word')}</code> Fable and Opus say {LANTERN} at every level: Fable
+        {and(EFFORTS.map((e) => String(said(word('fable', e), LANTERN))))} of {wordN}, Opus
+        {and(EFFORTS.map((e) => String(said(word('opus', e), LANTERN))))}.
+      </p>
+      <p>
+        At max Opus loosens a little and says ember {opusEmber[2]} times. Fable’s handful of other words at max are
+        {and(fableOthers)}. Haiku says {HAIKU_WORD} {and(EFFORTS.map((e) => String(said(word('haiku', e), HAIKU_WORD))))}
+        times. Sonnet spends no thinking on this task at any level and still spreads at max: {sonnetRange[0]} and
+        {sonnetRange[1]} different words at low and high, <mark>{sonnetRange[2]}</mark> at max. Lighthouse goes
+        {sonnetSaid('lighthouse').join(', ')}; orbit goes {sonnetSaid('orbit').join(', ')}.
+      </p>
+      <p>
+        What moves more than the word is the sentence around it. Opus puts its answer in a sentence in
+        {framed('low').length} replies at low and {framed('high').length} at high, most often <code>{framedLow}</code>
+        At max it mostly answers bare, and {offers('max').length} replies add an offer it never makes at low or high.
+      </p>
+      <p>
+        The low baseline moved too, since the first campaign: Fable’s {LANTERN} from
+        {said(wordThen('fable'), LANTERN)} to {said(word('fable', 'low'), LANTERN)}, Sonnet’s {SONNET_THEN} from
+        {said(wordThen('sonnet'), SONNET_THEN)} to {said(word('sonnet', 'low'), SONNET_THEN)} and its lighthouse from
+        {said(wordThen('sonnet'), 'lighthouse')} to {said(word('sonnet', 'low'), 'lighthouse')}, Haiku’s {HAIKU_WORD}
+        from {said(wordThen('haiku'), HAIKU_WORD)} to {said(word('haiku', 'low'), HAIKU_WORD)}. Opus still says
+        {LANTERN} {said(word('opus', 'low'), LANTERN)} of {wordN}.
+      </p>
+    </div>
+    <div class="wide quotes">
+      <Quote trial={hangman} chars={240} />
+    </div>
+    <div class="wide scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>model</th>
+            {EFFORTS.map((e) => <th class="num">{e}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {ORDER.map((m) => (
+            <tr>
+              <td>{MODEL_LABEL[m]}</td>
+              {EFFORTS.map((e) => {
+                const v = topOf(word(m, e));
+                return <td class="num"><a href={runHref('word', m, e)}>{v.value} {v.count}</a></td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="small muted">The most common word, and how often, of {wordN} replies per cell.</p>
+    </div>
+
+    <div class="prose">
+      <p class="lede">
+        <code>{promptOf('favorite')}</code> Sonnet and Haiku decline at every level: no color in
+        {and(EFFORTS.map((e) => String(declined(fav('sonnet', e)))))} of Sonnet’s {favN} replies and
+        {and(EFFORTS.map((e) => String(declined(fav('haiku', e)))))} of Haiku’s.
+      </p>
+      <p>
+        Sonnet’s coding-tool frame, a reply that mentions the project, software or code, thins at low and high and
+        comes back at max: {sLow}, {sHigh}, {sMax}, against {asTool(favThen('sonnet'))} in the
+        <a href={href('/color/#favorite')}>second campaign</a>. Most of its other replies point at “this directory”
+        instead. Haiku’s frame stays thinner than it was, {toolNow('haiku').join(', ')} against
+        {asTool(favThen('haiku'))}.
+      </p>
+      <p>
+        Fable says {TEAL} in <mark>{and(EFFORTS.map((e) => String(said(fav('fable', e), TEAL))))}</mark>, and Opus in
+        {and(EFFORTS.map((e) => String(said(fav('opus', e), TEAL))))}. In the second campaign, asked the same way and
+        launched the same way, Fable said blue in {said(favThen('fable'), 'blue')} and Opus in
+        {said(favThen('opus'), 'blue')}. The shift is between campaigns, not levels, and the served prompt changed in
+        between (<a href="#room">§ 08</a>). At max, Opus ends {endsAsking} of {favN} replies with a question, {whatsYours} of them “What’s yours?”
+      </p>
+    </div>
+    <div class="wide quotes two">
+      <div class="stack">
+        <p class="mono small muted">second campaign, low</p>
+        <Quote trial={quoteThen} chars={200} />
+      </div>
+      <div class="stack">
+        <p class="mono small muted">this campaign, low</p>
+        <Quote trial={quoteNow} chars={200} />
+      </div>
+    </div>
+    <div class="wide scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>model</th>
+            {EFFORTS.map((e) => <th class="num">{e}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {ORDER.map((m) => (
+            <tr>
+              <td>{MODEL_LABEL[m]}</td>
+              {EFFORTS.map((e) => {
+                const v = topOf(fav(m, e));
+                return <td class="num"><a href={runHref('favorite', m, e)}>{v.value === NO_ANSWER ? 'none' : v.value} {v.count}</a></td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="small muted">The most common favorite, and how often, of {favN} replies per cell. None is a reply that names no color.</p>
+    </div>
+  </Chapter>
+
+  <Chapter n={6} id="classifier" title="The classifier" dek="A safety classifier took circles, and nothing else, and more of them as the dial went up.">
+    <div class="prose">
+      <p class="lede">
+        Claude Code answers a safeguard refusal by finishing the session on another model. The runner counts such an
+        attempt out, retries the step, and gives a run up once diverted attempts outnumber its counted trials.
+        <mark>{Say(fallbacks.length)}</mark> attempts were diverted, every one of them a circle, and {SUB} finished all
+        {fallbacks.length}. Every one whose category the stream recorded, {filed.length} of them, is filed under
+        <code>{categories[0]}</code>.
+      </p>
+      <p>
+        Sonnet 5 and Haiku 4.5 were never diverted, at any level. For Fable and Opus the rate climbs with the dial.
+      </p>
+      <p>
+        It is not the input alone. Every circle attempt started from the same file, and each model was served the
+        same system prompt at every level (<a href="#room">§ 08</a>). Yet Fable at high got through
+        {say(fableHighCounted)} attempts and was diverted on {say(diverted('fable', 'high'))}. The stream records the
+        switch and not what was flagged, so whatever the model was about to write is not in it.
+      </p>
+      <p>
+        Nor is it the busier task. At max, Fable’s and Opus’s sessions on the empty SVG are the most tool-heavy in the
+        campaign, {busy.length} trials and {denials(busy)} refused commands between them, and none was diverted.
+      </p>
+      <p>What it leaves:</p>
+      <ul>
+        {heldRows.map((h) => (
+          <li>
+            {h.counted ? <a href={href(`/runs/${h.name}/`)}>{h.task} · {MODEL_LABEL[h.model]} · {h.effort}</a> : <>{h.task} · {MODEL_LABEL[h.model]} · {h.effort}</>},
+            {h.counted} of {h.planned}. {h.reason}
+          </li>
+        ))}
+      </ul>
+      <p>
+        The diverted attempts cost {fmtUsd(divertedCost)} more, {fmtUsd(cost.allAttempts)} in all. None of their
+        circles appears on this site: {SUB} drew them, and it is not in this study.
+      </p>
+    </div>
+    <div class="wide">
+      <table>
+        <thead>
+          <tr>
+            <th>model</th>
+            {EFFORTS.map((e) => <th class="num">{e}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {ORDER.map((m) => (
+            <tr>
+              <td>{MODEL_LABEL[m]}</td>
+              {EFFORTS.map((e) => <td class="num">{diverted(m, e)} / {attempts(m, e)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="small muted">Circle attempts diverted to {SUB}, of all attempts, by model and level. No other task lost one.</p>
+    </div>
+  </Chapter>
+
+  <Chapter n={7} id="spelling" title="Spelling" dek="Fable’s British is all but gone, at every level.">
+    <div class="prose">
+      <p class="lede">
+        The circle and SVG prompts never say the word for hue, so count the trials that wrote it in each spelling. In
+        the <a href={href('/#spelling')}>first campaign</a> Fable wrote the British form in more trials than the
+        American on both. Now it writes the British in {fableNowUk} trials across every level and the American in
+        <mark>{fableNowUs}</mark>. Opus still wavers.
+      </p>
+      <p>
+        <code>favorite</code> says the word in its prompt, and both answer in American at every level. The drop is
+        between campaigns, not levels. Fable’s prompt gained a section called “Writing for the user” in between
+        (<a href="#room">§ 08</a>), and nothing in it mentions spelling.
+      </p>
+    </div>
+    <div class="wide scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>model</th>
+            <th>task</th>
+            <th class="num">first campaign</th>
+            {EFFORTS.map((e) => <th class="num">{e}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {SPELLERS.flatMap((m) => ARTIFACT3.map((task, i) => {
+            const then = hue(sampleThen(task, m), m);
+            return (
+              <tr>
+                <td>{i === 0 && MODEL_LABEL[m]}</td>
+                <td><code>{task}</code></td>
+                <td class="num">{then.uk} / {then.us}</td>
+                {EFFORTS.map((e) => {
+                  const ts = cell(task, m, e);
+                  const s = hue(ts, m);
+                  return (
+                    <td class="num">
+                      {ts.length === 0 ? 'none' : `${s.uk} / ${s.us}`}
+                      {ts.length > 0 && ts.length < full(task) && <span class="few"> n={ts.length}</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          }))}
+        </tbody>
+      </table>
+      <p class="small muted">Trials that wrote colour / color, British first, out of {full('svg')} per cell.</p>{/* spell-ok: the data */}
+    </div>
+  </Chapter>
+
+  <Chapter n={8} id="room" title="The room moved again" dek="Same binary, a new system prompt for every model. Constant within the campaign, so effort is not confounded with it.">
+    <div class="prose">
+      <p class="lede">
+        Every attempt records a hash of the conditions the CLI sent the model. Within this campaign each model has
+        one, at every level and in both sittings ({num(sittings[0])} trials, then {num(sittings[1])}), so no comparison
+        on this page between levels crosses a prompt change. Against the second campaign, every model’s hash changed,
+        under the same pinned binary. So the low cells were rerun as the baseline, and every comparison with the
+        first two campaigns crosses the change.
+      </p>
+      <p>
+        All {say(MODELS.length)} prompts open with a new first sentence. “You are an interactive agent that helps users with software
+        engineering tasks.” became “You are an agent working with the user toward their goals, using your own judgment
+        along the way.” For Sonnet and Haiku that is the only change.
+      </p>
+      <p>
+        Opus also flips a setting called <code>inlineTools</code> and loses the sections it had gained by the
+        <a href={href('/color/#room')}>second campaign</a>, “Finishing work” and “Memory, notes and feedback”. Fable
+        also flips <code>inlineTools</code>, gets back the <code>&lt;total_tokens&gt;</code> reminder, swaps “Write code
+        that reads like the surrounding code” for a line asking for a lead sentence and a closing recap, and has
+        “Finishing work” and “Memory” replaced by “Delivering work”, “Writing for the user” and a block on operating
+        autonomously. “Writing for the user” asks for no em dashes, no parentheticals and numbers kept out of prose.
+        This page keeps only the first.
+      </p>
+      <p>
+        It bears on the second campaign’s open question. On the empty SVG at low, Opus left the file alone in
+        {left(opusSvg1.trials)} of {opusSvg1.n} in the first campaign, before it had “Finishing work”; in
+        {left(opusSvg2.trials)} in the second, with it; and in <mark>{left(opusSvg3.trials)}</mark> now, without it
+        again. The <code>&lt;total_tokens&gt;</code> reminder is still absent for Opus, so losing it was not what
+        moved Opus in the second campaign. The section is the stronger suspect, but the opening sentence and
+        <code>inlineTools</code> changed alongside it, so it is still not isolated.
+      </p>
+    </div>
+    <KeyRow
+      class="wide"
+      items={[
+        { value: `${left(opusSvg1.trials)}/${opusSvg1.n}`, caption: 'empty SVGs Opus left alone at low, first campaign' },
+        { value: `${left(opusSvg2.trials)}/${opusSvg2.n}`, caption: 'second campaign, with “Finishing work”' },
+        { value: `${left(opusSvg3.trials)}/${opusSvg3.n}`, caption: 'this campaign, without it', mark: true },
+      ]}
+    />
+  </Chapter>
+
+  <Chapter n={9} id="limits" title="What this cannot say" dek="What the dial leaves open, and what comes next.">
+    <div class="prose">
+      <ul>
+        <li><strong>Anything about the API without Claude Code.</strong> There is still no API arm.</li>
+        <li>
+          <strong>What the classifier reacts to on the circle.</strong> The stream records the switch, not the
+          flagged content or what the model was about to write.
+        </li>
+        <li>
+          <strong>Fable’s circle at max</strong>, and Fable’s at high (n={fableHighN}) or Opus’s at max (n={opusMaxN})
+          with any precision.
+        </li>
+        <li>
+          <strong>Whether effort reaches Haiku 4.5.</strong> The CLI might not pass the level on, or the model might
+          ignore it.
+        </li>
+        <li>
+          <strong>Which prompt change moved the low baselines:</strong> Fable’s dark mode and spelling, the teal,
+          Sonnet’s words. Every comparison with the first two campaigns crosses the change; within this one, the
+          prompt is constant.
+        </li>
+        <li><strong><code>medium</code> and <code>xhigh</code>.</strong> Not run.</li>
+        <li>
+          <strong>Much at n={full('svg')}</strong>, as before: a 50% share carries about ±{moe} points at 95%.
+        </li>
+      </ul>
+      <h3 class="later">What comes next</h3>
+      <ul>
+        <li>An API arm for <code>favorite</code>, still. Does the decline survive without the harness?</li>
+        <li>
+          A “Finishing work” arm, still. <a href="#room">§ 08</a> narrows the suspects without isolating the section.
+        </li>
+      </ul>
+      <p>
+        The campaign cost {fmtUsd(cost.counted)} API-equivalent for {num(trials.length)} counted trials, and
+        {fmtUsd(cost.allAttempts)} for all {num(cost.attempts)} attempts. By model: {ORDER.map((m, i) => <>{i > 0 && ', '}{NAME(m)} {fmtUsd(costModel(m))}</>)}.
+      </p>
+    </div>
+  </Chapter>
+
+  <section class="grid section rule-ink">
+    <div class="no"></div>
+    <div class="wide stack-lg">
+      <h2>Every answer is here.</h2>
+      <p class="dek">
+        {num(trials.length)} pages, one per counted trial, each with the reply as the model gave it. The circle and
+        SVG trials have the render, the source and the diff.
+      </p>
+      <div class="more">
+        <a class="btn" href={href('/runs/#effort')}>Browse the {runs.length} runs</a>
+        <a class="btn btn-ghost" href={href('/color/')}>The second campaign</a>
+        <a class="btn btn-ghost" href={href('/')}>The first campaign</a>
+        <a class="btn btn-ghost" href={href('/data/')}>Download the data</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .intro {
+    padding-block: calc(var(--row) * 8) calc(var(--row) * 4);
+  }
+  @media (min-width: 900px) {
+    .intro {
+      padding-block: calc(var(--row) * 12) calc(var(--row) * 6);
+    }
+  }
+  .lake {
+    padding-bottom: calc(var(--row) * 6);
+  }
+  /* Two up on a phone with the lake below them; three in a row from 700px. */
+  .triptych {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: calc(var(--row) * 3) var(--gutter);
+  }
+  .triptych .pane:nth-child(3),
+  .triptych figcaption {
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 700px) {
+    .triptych {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .triptych .pane:nth-child(3) {
+      grid-column: auto;
+    }
+  }
+  .pane {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--row) * 1);
+    text-decoration: none;
+    color: inherit;
+  }
+  .pane img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    border: 1px solid var(--hair);
+  }
+  .pane:hover img {
+    outline: 2px solid var(--ink);
+  }
+  .pane .mono {
+    color: var(--ink-2);
+  }
+  .keyline {
+    padding-block: calc(var(--row) * 5);
+  }
+  .levels tbody tr:first-child td {
+    border-top: 1px solid var(--ink);
+  }
+  .levels tbody:first-of-type tr:first-child td {
+    border-top: 0;
+  }
+  .few {
+    color: var(--ink-2);
+    font-size: 0.85em;
+  }
+  tr.total td {
+    border-top: 1px solid var(--ink);
+    font-weight: 600;
+  }
+  td.num a {
+    text-decoration: none;
+  }
+  td.num a:hover {
+    text-decoration: underline;
+  }
+  .quotes {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: calc(var(--row) * 3) var(--gutter);
+    max-width: 44em;
+  }
+  @media (min-width: 900px) {
+    .quotes.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: none;
+    }
+  }
+  .flex .mono a {
+    white-space: nowrap;
+  }
+  .more {
+    display: flex;
+    gap: var(--gutter);
+    flex-wrap: wrap;
+  }
+  h3 {
+    margin-bottom: calc(var(--row) * 1);
+  }
+  .later {
+    margin-top: calc(var(--row) * 4);
+  }
+</style>
