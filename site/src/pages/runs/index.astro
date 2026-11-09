@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import RunTable from '../../components/RunTable.astro';
 import { fmtUsd, isCampaign, loadAll } from '../../lib/data.ts';
 import { href } from '../../lib/href.mjs';
-import { sum } from '../../lib/stats.ts';
+import { EFFORTS, sum } from '../../lib/stats.ts';
 
 const { runs, trials } = loadAll();
 const campaignRuns = runs.filter((r) => r.mode !== 'pilot').length;
@@ -16,6 +16,20 @@ const fmt = (n: number) => n.toLocaleString('en-US');
 const second = loadAll(2);
 const secondCost = sum(second.trials.map((t) => t.cost_usd));
 const reruns = second.runs.filter((r) => r.rerunOf).length;
+
+// The third campaign: the same four tasks at three effort levels.
+const third = loadAll(3);
+const thirdCost = sum(third.trials.map((t) => t.cost_usd));
+const thirdTasks = [...new Set(third.runs.map((r) => r.task))];
+const thirdLevels = EFFORTS.filter((e) => third.runs.some((r) => r.effort === e));
+const thirdShort = third.held.length;
+// The dek's qualitative words, checked at build time as on /color/.
+const check = (ok: boolean, what: string) => {
+  if (!ok) throw new Error(`runs: the copy says ${what}, and the data no longer does`);
+};
+check(third.held.every((h) => h.task === 'circle'), 'every held run is a circle run');
+check(third.uncounted.every((a) => a.fallback && a.run.startsWith('circle-')), 'every uncounted attempt is a circle fallback');
+check(third.runs.filter((r) => r.effort === 'low').every((r) => r.rerunOf), 'every low run repeats an earlier campaign’s run');
 ---
 
 <Base
@@ -58,6 +72,25 @@ const reruns = second.runs.filter((r) => r.rerunOf).length;
   <section class="grid table-wrap">
     <div class="full">
       <RunTable runs={second.runs} />
+    </div>
+  </section>
+  <section class="grid intro second" id="effort">
+    <div class="head stack-lg">
+      <h2>The third campaign: effort</h2>
+      <p class="dek">
+        The first two campaigns ran everything at effort low. This one <a href={href('/effort/')}>turns the setting up</a>:
+        {thirdTasks.length} of their tasks again, for all four models, at {thirdLevels.join(', ')}. The low runs repeat
+        the earlier campaigns’ runs weeks later, as the baseline. {thirdShort} circle runs ended short: a safety
+        classifier moved their attempts to another model, and those attempts do not count.
+      </p>
+      <p class="totals mono">
+        {fmt(third.runs.length)} runs · {fmt(third.trials.length)} trials · {fmtUsd(thirdCost)} API-equivalent
+      </p>
+    </div>
+  </section>
+  <section class="grid table-wrap">
+    <div class="full">
+      <RunTable runs={third.runs} held={third.held} effort />
     </div>
   </section>
 </Base>

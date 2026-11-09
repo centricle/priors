@@ -612,6 +612,32 @@ export function allRuns(): Run[] {
   return runs;
 }
 
+const ORDINAL: Record<Campaign, string> = { 1: 'first', 2: 'second', 3: 'third' };
+export const campaignOrdinal = (c: Campaign): string => ORDINAL[c];
+
+/** How a rerun relates to the run it repeats, from the two runs' first start times. */
+export interface RerunGap {
+  of: Run;
+  /** "a week later", "6 weeks later". */
+  later: string;
+  /** The second campaign reran two runs as a control; the third's low cells are its baseline. */
+  control: boolean;
+  /** Both runs used one CLI version. */
+  sameCli: boolean;
+}
+
+export function rerunGap(run: Run): RerunGap | null {
+  if (!run.rerunOf) return null;
+  const of = runNamed(run.rerunOf)!;
+  const start = (r: Run) => Math.min(...r.trials.map((t) => Date.parse(t.started_utc)));
+  const weeks = Math.round((start(run) - start(of)) / (7 * 86_400_000));
+  const cli = (r: Run) => [...new Set(r.trials.map((t) => t.cli_version))].join();
+  return {
+    of, later: weeks <= 1 ? 'a week later' : `${weeks} weeks later`,
+    control: run.campaign === 2, sameCli: cli(run) === cli(of),
+  };
+}
+
 /** A run by name, whichever campaign it belongs to. */
 export function runNamed(name: string): Run | undefined {
   for (const c of CAMPAIGNS) {

@@ -14,17 +14,24 @@
  * The table takes one campaign's runs. Reruns of an earlier campaign's runs
  * (the second campaign's control) form their own groups after the rest, so
  * they are not read as part of the campaign's own tasks.
+ *
+ * With `effort`, a campaign that varies the level (the third): no rerun split,
+ * since its low cells are the comparison's baseline, and each model's levels
+ * sit together, low to max. `held` adds the runs that ended short; one with no
+ * counted trial has no page, so its row is not a link.
  */
-import { MODELS, MODEL_LABEL, fmtPct, fmtUsd, isColorTask, promptOf } from '../lib/data.ts';
-import type { Run, Task } from '../lib/data.ts';
+import { MODELS, MODEL_LABEL, campaignOrdinal, fmtPct, fmtUsd, isColorTask, promptOf, rerunGap } from '../lib/data.ts';
+import type { Held, Model, Run, Task } from '../lib/data.ts';
 import { href } from '../lib/href.mjs';
-import { RECOLORED_WHY, answerDistribution, colorLabel, runSummary } from '../lib/stats.ts';
+import { EFFORTS, RECOLORED_WHY, answerDistribution, colorLabel, runSummary } from '../lib/stats.ts';
 import Swatches from './Swatches.astro';
 
 interface Props {
   runs: Run[];
+  held?: Held[];
+  effort?: boolean;
 }
-const { runs } = Astro.props;
+const { runs, held = [], effort = false } = Astro.props;
 
 const TASK_ORDER: Task[] = [
   'circle', 'html', 'svg', 'sentence', 'number', 'digit', 'word', 'replica',
@@ -37,15 +44,35 @@ const modeRank = (r: Run) => (r.mode === 'sample' ? 0 : r.mode === 'chain' ? (r.
 const modelRank = (r: Run) => (r.isRelay ? MODELS.length : MODELS.indexOf(r.models[0]));
 const order = (a: Run, b: Run) =>
   modeRank(a) - modeRank(b) || Number(a.profile === 'harness') - Number(b.profile === 'harness') || modelRank(a) - modelRank(b);
+const effortRank = (e: string) => (EFFORTS as readonly string[]).indexOf(e);
+
+// A row is a run, a held run (both, when it counted some trials), or a held
+// run alone (none counted).
+interface Row {
+  run: Run | null;
+  held: Held | null;
+  model: Model;
+  effort: string;
+}
+const heldOf = (name: string) => held.find((h) => h.name === name) ?? null;
+const rowsOf = (rs: Run[], task: Task): Row[] => {
+  const own = rs.filter((r) => r.task === task);
+  if (!effort) return own.sort(order).map((run) => ({ run, held: heldOf(run.name), model: run.models[0], effort: run.effort }));
+  const alone = held.filter((h) => h.task === task && h.counted === 0);
+  return [
+    ...own.map((run) => ({ run, held: heldOf(run.name), model: run.models[0], effort: run.effort })),
+    ...alone.map((h) => ({ run: null, held: h, model: h.model, effort: h.effort })),
+  ].sort((a, b) => MODELS.indexOf(a.model) - MODELS.indexOf(b.model) || effortRank(a.effort) - effortRank(b.effort));
+};
 
 const groupsOf = (rs: Run[]) =>
   TASK_ORDER.map((task) => ({
     task,
     kind: kindOf(task),
     prompt: promptOf(task),
-    runs: rs.filter((r) => r.task === task).sort(order),
-  })).filter((g) => g.runs.length > 0);
-const groups = [...groupsOf(runs.filter((r) => !r.rerunOf)), ...groupsOf(runs.filter((r) => r.rerunOf))];
+    rows: rowsOf(rs, task),
+  })).filter((g) => g.rows.length > 0);
+const groups = effort ? groupsOf(runs) : [...groupsOf(runs.filter((r) => !r.rerunOf)), ...groupsOf(runs.filter((r) => r.rerunOf))];
 
 // Artifact groups are the widest: run, model, n and eight measures. The others span the same width.
 const COLS = 11;
@@ -53,7 +80,8 @@ const pct = (s: number) => fmtPct(s);
 const cls = (s: number) => (s === 0 ? 'num zero' : 'num');
 const shorten = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
-const linkText = (r: Run) => (r.mode === 'pilot' ? 'pilot' : r.profile === 'harness' ? `${r.mode} · harness` : r.mode);
+const linkText = (r: Run) =>
+  r.mode === 'pilot' ? 'pilot' : r.profile === 'harness' ? `${r.mode} · harness` : effort ? `${r.mode} · ${r.effort}` : r.mode;
 const who = (r: Run) => (r.isRelay ? 'relay' : MODEL_LABEL[r.models[0]]);
 const relayTitle = (r: Run) => (r.isRelay ? r.models.map((m) => MODEL_LABEL[m]).join(', ') : undefined);
 
@@ -117,18 +145,35 @@ const rowData = (kind: string, r: Run) => {
             <th scope="col" class="num">cost</th>
           </tr>
         )}
-        {g.runs.map((r) => {
+        {g.rows.map(({ run: r, held: h, model, effort: level }) => {
+          if (!r) {
+            return (
+              <tr class="held">
+                <td>sample · {level}</td>
+                <td>{MODEL_LABEL[model]}</td>
+                <td class="num">0</td>
+                <td colspan={COLS - 3} class="why">{h!.reason}</td>
+              </tr>
+            );
+          }
           const x = rowData(g.kind, r);
+          const gap = rerunGap(r);
           return (
             <tr>
               <td>
                 <a href={href(`/runs/${r.name}/`)} aria-label={r.label}>{linkText(r)}</a>
                 {r.mode === 'pilot' && <div class="note">pilot (scripted loop, contaminated)</div>}
-                {r.rerunOf && (
+                {gap?.control && (
                   <div class="note">
-                    control: <a href={href(`/runs/${r.rerunOf}/`)}>the first campaign’s run</a>, run again
+                    control: <a href={href(`/runs/${gap.of.name}/`)}>the {campaignOrdinal(gap.of.campaign)} campaign’s run</a>, run again
                   </div>
                 )}
+                {gap && !gap.control && (
+                  <div class="note">
+                    <a href={href(`/runs/${gap.of.name}/`)}>the {campaignOrdinal(gap.of.campaign)} campaign’s run</a>, {gap.later}
+                  </div>
+                )}
+                {h && <div class="note" title={h.reason}>held at {h.counted} of {h.planned}</div>}
               </td>
               <td title={relayTitle(r)}>{who(r)}</td>
               <td class="num">{r.n}</td>
@@ -220,6 +265,14 @@ const rowData = (kind: string, r: Run) => {
     font-size: var(--t-xs);
     color: var(--ink-2);
     white-space: normal;
+  }
+  tr.held td {
+    color: var(--ink-2);
+  }
+  td.why {
+    font-size: var(--t-xs);
+    white-space: normal;
+    padding-left: 1.5em;
   }
   tbody tr:not(.grp):not(.sub):hover td {
     background: var(--hair-2);

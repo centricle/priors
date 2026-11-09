@@ -15,7 +15,8 @@ import SentenceScrub from '../../../components/SentenceScrub.astro';
 import Swatches from '../../../components/Swatches.astro';
 import { COLUMNS } from '../../../lib/columns.ts';
 import {
-  ARTIFACT_TASKS, MODEL_LABEL, allRuns, fmtInt, fmtPct, fmtSec, fmtUsd, loadAll, pad3, plural, promptOf, runNamed, seedOf,
+  ARTIFACT_TASKS, MODEL_LABEL, allRuns, campaignOrdinal, fmtInt, fmtPct, fmtSec, fmtUsd, loadAll, pad3, plural, promptOf, rerunGap,
+  runNamed, seedOf,
 } from '../../../lib/data.ts';
 import { href } from '../../../lib/href.mjs';
 import {
@@ -29,7 +30,9 @@ export function getStaticPaths() {
 
 // Previous and next stay inside the run's own campaign.
 const run = runNamed(Astro.params.run!)!;
-const { runs } = loadAll(run.campaign);
+const { runs, held: heldRuns } = loadAll(run.campaign);
+const gap = rerunGap(run);
+const held = heldRuns.find((h) => h.name === run.name);
 const idx = runs.indexOf(run);
 const prev = idx > 0 ? runs[idx - 1] : null;
 const next = idx < runs.length - 1 ? runs[idx + 1] : null;
@@ -84,7 +87,7 @@ const wideLabels = dist ? dist.values.some((v) => v.parsed && v.value.length > 9
       <h1>{run.label}</h1>
       <p class="facts">
         <span>{run.name}</span><br />
-        <span>n = {run.n}</span> · <span>{modelIds.join(', ')}</span> · <span>effort low</span> ·
+        <span>n = {run.n}</span> · <span>{modelIds.join(', ')}</span> · <span>effort {run.effort}</span> ·
         <span>profile {run.profile}</span> · <span>{fmtUsd(totalCost)} total</span><br />
         <span>prompt </span><code>{prompt}</code>
       </p>
@@ -101,10 +104,21 @@ const wideLabels = dist ? dist.values.some((v) => v.parsed && v.value.length > 9
           Pilot: a scripted loop, contaminated, so kept for comparison and left out of the counted trials.
         </p>
       )}
-      {run.rerunOf && (
+      {gap?.control && (
         <p class="small muted">
-          Control: <a href={href(`/runs/${run.rerunOf}/`)}>the first campaign’s run</a>, run again a week later.
-          Same model, same prompt, same seed, same CLI binary. The system prompt the CLI served had changed.
+          Control: <a href={href(`/runs/${gap.of.name}/`)}>the {campaignOrdinal(gap.of.campaign)} campaign’s run</a>, run again {gap.later}.
+          Same model, same prompt, same seed{gap.sameCli ? ', same CLI binary' : ''}. The system prompt the CLI served had changed.
+        </p>
+      )}
+      {gap && !gap.control && (
+        <p class="small muted">
+          The low level of <a href={href('/effort/')}>the effort comparison</a>: <a href={href(`/runs/${gap.of.name}/`)}>the {campaignOrdinal(gap.of.campaign)} campaign’s run</a>,
+          run again {gap.later}{gap.sameCli ? ' on the same CLI version' : ''}. The system prompt the CLI served had changed in between.
+        </p>
+      )}
+      {held && (
+        <p class="small muted">
+          Held at {held.counted} of {held.planned} planned trials. {held.reason}
         </p>
       )}
     </div>
