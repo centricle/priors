@@ -26,6 +26,10 @@ const size = sizeOf('trials.csv');
 const second = loadAll(2);
 const secondSize = sizeOf('campaign-2.csv');
 
+// The third campaign's: four tasks again, at three effort levels.
+const third = loadAll(3);
+const thirdSize = sizeOf('campaign-3.csv');
+
 const GROUP_TITLE: Record<ColumnGroup, string> = {
   identity: 'Identity',
   cost: 'Cost and behavior',
@@ -64,6 +68,10 @@ const groups = [...new Set(COLUMNS.map((c) => c.group))].map((g) => ({
         <a class="btn" href={`${DATA_RELEASE}/campaign-2.csv`} download>campaign-2.csv</a>
         <span class="mono small muted dl">{fmt(second.trials.length)} rows · {COLUMNS.length} columns · {secondSize}</span>
       </p>
+      <p>
+        <a class="btn" href={`${DATA_RELEASE}/campaign-3.csv`} download>campaign-3.csv</a>
+        <span class="mono small muted dl">{fmt(third.trials.length)} rows · {COLUMNS.length} columns · {thirdSize}</span>
+      </p>
     </div>
   </section>
 
@@ -79,7 +87,9 @@ const groups = [...new Set(COLUMNS.map((c) => c.group))].map((g) => ({
       </p>
       <p>
         <code>campaign-2.csv</code> is the <a href={href('/color/')}>second campaign</a>: {fmt(second.trials.length)}
-        rows, the same columns, written by the same script. The two files are never merged, so a figure about
+        rows, the same columns, written by the same script. <code>campaign-3.csv</code> is the
+        <a href={href('/effort/')}>third</a>: {fmt(third.trials.length)} rows, the same columns again, with
+        <code>effort</code> set to the level each trial ran at. The three files are never merged, so a figure about
         the first campaign stays a figure about the first campaign.
       </p>
       <p>
@@ -138,7 +148,10 @@ node bin/tally.mjs --summary
 node bin/tally.mjs --check
 
 # the second campaign: rebuild data/campaign-2.csv and print its tables
-node bin/tally.mjs --campaign campaign-2.tsv --summary</code></pre>
+node bin/tally.mjs --campaign campaign-2.tsv --summary
+
+# the third campaign: rebuild data/campaign-3.csv and print its tables
+node bin/tally.mjs --campaign campaign-3.tsv --summary</code></pre>
     </div>
   </section>
 </Base>
