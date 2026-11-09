@@ -4,7 +4,7 @@
 // the copy can only drift from the data if the copy stops calling these. Shares
 // are 0..1; format them with fmtPct at the point of use.
 import { MODELS, isArtifact, isCampaign, loadAll, outputOf, seedOf } from './data.ts';
-import type { Model, Run, Trial } from './data.ts';
+import type { Attempt, Model, Run, Task, Trial } from './data.ts';
 
 // ------------------------------------------------------------------ helpers
 
@@ -427,6 +427,74 @@ export function costByModel(trials: Trial[]): CostByModel {
   const campaignShare = {} as Record<Model, number>;
   for (const m of MODELS) campaignShare[m] = campaign[m].totalCost / totalCampaign;
   return { campaign, all: withPilot, totalCampaign, totalAll: sum(MODELS.map((m) => withPilot[m].totalCost)), campaignShare };
+}
+
+// ------------------------------------------------------------------ effort
+
+// The third campaign runs each cell at three levels. Anything pooled over its
+// trials blends them (headline() below does), so slice by level first.
+export const EFFORTS = ['low', 'high', 'max'] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+export function byEffort(trials: Trial[]): Record<Effort, Trial[]> {
+  const out = { low: [], high: [], max: [] } as Record<Effort, Trial[]>;
+  for (const t of trials) {
+    if (!(EFFORTS as readonly string[]).includes(t.effort)) throw new Error(`stats: unknown effort ${JSON.stringify(t.effort)} in ${t.run}`);
+    out[t.effort as Effort].push(t);
+  }
+  return out;
+}
+
+/** What one level cost a cell: the manipulation check (thinking), time and money. */
+export interface EffortCell {
+  n: number;
+  /** Median thinking tokens per trial, the `thinking_tokens` column. */
+  medianThinking: number | null;
+  medianWall: number | null;
+  maxWall: number | null;
+  totalCost: number;
+}
+
+export function effortCell(rows: Trial[]): EffortCell {
+  const walls = rows.map((t) => t.wall_s).filter((w): w is number => w !== null);
+  return {
+    n: rows.length,
+    medianThinking: median(rows.map((t) => t.thinking_tokens)),
+    medianWall: median(walls),
+    maxWall: walls.length ? Math.max(...walls) : null,
+    totalCost: sum(rows.map((t) => t.cost_usd)),
+  };
+}
+
+/** One task's cells, model by level. A held cell with no counted trials has n 0 and null medians. */
+export function effortGrid(trials: Trial[], task: Task): Record<Model, Record<Effort, EffortCell>> {
+  const out = {} as Record<Model, Record<Effort, EffortCell>>;
+  const rows = byModel(trials.filter((t) => t.task === task));
+  for (const m of MODELS) {
+    const levels = byEffort(rows[m]);
+    out[m] = { low: effortCell(levels.low), high: effortCell(levels.high), max: effortCell(levels.max) };
+  }
+  return out;
+}
+
+/** Spend by level over every task and model, plus what the uncounted attempts (fallbacks) added. */
+export interface EffortCost {
+  byLevel: Record<Effort, number>;
+  counted: number;
+  /** Counted trials plus every uncounted attempt, fallbacks included. */
+  allAttempts: number;
+  attempts: number;
+}
+
+export function effortCost(trials: Trial[], uncounted: readonly Attempt[]): EffortCost {
+  const levels = byEffort(trials);
+  const counted = sum(trials.map((t) => t.cost_usd));
+  return {
+    byLevel: { low: sum(levels.low.map((t) => t.cost_usd)), high: sum(levels.high.map((t) => t.cost_usd)), max: sum(levels.max.map((t) => t.cost_usd)) },
+    counted,
+    allAttempts: counted + sum(uncounted.map((a) => a.cost_usd)),
+    attempts: trials.length + uncounted.length,
+  };
 }
 
 // ----------------------------------------------------------------- replica
