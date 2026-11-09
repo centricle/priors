@@ -14,7 +14,8 @@ Give a model a bare black circle and the single word "improve", many times, and
 look at what it reaches for. Then do the same with a near-empty HTML page, an
 empty SVG and a one-word sentence; ask for a number, a digit and a word with no
 file at all; and ask it to replicate a page. A second campaign, a week later,
-asked for a color ten ways.
+asked for a color ten ways. A third ran four of those tasks again at three
+effort levels.
 
 Four models, pinned by full id: `claude-haiku-4-5-20251001`, `claude-sonnet-5`,
 `claude-opus-5-5` and `claude-fable-5-1`. Every trial ran inside the Claude Code
@@ -25,7 +26,8 @@ model alone. What the harness adds is tabled below.
 |---|---|---|---|
 | First campaign, `campaign.tsv` | 2,608 | 41 | 2026-09-27 and 2026-09-28 |
 | Second campaign, `campaign-2.tsv` | 3,792 | 42 | 2026-10-04 |
-| Total | 6,400 | 83 | |
+| Third campaign, `campaign-3.tsv` | 3,079 | 47 | 2026-11-07 to 2026-11-09 |
+| Total | 9,479 | 130 | |
 
 A trial is one `claude -p` process. A *sample* run is n independent trials from
 the same seed. A *chain* run feeds each trial's output to the next, 64 steps
@@ -255,6 +257,77 @@ Every system prompt opens with the CLI prefix sentence:
 - **Opus 5.5:** date; environment (additionalWorkingDirectories, isGitRepo, isWorktree, osVersion, platform, shell, workingDirectory); model: “You are powered by the model named Opus 5.5. The exact model ID is claude-opus-5-5. Assistant knowledge cutoff is June 2026.”; session_context (userEmail).
 - **Fable 5.1:** date; environment (additionalWorkingDirectories, isGitRepo, isWorktree, osVersion, platform, shell, workingDirectory); model: “You are powered by the model named Fable 5.1. The exact model ID is claude-fable-5-1. Assistant knowledge cutoff is June 2026.”; session_context (userEmail).
 <!-- /harness:campaign-2 -->
+
+### Third campaign
+
+Same binary, six weeks after the first. Circle, svg, word and favorite ran
+again for all four models at `--effort low`, `high` and `max`. The served
+prompt had moved again for every model. All four open with a new first
+sentence, and for Sonnet and Haiku that is the only change. Opus lost the
+"Finishing work" and "Memory, notes and feedback" sections it gained in the
+second campaign. Fable had both replaced by three new sections. Within the
+campaign the prompt was the same at every level, so effort is not confounded
+with it. The records below are the low ones; each model's high and max
+records match them.
+
+<!-- harness:campaign-3 -->
+Taken from the golden records, one per model:
+
+- `room-claude-haiku-4-5-20251001-low-d8cb1e5c7968`, made 2026-11-07T01:48:12Z
+- `room-claude-sonnet-5-low-d8cb1e5c7968`, made 2026-11-08T22:29:39Z
+- `room-claude-opus-5-5-low-d8cb1e5c7968`, made 2026-11-08T22:23:17Z
+- `room-claude-fable-5-1-low-d8cb1e5c7968`, made 2026-11-08T22:09:27Z
+
+CLI binary sha256: `d8cb1e5c79684cc12a8bfc813e3a2073406921b6245744b3009be3ab5651d21e`.
+
+Every system prompt opens with the CLI prefix sentence:
+
+> You are a Claude agent, built on Anthropic's Claude Agent SDK.
+
+**System prompt blocks**, size in characters. A blank cell means the block was not in that model's prompt.
+
+| Block | Haiku 4.5 | Sonnet 5 | Opus 5.5 | Fable 5.1 |
+|---|---|---|---|---|
+| `You are an agent working with the …` | 853 | 853 | 1,603 | 1,603 |
+| System | 1,999 | 1,999 |  |  |
+| Doing tasks | 3,319 | 3,319 |  |  |
+| Executing actions with care | 3,583 | 3,583 |  |  |
+| Using your tools | 648 | 648 |  |  |
+| Tone and style | 555 | 555 |  |  |
+| Dynamic boundary marker | 34 | 34 | 34 | 34 |
+| Text output (does not apply to tool calls) | 1,340 | 1,340 |  |  |
+| `When you use a pronoun for someone …` | 357 | 357 | 357 | 357 |
+| Session-specific guidance | 526 | 526 | 526 | 526 |
+| Environment | 598 | 598 | 598 | 598 |
+| Context management | 280 | 280 | 280 | 280 |
+| `When you have enough information to act, …` | 277 | 277 | 277 | 277 |
+| `<total_tokens>15000000 tokens left</total_tokens>` | 49 | 49 |  | 49 |
+| `Write code that reads like the surrounding …` |  |  | 94 |  |
+| `For actions that are hard to reverse …` |  |  | 520 | 520 |
+| `Before you start, say in a line …` |  |  |  | 276 |
+| `This iteration of Claude is Claude Fable …` |  |  |  | 685 |
+| Delivering work |  |  |  | 2,017 |
+| Writing for the user |  |  |  | 1,816 |
+| `You are operating autonomously. The user is …` |  |  |  | 1,364 |
+| **Blocks** | 14 | 14 | 9 | 14 |
+| **Characters** | 14,418 | 14,418 | 4,289 | 10,402 |
+
+**Tools**, description size in characters. A blank cell means the tool was not offered.
+
+| Tool | Haiku 4.5 | Sonnet 5 | Opus 5.5 | Fable 5.1 |
+|---|---|---|---|---|
+| Bash | 10,078 | 10,078 | 1,315 | 1,315 |
+| Edit | 1,094 | 1,094 | 360 | 360 |
+| Read | 1,782 | 1,782 | 790 | 790 |
+| Write | 618 | 618 | 240 | 240 |
+
+**Attached before the first reply**, by type. The environment block is a snapshot with these keys; the model block is the sentence shown.
+
+- **Haiku 4.5:** date; environment (additionalWorkingDirectories, isGitRepo, isWorktree, osVersion, platform, shell, workingDirectory); model: “You are powered by the model named Haiku 4.5. The exact model ID is claude-haiku-4-5-20251001. Assistant knowledge cutoff is February 2025.”; session_context (userEmail); total_tokens_reminder (text).
+- **Sonnet 5:** date; environment (additionalWorkingDirectories, isGitRepo, isWorktree, osVersion, platform, shell, workingDirectory); model: “You are powered by the model named Sonnet 5. The exact model ID is claude-sonnet-5. Assistant knowledge cutoff is January 2026.”; session_context (userEmail); total_tokens_reminder (text).
+- **Opus 5.5:** date; environment (additionalWorkingDirectories, isGitRepo, isWorktree, osVersion, platform, shell, workingDirectory); model: “You are powered by the model named Opus 5.5. The exact model ID is claude-opus-5-5. Assistant knowledge cutoff is June 2026.”; session_context (userEmail).
+- **Fable 5.1:** date; environment (additionalWorkingDirectories, isGitRepo, isWorktree, osVersion, platform, shell, workingDirectory); model: “You are powered by the model named Fable 5.1. The exact model ID is claude-fable-5-1. Assistant knowledge cutoff is June 2026.”; session_context (userEmail); total_tokens_reminder (text).
+<!-- /harness:campaign-3 -->
 
 ## What the model is told about the operator
 
