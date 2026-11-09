@@ -19,7 +19,8 @@ import {
 import {
   headline, featureShares, chainCurve, answerDistribution, hexShares, spellingByModel, costByModel,
   replicaTable, marginOfError, sentenceChain, changeLabels, samePictureCount, FEATURE_LABEL, GRAY_SPREAD, CHAIN_MARKS,
-  type AnswerDistribution, type Feature,
+  EFFORTS, median,
+  type AnswerDistribution, type Feature, type Effort,
 } from '../lib/stats.ts';
 
 const num = fmtInt;
@@ -334,6 +335,104 @@ claim(
 const control = second.runs.find((r) => r.rerunOf === sample('svg', 'opus').name)!;
 const controlChanged = control.trials.filter((t) => t.unchanged === false).length;
 const controlDrew = control.trials.filter((t) => t.same_picture === false).length;
+
+// The third campaign reran three of these tasks at low, high and max, under a
+// system prompt that had changed again. The chapters it answers or changes get
+// a second dated note, with the third campaign's own numbers, and the effort
+// item stays in the cannot-say list, since this campaign still cannot say it.
+const third = loadAll(3);
+const addedOn3 = new Date(Math.max(...third.trials.map((t) => Date.parse(t.started_utc))))
+  .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const at = (task: string, m: Model, e: Effort): Trial[] =>
+  third.trials.filter((t) => t.task === task && t.model === m && t.effort === e);
+function level<T>(f: (e: Effort) => T): Record<Effort, T> {
+  return Object.fromEntries(EFFORTS.map((e) => [e, f(e)])) as Record<Effort, T>;
+}
+claim(
+  (['circle', 'svg', 'word'] as const).every((task) => EFFORTS.every((e) => third.trials.some((t) => t.task === task && t.effort === e))),
+  'the third campaign ran the circle, the empty SVG and the word at every level',
+);
+// § 1: the circle, by level.
+const circle3 = (m: Model, e: Effort) => featureShares(at('circle', m, e));
+claim(
+  EFFORTS.every((e) => (['glow_or_shadow', 'gradient_667eea', 'keyframes', 'recolored'] as const).every((k) => circle3('opus', e).shares[k].count === 0)),
+  'Opus adds no shadow, gradient, animation or color to the circle at any level',
+);
+claim(
+  EFFORTS.every((e) => circle3('haiku', e).n > 0 && circle3('haiku', e).shares.glow_or_shadow.count === circle3('haiku', e).n),
+  'Haiku adds a shadow or glow to every circle at every level',
+);
+const sonnetMaxCircle = at('circle', 'sonnet', 'max');
+claim(sonnetMaxCircle.length > 0 && sonnetMaxCircle.every((t) => t.same_picture === false), 'Sonnet changes every circle at max');
+const fableLow3 = at('circle', 'fable', 'low');
+const fableDark = fableLow3.filter((t) => /prefers-color-scheme\s*:\s*dark/i.test(outputOf(t) ?? '')).length;
+const fableShadow3 = circle3('fable', 'low').shares.glow_or_shadow.count;
+const fableSame3 = samePictureCount(fableLow3).count;
+claim(fableDark > 0 && fableSame3 < fableLow3.length / 2, 'Fable now adds something to the circle at low, and few of its renders are the seed’s');
+claim(
+  at('circle', 'fable', 'max').length === 0 && at('circle', 'fable', 'high').length < fableLow3.length,
+  'Fable’s circle is short at high and missing at max',
+);
+// § 3: the empty SVG, by level.
+const kept = (ts: Trial[]) => ts.filter((t) => t.unchanged === true).length;
+const drawn = (ts: Trial[]) => ts.filter((t) => t.same_picture === false).length;
+const opusSvg3 = level((e) => at('svg', 'opus', e));
+const sonnetSvg3 = level((e) => at('svg', 'sonnet', e));
+const opusActed = opusSvg3.max.filter((t) => t.unchanged === false);
+claim(drawn(opusSvg3.low) === 0 && drawn(opusSvg3.high) === 0, 'Opus draws nothing on the empty SVG below max');
+claim(
+  opusActed.length > opusSvg3.max.length / 2 && opusActed.every((t) => t.same_picture === false),
+  'Opus at max changes most empty SVGs and draws something in every one it changes',
+);
+claim(
+  EFFORTS.every((e) => kept(sonnetSvg3[e]) >= sonnetSvg3[e].length * 0.9 && sonnetSvg3[e].filter((t) => t.unchanged === true).every(asks)),
+  'Sonnet leaves nearly every empty SVG alone at every level, and asks each time',
+);
+claim(
+  EFFORTS.every((e) => at('svg', 'fable', e).filter((t) => t.unchanged === false).length >= at('svg', 'fable', e).length * 0.9),
+  'Fable changes nearly every empty SVG at every level',
+);
+// § 5: the word, by level.
+const word3 = (m: Model, e: Effort) => answerDistribution(at('word', m, e));
+const wordN3 = word3('fable', 'low').n;
+claim(EFFORTS.every((e) => ORDER.every((m) => word3(m, e).n === wordN3)), `every model answered the word ${wordN3} times at every level`);
+claim(
+  (['fable', 'opus'] as const).every((m) => EFFORTS.every((e) => word3(m, e).values[0]?.value === lantern.value)),
+  `Fable and Opus say ${lantern.value} most often at every level`,
+);
+claim(
+  (['fable', 'opus'] as const).every((m) => (median(at('word', m, 'max').map((t) => t.thinking_tokens)) ?? 0) > 0),
+  'Fable and Opus think about the word at max',
+);
+const lanternAt = (m: Model) => list(EFFORTS.map((e) => word3(m, e).values[0].count));
+const range3 = (m: Model, e: Effort) => word3(m, e).values.filter((v) => v.parsed).length;
+claim(EFFORTS.every((e) => ORDER.every((m) => m === 'sonnet' || range3(m, e) < range3('sonnet', e))), 'Sonnet has the most range at every level');
+claim(at('word', 'sonnet', 'max').every((t) => t.thinking_tokens === 0), 'Sonnet thinks no tokens about the word at max');
+const sonnetWord1 = word.sonnet.values[0];
+const sonnetWord3 = word3('sonnet', 'low').values.find((v) => v.value === sonnetWord1.value)?.count ?? 0;
+claim(sonnetWord3 < sonnetWord1.count, `Sonnet says ${sonnetWord1.value} less often at low than in the first campaign`);
+// § 7: spelling, on the two tasks whose prompts never use the word for hue.
+const drawTasks = (t: Trial) => t.task === 'circle' || t.task === 'svg';
+const hue3 = spellingByModel(third.trials.filter(drawTasks), { transcriptOnly: false });
+const hue1 = spellingByModel(campaign.filter((t) => t.mode === 'sample' && drawTasks(t)), { transcriptOnly: false });
+const fableHue3 = hue3.fable.families.color;
+const fableHue1 = hue1.fable.families.color;
+claim(
+  fableHue1.uk > fableHue1.us && fableHue3.uk < (fableHue3.uk + fableHue3.us) / 10,
+  'Fable’s British forms nearly vanished between the first and third campaigns',
+);
+claim(
+  EFFORTS.every((e) => {
+    const c = spellingByModel(third.trials.filter((t) => drawTasks(t) && t.effort === e), { transcriptOnly: false }).opus.families.color;
+    return c.uk > 0 && c.us > 0;
+  }),
+  'Opus uses both spellings at every level',
+);
+claim(
+  third.trials.filter((t) => t.model === 'haiku' || t.model === 'sonnet')
+    .every((t) => P_UK.every((k) => (t[k] ?? 0) === 0) && (t.spell_c_uk ?? 0) === 0),
+  'Haiku and Sonnet write no British form in the third campaign',
+);
 ---
 
 <Base path="/">
@@ -367,6 +466,14 @@ const controlDrew = control.trials.filter((t) => t.same_picture === false).lengt
         {frac(circleSame.opus)} Opus renders are the seed’s, pixel for pixel. Sonnet leaves the file untouched in
         {fmtPct(circle.sonnet.shares.unchanged.share)} of trials. Whenever it does touch it, the circle turns blue:
         {sonnetChanged.length} of {sonnetChanged.length}.
+      </p>
+      <p class="addendum">
+        <span class="label">Added {addedOn3}</span>
+        A third campaign ran this circle again at low, high and max. Opus still adds none of it at any level, Haiku
+        adds a shadow or glow every time at every level, and Sonnet changes every circle at max. At low, this
+        campaign’s level, Fable now adds something, under a system prompt that had changed in between: {fableDark} of
+        {fableLow3.length} add a dark mode, {fableShadow3} a shadow, and only {fableSame3} render as the seed. Its
+        circle at high and max is short or missing, and <a href={href('/effort/')}>Effort</a> says why.
       </p>
       <p class="small muted">
         Every cell below is one trial. Click any of them for the source, the render and what the model said it
@@ -463,6 +570,14 @@ const controlDrew = control.trials.filter((t) => t.same_picture === false).lengt
         Opus a system prompt section that only Fable had here, one that tells the model not to stop while work is
         still owed. Opus changed {controlChanged} of {control.n} and drew a numeral 0 in {controlDrew}. Asker and
         actor are partly the room. <a href={href('/color/#room')}>The room changed</a> has the rest.
+      </p>
+      <p class="addendum">
+        <span class="label">Added {addedOn3}</span>
+        By the third campaign “Finishing work” had left Opus’s system prompt again, and at low Opus left
+        {kept(opusSvg3.low)} of {opusSvg3.low.length} empty SVGs alone. Effort makes it an actor too, but only at max,
+        where it changed {opusActed.length} and drew something in every one. Sonnet still asks at every level,
+        leaving {kept(sonnetSvg3.max)} of {sonnetSvg3.max.length} alone even at max, and Fable acts at every level.
+        <a href={href('/effort/')}>Effort</a> has the drawings.
       </p>
     </div>
     <div class="wide quotes">
@@ -584,6 +699,14 @@ const controlDrew = control.trials.filter((t) => t.same_picture === false).lengt
         {wordRange('sonnet').slice(0, SONNET_WORDS).map((v) => v.value).join(', ')} and
         {wordRange('sonnet').length - SONNET_WORDS} more.
       </p>
+      <p class="addendum">
+        <span class="label">Added {addedOn3}</span>
+        Asked again in a third campaign, at low, high and max, Fable and Opus still say {lantern.value}: Fable
+        {lanternAt('fable')} times in {wordN3}, Opus {lanternAt('opus')}, though both think at max. Sonnet still has
+        the most range, but its baseline moved, {sonnetWord1.value} falling from {sonnetWord1.count} here to
+        {sonnetWord3} at low, and at max it spreads to {range3('sonnet', 'max')} different words without thinking at
+        all. <a href={href('/effort/')}>Effort</a> has the rest.
+      </p>
     </div>
     <div class="wide two">
       <div class="stack">
@@ -642,6 +765,15 @@ const controlDrew = control.trials.filter((t) => t.same_picture === false).lengt
         The word for the middle follows the same pattern. Code is American in all but {say(codeUk.length)} trial,
         and CSS leaves it little choice: the property is <code>color</code> and the value is <code>center</code>. The
         odd one out holds {say(codeUkForms)} British forms, in comments {NAME(codeUk[0].model)} wrote in a relay step.
+      </p>
+      <p class="addendum">
+        <span class="label">Added {addedOn3}</span>
+        By the third campaign Fable’s British forms had nearly gone. On the circle and the empty SVG, whose prompts
+        never use the word for hue, it used the British form in {fableHue3.uk} trials and the American in
+        {fableHue3.us}, across all three effort levels; on the same two tasks here it was {fableHue1.uk} to
+        {fableHue1.us}. Opus still wavers at every level, and Haiku and Sonnet still never write a British form. The
+        drop is between campaigns, under a system prompt that changed in between, and
+        <a href={href('/effort/')}>Effort</a> has the rest.
       </p>
     </div>
     <div class="wide scroll">
@@ -796,6 +928,14 @@ const controlDrew = control.trials.filter((t) => t.same_picture === false).lengt
         <li>The word, at temperature. Is “{lantern.value}” the room’s system prompt or the model? An API arm would tell them apart.</li>
         <li>A contamination arm that shows previous trials’ commits on purpose, to reproduce the pilot.</li>
       </ul>
+      <p class="addendum">
+        <span class="label">Added {addedOn3}</span>
+        A third campaign reran the circle, the empty SVG and the word at low, high and max, and answers both effort
+        items above. On the empty SVG, higher effort makes Opus an actor only at max: it left
+        {kept(opusSvg3.high)} of {opusSvg3.high.length} alone at high and changed {opusActed.length} at max. Sonnet
+        stays an asker, leaving {kept(sonnetSvg3.max)} of {sonnetSvg3.max.length} alone even at max.
+        <a href={href('/effort/')}>Effort</a> has the rest.
+      </p>
       <p>
         The runner, the tasks, every output, every counted transcript from the room and the tally are in the
         <a href="https://github.com/centricle/priors" rel="noopener">repository</a>. Pull requests with an API arm
