@@ -2,7 +2,8 @@
 # release-data.sh: put the tallies on the fixed GitHub release `data`, where
 # the Data page's download buttons point.
 #
-#   data/trials.csv, data/campaign-2.csv  ->  releases/download/data/<file>
+#   data/trials.csv, data/campaign-2.csv, data/campaign-3.csv
+#     ->  releases/download/data/<file>
 #
 # One release, re-cut in place: created once, then every run replaces its
 # assets (--clobber) and rewrites its notes with the commit the files came
@@ -25,7 +26,7 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd -P)
 GH_REPO=centricle/priors
 TAG=data
-FILES=(trials.csv campaign-2.csv)
+FILES=(trials.csv campaign-2.csv campaign-3.csv)
 
 blob_sha() {
   node -e '
