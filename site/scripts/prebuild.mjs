@@ -72,10 +72,12 @@ if (mode === '--dev') {
 
 // ---------------------------------------------------------------- og images
 
-// One card per campaign: og.png for the story, og-color.png for /color/. The
-// trial count on each is the sum of its manifest's planned runs, so it follows
-// the TSV instead of being typed here. A card is drawn again when this script
-// or its manifest is newer than the image. Unlike the renders, the cards are
+// One card per campaign: og.png for the story, og-color.png for /color/,
+// og-effort.png for /effort/. The trial count on each is the counted trials of
+// its manifest's runs, the CSV's rows less the pilot's, so it follows the data
+// instead of being typed here. Not the manifest's n: that is what was planned,
+// and three of the third campaign's runs counted fewer. A card is drawn again
+// when this script, its manifest or its CSV is newer than the image. Unlike the renders, the cards are
 // tracked: they are drawn with this machine's fonts, which the deploy's build
 // box does not have.
 //
@@ -85,28 +87,30 @@ if (mode === '--dev') {
 // served the two cards in two typefaces on 2026-10-09. Netlify sets
 // NETLIFY=true; a card missing there is a commit error, not a reason to draw.
 const CARDS = [
-  { manifest: 'campaign.tsv', out: 'og.png', lines: ['Give a model a black circle.', 'Say improve. {n} times.'] },
-  { manifest: 'campaign-2.tsv', out: 'og-color.png', lines: ['Ask a model for a color.', 'Do it {n} times.'] },
+  { manifest: 'campaign.tsv', csv: 'trials.csv', out: 'og.png', lines: ['Give a model a black circle.', 'Say improve. {n} times.'] },
+  { manifest: 'campaign-2.tsv', csv: 'campaign-2.csv', out: 'og-color.png', lines: ['Ask a model for a color.', 'Do it {n} times.'] },
+  { manifest: 'campaign-3.tsv', csv: 'campaign-3.csv', out: 'og-effort.png', lines: ['Turn the effort up.', 'Ask again. {n} times.'] },
 ];
 
-const plannedTrials = (manifest) =>
-  readFileSync(manifest, 'utf8')
-    .split('\n')
-    .slice(1)
-    .filter(Boolean)
-    .reduce((sum, line) => sum + Number(line.split('\t')[4]), 0);
+// Imported only when a card is drawn, which never happens on the build box.
+const countedTrials = async (manifest, csv) => {
+  const { parseCsv } = await import('../src/lib/data.ts');
+  const runs = new Set(readFileSync(manifest, 'utf8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t')[0]));
+  return parseCsv(readFileSync(csv, 'utf8')).slice(1).filter((row) => runs.has(row[0])).length;
+};
 
 const buildBox = Boolean(process.env.NETLIFY);
 let og = buildBox ? 'kept (build box)' : 'kept';
 for (const card of CARDS) {
   const manifest = join(repo, card.manifest);
+  const csv = join(repo, 'data', card.csv);
   const out = join(pub, card.out);
   if (buildBox) {
     if (!existsSync(out)) throw new Error(`prebuild: ${card.out} is not committed; draw it locally and commit it`);
     continue;
   }
-  if (fresh(out, here, manifest)) continue;
-  const n = plannedTrials(manifest).toLocaleString('en-US');
+  if (fresh(out, here, manifest, csv)) continue;
+  const n = (await countedTrials(manifest, csv)).toLocaleString('en-US');
   const [one, two] = card.lines.map((l) => l.replace('{n}', n));
   const font = 'Helvetica Neue, Helvetica, Arial, sans-serif';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
