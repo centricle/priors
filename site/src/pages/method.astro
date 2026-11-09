@@ -5,16 +5,32 @@ import { href } from '../lib/href.mjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadAll, MODELS, MODEL_LABEL, MODEL_ID, TASKS, seedOf, promptOf, fmtUsd, isCampaign, repoRoot, type Task, type Trial } from '../lib/data.ts';
-import { costByModel } from '../lib/stats.ts';
+import { EFFORTS, costByModel } from '../lib/stats.ts';
 
 const { trials, runs, uncounted } = loadAll();
 
-// The second campaign, for chapter G. Everything else on this page is the first.
+// The second and third campaigns, for chapters G and H. Everything else on
+// this page is the first.
 const second = loadAll(2);
 const secondDay = new Date(second.trials[0].started_utc)
   .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const secondTasks = second.runs.filter((r) => !r.rerunOf && r.models[0] === 'fable').map((r) => ({ task: r.task, prompt: promptOf(r.task), n: r.n }));
 const reruns = second.runs.filter((r) => r.rerunOf);
+
+const third = loadAll(3);
+const thirdDay = new Date(Math.min(...third.trials.map((t) => Date.parse(t.started_utc))))
+  .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const thirdTasks = [...new Set(third.runs.map((r) => r.task))];
+const thirdLevels = EFFORTS.filter((e) => third.runs.some((r) => r.effort === e));
+const cliOf = (ts: Trial[]) => [...new Set(ts.map((t) => t.cli_version))];
+const thirdSameCli = cliOf(third.trials).join() === cliOf(trials.filter(isCampaign)).join();
+const fallbacks = third.uncounted.filter((a) => a.fallback);
+const substitutes = [...new Set(fallbacks.map((a) => a.fallback!.fallback_model))];
+const categories = [...new Set(fallbacks.map((a) => a.category).filter((c): c is string => c !== null))];
+const fallbackTasks = [...new Set(fallbacks.map((a) => third.runByName.get(a.run)?.task ?? third.held.find((h) => h.name === a.run)?.task))];
+const and = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+if (fallbackTasks.join() !== 'circle') throw new Error('method: chapter H says the fallbacks were all on the circle');
+if (third.uncounted.some((a) => !a.fallback)) throw new Error('method: chapter H says every uncounted attempt was a fallback');
 const cost = costByModel(trials);
 const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -134,7 +150,7 @@ const halt = uncounted[0];
         <li><code>--tools Read,Write,Edit,Bash</code> pins the surface. Glob and Grep are not offered, matching the CLI’s default surface at this version.</li>
         <li><code>--restricted</code> confines the file tools to the working directory and ignores project settings a model might write. Reads and writes outside it, <code>env</code>, <code>curl</code>, <code>open</code> and starting a server are all denied. Read-only shell commands inside the directory still run.</li>
         <li>The attribution setting stops the CLI from asking the model to sign commits with a trailer, which would otherwise be the only instruction in the room beyond the harness’s standing guidance.</li>
-        <li><code>--effort low</code> on every trial, for every model. Effort is recorded nowhere in the session record on this version, so the argument is the only proof of it.</li>
+        <li><code>--effort low</code> on every trial of the first two campaigns, for every model; <a href={href('#third')}>the third</a> varies it. Effort is recorded nowhere in the session record on this version, so the argument is the only record of it.</li>
         <li>One session id per trial, never reused. The session record is hashed against a golden record for its model: the system prompt, the tools and whatever is attached before the first reply. A room trial that differs is halted and retried, and the halted attempt is recorded but not counted.</li>
       </ul>
       <p>
@@ -331,6 +347,53 @@ const halt = uncounted[0];
         <li>
           The second campaign has its own tally, <code>campaign-2.csv</code>, with the same columns. Nothing on
           this site pools the two.
+        </li>
+      </ul>
+    </div>
+  </Chapter>
+
+  <Chapter n="H" id="third" title="The third campaign" dek="Four of the same tasks at three effort levels, in the same room, with the dial as the only change in the launch.">
+    <div class="prose">
+      <p>
+        The <a href={href('/effort/')}>third campaign</a> ran {fmt(third.trials.length)} counted trials in
+        {fmt(third.runs.length)} runs from {thirdDay}{thirdSameCli ? ', on the same CLI version as the first' : ''}.
+        It reran {and(thirdTasks)} for all four models at {and(thirdLevels)}. The launch is the room’s,
+        with the level in place of <code>low</code>:
+      </p>
+    </div>
+    <div class="wide">
+      <pre><code>--model &lt;id&gt; --effort &lt;{thirdLevels.join('|')}&gt;</code></pre>
+    </div>
+    <div class="prose">
+      <ul>
+        <li>
+          The low runs end in -3, because the first two campaigns already hold the -low names. They repeat
+          those runs weeks later and are the baseline the higher levels are read against.
+        </li>
+        <li>
+          The session record still does not name the level. The <code>thinking_tokens</code> column is the check
+          that it arrived: the <a href={href('/effort/')}>effort page</a> reads it by model, task and level.
+        </li>
+        <li>
+          Claude Code answers a safeguard refusal by finishing the session on another model. {fallbacks.length}
+          attempts ended that way, all of them circles, with {and(substitutes)} answering
+          {categories.length ? <>and the category recorded as {and(categories)}</> : ''}. The runner counts such
+          an attempt out and retries the step, and gives a run up once diverted attempts outnumber counted ones.
+        </li>
+        <li>
+          {third.held.length} runs ended short of their n:{' '}
+          {third.held.map((h, i) => {
+            const name = `${h.task} · ${MODEL_LABEL[h.model]} · ${h.effort}`;
+            return <>{i > 0 ? '; ' : ''}{h.counted ? <a href={href(`/runs/${h.name}/`)}>{name}</a> : name}, {h.counted} of {h.planned}</>;
+          })}. The manifest keeps what was planned; the counts come from the tally.
+        </li>
+        <li>
+          The system prompt the CLI served had changed again for all four models since the second campaign. It
+          was the same at every level within this one.
+        </li>
+        <li>
+          The third campaign’s tally is <code>campaign-3.csv</code>, with the same columns and <code>effort</code>
+          set per trial.
         </li>
       </ul>
     </div>
