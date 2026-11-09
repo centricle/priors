@@ -22,9 +22,11 @@ import {
   loadAll, MODELS, MODEL_LABEL, MODEL_ID, COLOR_TASKS, fmtInt, fmtUsd, plural, promptOf, seedOf,
   type Model, type Run, type Task, type Trial,
 } from '../lib/data.ts';
-import { answerDistribution, median, sum } from '../lib/stats.ts';
+import { answerDistribution, median, sum, EFFORTS, type Effort } from '../lib/stats.ts';
 
 const num = fmtInt;
+const list = (xs: readonly (string | number)[]) =>
+  xs.length < 3 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
 function claim(ok: boolean, what: string): void {
   if (!ok) throw new Error(`color: the copy says ${what}, and the data no longer does`);
 }
@@ -206,6 +208,41 @@ const chatWall = median(chat.map((t) => t.wall_s)) ?? 0;
 const quoteFav = modal(of('favorite', 'fable'));
 const quoteDecline = modal(of('favorite', 'sonnet'));
 const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
+
+// ------------------------------------------------------- the third campaign
+// The third campaign asked the favorite question again at low, high and max,
+// under a system prompt that had changed for all four models. Chapters 5 to 7
+// keep their text and carry a dated note with the third campaign's numbers.
+// The effort item stays in the limits: this campaign still cannot say it.
+const third = loadAll(3);
+const addedOn = new Date(Math.max(...third.trials.map((t) => Date.parse(t.started_utc))))
+  .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const at = (task: Task, m: Model, e: Effort) => third.trials.filter((t) => t.task === task && t.model === m && t.effort === e);
+const favN3 = at('favorite', 'fable', 'low').length;
+claim(MODELS.every((m) => EFFORTS.every((e) => at('favorite', m, e).length === favN3)), 'every model was asked its favorite equally often at every level');
+claim(ANSWERERS.every((m) => first1('favorite', m).value === 'blue'), 'Fable and Opus said blue most often in this campaign');
+claim(
+  ANSWERERS.every((m) => EFFORTS.every((e) => answerDistribution(at('favorite', m, e)).values[0]?.value === 'teal')),
+  'Fable and Opus say teal most often at every level of the third campaign',
+);
+const teal3 = (m: Model) => list(EFFORTS.map((e) => at('favorite', m, e).filter((t) => answered(t) && t.answer_value === 'teal').length));
+claim(
+  DECLINERS.every((m) => EFFORTS.every((e) => at('favorite', m, e).filter((t) => !answered(t)).length > favN3 * 0.9)),
+  'Sonnet and Haiku decline nearly every time at every level, max included',
+);
+const opusSvg3 = at('svg', 'opus', 'low');
+const kept3 = opusSvg3.filter((t) => t.unchanged === true).length;
+claim(kept3 > untouched(ctlSvg) && kept3 >= opusSvg3.length * 0.9, 'Opus at low had mostly stopped acting on the empty SVG by the third campaign');
+const cliOf = (ts: Trial[]) => [...new Set(ts.map((t) => t.cli_version))];
+claim(
+  cliOf(first.trials).length === 1 && cliOf(third.trials).join() === cliOf(first.trials).join(),
+  'the third campaign ran on the first campaign’s binary',
+);
+claim(trials.every((t) => t.effort === 'low'), 'every trial of this campaign ran at low');
+claim(
+  COLOR_TASKS.filter((task) => third.trials.some((t) => t.task === task)).join() === 'favorite',
+  'the third campaign reran the favorite question and no other color task',
+);
 ---
 
 <Base
@@ -403,6 +440,13 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
         Before reading this as two kinds of model, read <a href="#room">the next section</a>. The line between the
         models that answer and the models that decline is also a line in the room.
       </p>
+      <p class="addendum">
+        <span class="label">Added {addedOn}</span>
+        A third campaign asked again at low, high and max, under a system prompt that had changed for all four
+        models. Fable and Opus now say teal at every level, Fable {teal3('fable')} times in {favN3} and Opus
+        {teal3('opus')}, and Sonnet and Haiku still decline at every level, max included. The shift is between
+        campaigns, not levels. <a href={href('/effort/')}>Effort</a> has the rest.
+      </p>
     </div>
     <div class="wide quotes">
       <Quote trial={quoteFav} chars={230} />
@@ -452,6 +496,14 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
         as well as four models. The favorite color and the control fall exactly on that line. Teal, the button and
         the gradient do not: Sonnet sides with Fable and Opus on the first two.
       </p>
+      <p class="addendum">
+        <span class="label">Added {addedOn}</span>
+        By the third campaign the served prompt had moved again under the same binary, this time for all four
+        models, and “Finishing work” had left Opus’s: at low, Opus left {kept3} of {opusSvg3.length} empty SVGs
+        alone. The token-budget reminder was still missing, so dropping it was not what moved Opus. The section is
+        the stronger suspect, but the prompt’s opening sentence and a tool setting changed with it, so it is still
+        not isolated. <a href={href('/effort/')}>Effort</a> has the third campaign.
+      </p>
     </div>
     <KeyRow
       class="wide"
@@ -487,6 +539,13 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
         <li><strong>Which prompt change moved Opus.</strong> Three arrived together.</li>
         <li><strong>Anything about effort.</strong> Every trial ran at low, as in the first campaign.</li>
       </ul>
+      <p class="addendum">
+        <span class="label">Added {addedOn}</span>
+        A third campaign asked <code>{promptOf('favorite')}</code> again at low, high and max, and
+        <a href={href('/effort/')}>Effort</a> has what the level does to the answer. No other color task was rerun.
+        The third campaign also narrows which prompt change moved Opus, as <a href="#room">The room changed</a> now
+        notes, without settling it.
+      </p>
       <p>
         The campaign cost {fmtUsd(cost)} API-equivalent: {ORDER.map((m, i) => <>{i > 0 && ', '}{NAME(m)} {fmtUsd(costOf(m))}</>)}.
         A color answer is one turn and a median of {chatWall.toFixed(1)} seconds.
@@ -592,5 +651,14 @@ const quoteBest = of('best', 'haiku').find((t) => !answered(t))!;
   }
   h3 {
     margin-bottom: calc(var(--row) * 1);
+  }
+  /* A dated correction under a chapter that otherwise stays as published, as on the first story. */
+  .addendum {
+    border-top: 1px solid var(--hair);
+    padding-top: calc(var(--row) * 2);
+  }
+  .addendum .label {
+    display: block;
+    margin-bottom: calc(var(--row) * 0.75);
   }
 </style>
