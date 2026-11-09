@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="100"
+     height="100"
+     viewBox="0 0 100 100"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">Blank canvas</title>
+  <desc id="desc">An empty 100 by 100 SVG canvas with no drawn content.</desc>
+</svg>

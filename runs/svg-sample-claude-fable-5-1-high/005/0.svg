@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="256" height="256" viewBox="0 0 256 256"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Untitled graphic</title>
+  <desc id="desc">Placeholder graphic. Replace the contents of the "content" group with the final artwork.</desc>
+
+  <!-- Placeholder: a rounded frame with a centered circle. Replace with real content. -->
+  <g id="content" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round">
+    <rect x="16" y="16" width="224" height="224" rx="24"/>
+    <circle cx="128" cy="128" r="56"/>
+  </g>
+</svg>

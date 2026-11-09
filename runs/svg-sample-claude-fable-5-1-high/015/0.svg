@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="200" height="200" viewBox="0 0 200 200"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Placeholder</title>
+  <desc id="desc">A rounded square with a centered circle, used as a placeholder image.</desc>
+
+  <rect x="10" y="10" width="180" height="180" rx="16"
+        fill="#f3f4f6" stroke="#9ca3af" stroke-width="2"/>
+  <circle cx="100" cy="100" r="48" fill="#3b82f6"/>
+</svg>

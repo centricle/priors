@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="256" height="256"
+     viewBox="0 0 256 256"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">Placeholder graphic</title>
+  <desc id="desc">A rounded square with a centered circle, used as a neutral placeholder image.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3f4f6"/>
+      <stop offset="1" stop-color="#d1d5db"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="8" y="8" width="240" height="240" rx="24" ry="24"
+        fill="url(#bg)" stroke="#9ca3af" stroke-width="2"/>
+
+  <!-- Centered mark -->
+  <circle cx="128" cy="128" r="56" fill="#ffffff" stroke="#6b7280" stroke-width="4"/>
+  <circle cx="128" cy="128" r="20" fill="#6b7280"/>
+</svg>
