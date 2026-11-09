@@ -5,8 +5,8 @@ One WebP per artifact trial, `renders/<run>/NNN.webp`, made by
 viewport, prefers-color-scheme pinned to light, 2000 ms of virtual time, then
 `cwebp -q 80`.
 
-- Chrome: Google Chrome 154.0.8037.58
-- Rendered: 2026-09-29, 2026-10-04
+- Chrome: Google Chrome 157.0.8103.39
+- Rendered: 2026-09-29, 2026-10-04, 2026-11-09
 
 Renders only reproduce on the same Chrome build and fonts. Static pages render
 byte-identically. Animated pages can differ from one render to the next
