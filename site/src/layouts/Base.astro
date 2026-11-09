@@ -201,15 +201,17 @@ const favicon =
       gap: 8px;
     }
     .nav {
-      gap: 8px;
+      gap: 6px;
       font-size: var(--t-xs);
     }
     .wordmark {
       font-size: 1.1rem;
     }
   }
-  /* Six links do not fit beside the word at 360: keep the circle, which is the home link either way. */
-  @media (max-width: 379px) {
+  /* Seven links do not fit beside the word on a phone (at 390 they are 49px
+     short): keep the circle, which is the home link either way. At 360 the
+     6px gap is what makes them fit without it. */
+  @media (max-width: 439px) {
     .wordmark span {
       position: absolute;
       width: 1px;
