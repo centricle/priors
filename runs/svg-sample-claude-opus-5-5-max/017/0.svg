@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" role="img" aria-labelledby="title">
+  <title id="title">Dawn over a mountain lake</title>
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1e4f"/>
+      <stop offset=".25" stop-color="#4b3a7c"/>
+      <stop offset=".42" stop-color="#b45f8f"/>
+      <stop offset=".58" stop-color="#ef8f7d"/>
+      <stop offset=".72" stop-color="#ffc28f"/>
+      <stop offset="1" stop-color="#ffe2b0"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#ffeabf" stop-opacity=".8"/>
+      <stop offset=".3" stop-color="#ffeabf" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#ffeabf" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sun">
+      <stop offset=".6" stop-color="#fffbea"/>
+      <stop offset="1" stop-color="#ffd68a"/>
+    </radialGradient>
+    <radialGradient id="haze" cx="540" cy="280" r="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d48a98"/>
+      <stop offset="1" stop-color="#85527f"/>
+    </radialGradient>
+    <linearGradient id="mist" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd8c6" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffd8c6" stop-opacity=".35"/>
+    </linearGradient>
+    <linearGradient id="water" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a1b4f" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#140d2c" stop-opacity=".6"/>
+    </linearGradient>
+    <clipPath id="above">
+      <rect width="800" height="360"/>
+    </clipPath>
+    <path id="pine" d="M0 -100L8 -79 3 -82 13 -58 6 -61 18 -36 9 -39 24 -12 4 -14V0H-4V-14L-24 -12 -9 -39 -18 -36 -6 -61 -13 -58 -3 -82 -8 -79Z"/>
+  </defs>
+
+  <g id="scene" clip-path="url(#above)">
+    <rect width="800" height="360" fill="url(#sky)"/>
+    <g fill="#fff" opacity=".8">
+      <circle cx="64" cy="38" r="1.2"/>
+      <circle cx="132" cy="84" r=".8"/>
+      <circle cx="206" cy="26" r="1"/>
+      <circle cx="286" cy="62" r="1.4"/>
+      <circle cx="372" cy="22" r=".9"/>
+      <circle cx="452" cy="72" r="1.1"/>
+      <circle cx="518" cy="30" r=".8"/>
+      <circle cx="612" cy="52" r="1.3"/>
+      <circle cx="694" cy="96" r=".8"/>
+      <circle cx="748" cy="34" r="1.1"/>
+    </g>
+    <circle cx="540" cy="280" r="200" fill="url(#glow)"/>
+    <circle cx="540" cy="280" r="46" fill="url(#sun)"/>
+    <path fill="url(#haze)" d="M0 360V258L38 240 72 222 98 206 120 212 146 186 170 166 192 182 214 176 246 206 278 222 306 214 338 232 372 246 404 230 436 208 458 196 482 216 512 258 540 296 568 272 600 240 632 210 664 186 690 200 716 214 744 208 772 226 800 236V360Z"/>
+    <path fill="#5f3b6c" d="M0 360V292L30 280 62 262 90 248 112 256 136 240 164 258 196 272 226 266 258 284 292 298 330 306 366 300 402 312 440 322 480 326 520 330 560 326 598 316 630 302 660 288 690 272 712 262 736 270 762 284 800 290V360Z"/>
+    <path fill="#3b2753" d="M0 360V326C60 312 120 314 180 326S300 346 380 344 520 338 600 342 720 330 800 318V360Z"/>
+    <rect y="300" width="800" height="60" fill="url(#mist)"/>
+  </g>
+
+  <!-- the lake: the scene mirrored at the waterline, darkening with depth -->
+  <use href="#scene" transform="matrix(1 0 0 -1 0 720)"/>
+  <rect y="360" width="800" height="140" fill="url(#water)"/>
+  <g fill="none" stroke-linecap="round">
+    <path stroke="#fff" stroke-opacity=".1" d="M40 372H150M230 368H310M640 370H736M330 384H390M700 392H770M90 404H220M380 420H436M620 428H740M250 452H340M680 470H760M340 488H450"/>
+    <g stroke="#ffe2a8">
+      <path stroke-width="1.5" stroke-opacity=".7" d="M526 365H554M514 371H532M540 371H564M520 378H564"/>
+      <path stroke-width="2.5" stroke-opacity=".6" d="M506 388H532M542 388H572M516 399H568M500 411H534M546 411H582"/>
+      <path stroke-width="3.5" stroke-opacity=".5" d="M512 425H574M494 441H536M550 441H594M506 459H582M488 479H536M552 479H604"/>
+    </g>
+    <path stroke="#ffd9b8" stroke-opacity=".4" d="M0 360.5H800"/>
+  </g>
+
+  <g fill="#1a1230">
+    <path d="M0 500V430C50 424 104 428 150 442S232 478 268 500Z"/>
+    <use href="#pine" transform="translate(44 432) scale(2)"/>
+    <use href="#pine" transform="translate(102 438) scale(1.45)"/>
+    <use href="#pine" transform="translate(146 448)"/>
+  </g>
+  <path fill="none" stroke="#2b1f47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M372 176q6-6 12 0 6-6 12 0M400 162q4.5-5 9 0 4.5-5 9 0M420 182q3.5-4 7 0 3.5-4 7 0"/>
+</svg>

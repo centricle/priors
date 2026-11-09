@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="150" viewBox="0 0 440 150">
+  <rect width="440" height="150" fill="#fff"/>
+  <!-- A: ellipse -->
+  <svg x="10" y="10" width="96" height="96" viewBox="0 0 24 24">
+    <rect width="24" height="24" fill="#eee"/>
+    <ellipse cx="12" cy="12" rx="5" ry="9" fill="none" stroke="#111" stroke-width="2"/>
+  </svg>
+  <!-- B: stadium -->
+  <svg x="120" y="10" width="96" height="96" viewBox="0 0 24 24">
+    <rect width="24" height="24" fill="#eee"/>
+    <rect x="7" y="3" width="10" height="18" rx="5" fill="none" stroke="#111" stroke-width="2"/>
+  </svg>
+  <!-- C: superellipse k=.66, 10 wide -->
+  <svg x="230" y="10" width="96" height="96" viewBox="0 0 24 24">
+    <rect width="24" height="24" fill="#eee"/>
+    <path d="M12 3c3.3 0 5 3.06 5 9s-1.7 9-5 9-5-3.06-5-9 1.7-9 5-9z" fill="none" stroke="#111" stroke-width="2"/>
+  </svg>
+  <!-- D: superellipse k=.66, 11 wide -->
+  <svg x="340" y="10" width="96" height="96" viewBox="0 0 24 24">
+    <rect width="24" height="24" fill="#eee"/>
+    <path d="M12 3c3.63 0 5.5 3.06 5.5 9s-1.87 9-5.5 9-5.5-3.06-5.5-9 1.87-9 5.5-9z" fill="none" stroke="#111" stroke-width="2"/>
+  </svg>
+  <!-- actual size (24px) -->
+  <ellipse cx="58" cy="128" rx="5" ry="9" fill="none" stroke="#111" stroke-width="2"/>
+  <rect x="163" y="119" width="10" height="18" rx="5" fill="none" stroke="#111" stroke-width="2"/>
+  <path d="M278 119c3.3 0 5 3.06 5 9s-1.7 9-5 9-5-3.06-5-9 1.7-9 5-9z" fill="none" stroke="#111" stroke-width="2"/>
+  <path d="M388 119c3.63 0 5.5 3.06 5.5 9s-1.87 9-5.5 9-5.5-3.06-5.5-9 1.87-9 5.5-9z" fill="none" stroke="#111" stroke-width="2"/>
+</svg>
